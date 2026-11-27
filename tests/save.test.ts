@@ -49,7 +49,10 @@ describe('save round trip', () => {
     const text = JSON.stringify({ version: SAVE_VERSION, savedAt: T0, state: { copper: 5 } });
     const s = deserialize(text, T0);
     expect(s.copper).toBe(5);
-    expect(s.workers.scavenger).toBe(1);
+    expect(s.workers).toEqual({});
+    expect(s.chief).toBeNull();
+    expect(s.skills).toEqual([]);
+    expect(s.chronicle).toEqual([]);
     expect(s.settings.motion).toBe('normal');
     expect(s.upgrades).toEqual([]);
   });
@@ -64,6 +67,30 @@ describe('save round trip', () => {
     const s = deserialize(text, T0);
     expect(s.copper).toBe(0);
     expect(s.totalEarned).toBe(0);
+  });
+});
+
+describe('saves from before the Chief existed', () => {
+  it('load with no Chief, so the game asks for one, and keep their free kobold', () => {
+    const v1 = JSON.stringify({
+      version: 1,
+      savedAt: T0,
+      state: { copper: 50, totalEarned: 900, workers: { scavenger: 3 }, upgrades: [], stage: 0, lastTick: T0, createdAt: T0, settings: { motion: 'low' } },
+    });
+    const s = deserialize(v1, T0);
+    expect(s.chief).toBeNull();
+    expect(s.workers.scavenger).toBe(3);
+    expect(s.totalEarned).toBe(900);
+  });
+
+  it('round trips a Chief, skills and chronicle, and cleans a bad Chief', () => {
+    const s = newGame(T0);
+    s.chief = { name: 'Snik', cunning: 1, voice: 2, nerve: 3, quirk: 'packmule' };
+    s.skills = ['crack-the-whip'];
+    s.chronicle = [{ t: T0, text: 'Snik found an egg.' }];
+    expect(deserialize(serialize(s, T0), T0)).toEqual(s);
+    const bad = JSON.stringify({ version: SAVE_VERSION, savedAt: T0, state: { chief: { name: '   ' } } });
+    expect(deserialize(bad, T0).chief).toBeNull();
   });
 });
 

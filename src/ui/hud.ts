@@ -14,15 +14,7 @@ import {
 } from '../game/economy';
 import type { GameState } from '../game/state';
 import { formatNumber } from './format';
-
-const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
-
-function setText(el: HTMLElement, text: string) {
-  if (el.textContent !== text) el.textContent = text;
-}
-function setDisabled(el: HTMLButtonElement, v: boolean) {
-  if (el.disabled !== v) el.disabled = v;
-}
+import { $, setDisabled, setText } from './dom';
 
 export class Hud {
   private copper = $('#copper');
@@ -30,7 +22,6 @@ export class Hud {
   private stageName = $('#stage-name');
   private stageBar = $<HTMLDivElement>('#stage-bar > div');
   private stageText = $('#stage-text');
-  private message = $('#message');
   private workerList = $('#workers');
   private upgradeList = $('#upgrades');
   private workerKey = '';
@@ -40,12 +31,8 @@ export class Hud {
 
   constructor(
     private getState: () => GameState,
-    private onChange: () => void,
+    private onChange: (kind: 'hire' | 'upgrade', id: string) => void,
   ) {}
-
-  say(text: string) {
-    setText(this.message, text);
-  }
 
   update() {
     const s = this.getState();
@@ -84,7 +71,7 @@ export class Hud {
         li.querySelector('.desc')!.textContent = def.description;
         const btn = li.querySelector('button')!;
         btn.addEventListener('click', () => {
-          if (hire(this.getState(), def.id)) this.onChange();
+          if (hire(this.getState(), def.id)) this.onChange('hire', def.id);
         });
         this.rows.set(def.id, { count: li.querySelector('.count')!, rate: li.querySelector('.sub')!, btn });
         this.workerList.append(li);
@@ -101,7 +88,7 @@ export class Hud {
     for (const def of unlocked) {
       const row = this.rows.get(def.id)!;
       const n = owned(s, def.id);
-      const cost = workerCost(def, n);
+      const cost = workerCost(s, def);
       setText(row.count, `×${n}`);
       setText(row.rate, n > 0 ? `${formatNumber(workerRate(s, def))} / s` : `${formatNumber(def.rate)} / s each`);
       setText(row.btn, `Hire · ${formatNumber(cost)}`);
@@ -125,7 +112,7 @@ export class Hud {
         const btn = li.querySelector('button')!;
         btn.textContent = `Buy · ${formatNumber(u.cost)}`;
         btn.addEventListener('click', () => {
-          if (buyUpgrade(this.getState(), u.id)) this.onChange();
+          if (buyUpgrade(this.getState(), u.id)) this.onChange('upgrade', u.id);
         });
         this.upRows.set(u.id, btn);
         this.upgradeList.append(li);

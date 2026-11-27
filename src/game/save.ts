@@ -9,7 +9,8 @@
 // Adding a new optional field or a new worker does NOT need a migration;
 // `normalize` fills in defaults.
 
-import { newGame, type GameState } from './state';
+import { QUIRKS, type Chief } from './chief';
+import { CHRONICLE_MAX, newGame, type ChronicleEntry, type GameState } from './state';
 
 export const SAVE_VERSION = 1;
 export const SAVE_KEY = 'idle-hoard.save';
@@ -74,6 +75,27 @@ export function migrate(
 }
 
 const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : d);
+const strList = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+
+function normalizeChief(c: any): Chief | null {
+  if (!c || typeof c !== 'object' || typeof c.name !== 'string' || !c.name.trim()) return null;
+  return {
+    name: c.name.trim().slice(0, 24),
+    cunning: Math.floor(num(c.cunning, 1)),
+    voice: Math.floor(num(c.voice, 1)),
+    nerve: Math.floor(num(c.nerve, 1)),
+    // an unknown quirk (from a newer version) is kept; it simply has no effect here
+    quirk: typeof c.quirk === 'string' ? c.quirk : QUIRKS[0].id,
+  };
+}
+
+function normalizeChronicle(v: unknown): ChronicleEntry[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter((e) => e && typeof e.text === 'string')
+    .map((e) => ({ t: num(e.t, 0), text: String(e.text) }))
+    .slice(-CHRONICLE_MAX);
+}
 
 /** Fill in defaults and drop junk, so small shape changes need no migration. */
 export function normalize(raw: unknown, now: number): GameState {
@@ -87,13 +109,16 @@ export function normalize(raw: unknown, now: number): GameState {
     copper: num(r.copper, base.copper),
     totalEarned: num(r.totalEarned, base.totalEarned),
     workers: r.workers ? workers : base.workers,
-    upgrades: Array.isArray(r.upgrades) ? r.upgrades.filter((x: unknown) => typeof x === 'string') : [],
+    upgrades: strList(r.upgrades),
     stage: Math.floor(num(r.stage, 0)),
     lastTick: num(r.lastTick, now),
     createdAt: num(r.createdAt, now),
     settings: {
       motion: r.settings?.motion === 'low' ? 'low' : 'normal',
     },
+    chief: normalizeChief(r.chief),
+    skills: strList(r.skills),
+    chronicle: normalizeChronicle(r.chronicle),
   };
 }
 

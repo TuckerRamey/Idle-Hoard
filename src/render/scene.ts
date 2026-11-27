@@ -22,6 +22,9 @@ const HOARD_X = 160; // centre of the hoard
 const HOARD_BOTTOM = 137;
 const TUNNEL_X = 18;
 const LANE_Y = [110, 118, 126];
+const CHIEF_Y = 114;
+/** The Chief hauls a little slower than a scavenger: they keep stopping to admire the egg. */
+const CHIEF_SPEED = 14;
 
 /** How often the scene can change, in ms. Low motion steps once a second. */
 export function stepMs(motion: MotionSetting): number {
@@ -81,6 +84,24 @@ export function buildScene(state: GameState, nowMs: number): DrawOp[] {
     }
     const sink = state.stage === 0 ? 5 : Math.round(sp.frameH * 0.12); // buried a little in the coins
     ops.push({ sprite: stage.sprite, anim, frame, x: Math.round(HOARD_X - sp.frameW / 2), y: pileTop - sp.frameH + sink });
+  }
+
+  // The Chief hauls copper alone while it's still an egg, then stands by the hoard giving orders.
+  if (state.chief) {
+    const sprite = 'kobold-chief';
+    const fw = SPRITES[sprite]?.frameW ?? 12;
+    if (state.stage === 0) {
+      const from = TUNNEL_X, to = HOARD_X - rx - fw + 4;
+      const dist = Math.max(to - from, 1);
+      const cycle = ((2 * dist) / CHIEF_SPEED) * 1000;
+      const p = (t % cycle) / cycle;
+      const outbound = p < 0.5;
+      const x = outbound ? from + dist * (p * 2) : to - dist * ((p - 0.5) * 2);
+      const anim = outbound ? 'carry' : 'walk';
+      ops.push({ sprite, anim, frame: frameAt(sprite, anim, t), x: Math.round(x), y: CHIEF_Y, flip: !outbound });
+    } else {
+      ops.push({ sprite, anim: 'direct', frame: frameAt(sprite, 'direct', t), x: Math.round(HOARD_X - rx - fw - 6), y: CHIEF_Y });
+    }
   }
 
   // Haulers walk between the tunnel and the hoard.

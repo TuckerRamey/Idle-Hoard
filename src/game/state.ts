@@ -1,3 +1,4 @@
+import type { Chief } from './chief';
 import { CONFIG } from './data';
 
 export type MotionSetting = 'normal' | 'low';
@@ -6,6 +7,15 @@ export interface Settings {
   /** 'low' animates at about 1 frame per second, for very quiet side screens. */
   motion: MotionSetting;
 }
+
+export interface ChronicleEntry {
+  /** Epoch ms. */
+  t: number;
+  text: string;
+}
+
+/** Most chronicle entries kept in the save. */
+export const CHRONICLE_MAX = 40;
 
 /** Everything that is saved. Keep it plain JSON. */
 export interface GameState {
@@ -23,6 +33,12 @@ export interface GameState {
   lastTick: number;
   createdAt: number;
   settings: Settings;
+  /** null until the player has named their Chief. */
+  chief: Chief | null;
+  /** Ids of learned Chief skills. */
+  skills: string[];
+  /** Newest last. */
+  chronicle: ChronicleEntry[];
 }
 
 export function newGame(now: number): GameState {
@@ -35,5 +51,13 @@ export function newGame(now: number): GameState {
     lastTick: now,
     createdAt: now,
     settings: { motion: 'normal' },
+    chief: null,
+    skills: [],
+    chronicle: [],
   };
+}
+
+export function addChronicle(state: GameState, t: number, text: string) {
+  state.chronicle.push({ t, text });
+  if (state.chronicle.length > CHRONICLE_MAX) state.chronicle.splice(0, state.chronicle.length - CHRONICLE_MAX);
 }

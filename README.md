@@ -31,7 +31,7 @@ npm run build      # production build into dist/
 
 Things worth checking by hand when reviewing a change:
 
-1. Start a new game (Settings and save > Start over). The egg and one kobold should appear.
+1. Start a new game (Settings and save > Start over). Name a Chief, and they should start hauling copper to the egg.
 2. Close the tab, wait a few minutes, reopen. A "while you were away" note should credit the time.
 3. Switch to another tab and back. Nothing should run while hidden (with `?debug`, the draw count stays still).
 4. Settings > Copy save, Start over, paste it back and Load pasted save. Progress should return.
@@ -55,6 +55,14 @@ When you change the shape of the saved state (`src/game/state.ts`):
 Before a migrated save is used, the original text is copied to `idle-hoard.save.backup`. A save that can't be read at all (corrupt, or from a newer version of the game) is copied to `idle-hoard.save.unreadable` before a new game starts, so it's never lost.
 
 Players can export a save as text (or a file) from **Settings and save** and import it again.
+
+## The Chief
+
+A new game starts by naming the Chief, the kobold who found the egg. Their stats (Cunning, Voice, Nerve) always add up to the same total and come with one quirk, so a reroll changes direction, not strength. The Chief hauls copper alone until the egg hatches, then stands by the hoard giving orders.
+
+The Chief earns skill points from renown (lifetime copper, boosted by Cunning) and one per dragon stage. The Taskmaster branch is in; Schemer, Dragon-tender and Tinkerer come later. Stats, quirks and skills are data in `src/game/chief.ts`.
+
+The chronicle under the cave scene is a short story log. Silly happenings (`src/game/happenings.ts`) turn up about every 10 minutes while the game is open, and once after a long absence. Kobolds always come out of them fine, and some bring a little copper.
 
 ## Adding content
 
@@ -102,9 +110,10 @@ Not built yet, but the code is set up so neither needs a rewrite:
 
 ```
 src/
-  game/       data.ts (content), state.ts, economy.ts (tick, costs), save.ts (versioned saves)
+  game/       data.ts (content), chief.ts (stats, quirks, skills), happenings.ts,
+              state.ts, economy.ts (tick, costs, renown), save.ts (versioned saves)
   render/     manifest.ts (sprite sheets), scene.ts (what to draw), renderer.ts (canvas + scheduling)
-  ui/         hud.ts (side panel), format.ts
+  ui/         hud.ts (kobolds, upgrades), chief-panel.ts, chronicle.ts, format.ts
   assets/art/ sprite sheets
 scripts/      gen-placeholder-art.mjs
 tests/        vitest unit tests

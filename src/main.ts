@@ -1,11 +1,16 @@
 import './style.css';
-import { CONFIG, DRAGON_STAGES } from './game/data';
-import { advanceTo } from './game/economy';
+import { SKILLS, type Chief } from './game/chief';
+import { CONFIG, DRAGON_STAGES, UPGRADES, WORKERS } from './game/data';
+import { advanceTo, offlineCap, stageFor } from './game/economy';
+import { happen, happeningChance } from './game/happenings';
 import { browserStore, exportSave, importSave, load, write } from './game/save';
-import { newGame, type GameState } from './game/state';
+import { addChronicle, newGame, type GameState } from './game/state';
 import { Renderer } from './render/renderer';
-import { Hud } from './ui/hud';
+import { ChiefPanel } from './ui/chief-panel';
+import { ChronicleView } from './ui/chronicle';
+import { confirmTap } from './ui/dom';
 import { formatDuration, formatNumber } from './ui/format';
+import { Hud } from './ui/hud';
 
 const TICK_MS = 1000;
 const AUTOSAVE_MS = 60_000;
@@ -15,50 +20,110 @@ const loaded = load(store, Date.now());
 let state: GameState = loaded.state;
 const getState = () => state;
 
-const hud = new Hud(getState, () => {
-  hud.update();
-  renderer.invalidate();
+const chiefName = () => state.chief?.name ?? 'The Chief';
+/** Add a line to the chronicle. */
+function tell(text: string) {
+  addChronicle(state, Date.now(), text.replaceAll('{chief}', chiefName()));
+}
+
+const hud = new Hud(getState, (kind, id) => {
+  if (kind === 'hire') {
+    const def = WORKERS.find((w) => w.id === id);
+    if (def && state.workers[id] === 1) tell(def.joinText);
+  } else {
+    const u = UPGRADES.find((x) => x.id === id);
+    if (u) tell(`{chief} ordered ${u.name.toLowerCase()} for the warren.`);
+  }
+  refresh();
 });
+const chiefPanel = new ChiefPanel(
+  getState,
+  (skillId) => {
+    const sk = SKILLS.find((x) => x.id === skillId);
+    if (sk) tell(`{chief} learned ${sk.name}.`);
+    refresh();
+    save();
+  },
+  (chief) => foundChief(chief),
+);
+const chronicle = new ChronicleView(getState);
 const renderer = new Renderer(document.querySelector('#scene') as HTMLCanvasElement, getState);
+
+function refresh() {
+  hud.update();
+  chiefPanel.update();
+  chronicle.update(Date.now());
+  renderer.invalidate();
+}
 
 function save() {
   write(store, state, Date.now());
 }
 
-// ---------- opening message + offline progress ----------
-if (loaded.kind === 'new') {
-  hud.say(DRAGON_STAGES[0].flavor);
-} else if (loaded.kind === 'error') {
-  hud.say(`Your old save couldn't be read (${loaded.error}). It was kept as a backup and a new game started.`);
-} else {
-  hud.say(loaded.migratedFrom ? `Save updated from version ${loaded.migratedFrom}. A backup of the old one was kept.` : 'Welcome back.');
+function foundChief(chief: Chief) {
+  state.chief = chief;
+  // a brand new game starts ticking from the moment the Chief exists
+  if (state.totalEarned === 0) {
+    state.lastTick = Date.now();
+    tell('{chief} found a warm egg in the dark and began burying it in copper, hoping to hatch it.');
+  } else {
+    tell('{chief} took charge of the warren.');
+  }
+  save();
+  refresh();
+}
+
+// ---------- opening + offline progress ----------
+if (loaded.kind === 'error') {
+  tell(`Your old save couldn't be read (${loaded.error}). It was kept as a backup and a new game started.`);
+} else if (loaded.kind === 'loaded' && loaded.migratedFrom) {
+  tell(`Save updated from version ${loaded.migratedFrom}. A backup of the old one was kept.`);
 }
 creditTime(true);
 
-/** Credit all time since the last tick. Shows a note after a long absence. */
+/** Credit all time since the last tick. Adds a chronicle line after a long absence. */
 function creditTime(isReturn: boolean) {
   const r = advanceTo(state, Date.now());
-  if (r.newStage !== null) hud.say(DRAGON_STAGES[r.newStage].flavor);
-  else if (isReturn && r.credited >= CONFIG.awayNoticeSeconds && r.gained > 0) {
-    const capped = r.elapsed > r.credited ? ` (progress is capped at ${formatDuration(CONFIG.offlineCapSeconds)})` : '';
-    hud.say(`While you were away for ${formatDuration(r.elapsed)}, your kobolds buried ${formatNumber(r.gained)} copper${capped}.`);
+  if (isReturn && r.credited >= CONFIG.awayNoticeSeconds && r.gained > 0) {
+    const capped = r.elapsed > r.credited ? ` Only the first ${formatDuration(offlineCap(state))} counted.` : '';
+    tell(`While you were away for ${formatDuration(r.elapsed)}, the warren buried ${formatNumber(r.gained)} copper.${capped}`);
+    // something silly probably happened while you were gone
+    if (r.credited >= 30 * 60) maybeHappen();
   }
-  if (r.newStage !== null) renderer.invalidate();
+  if (r.newStage !== null) {
+    tell(DRAGON_STAGES[r.newStage].flavor);
+    renderer.invalidate();
+  }
+}
+
+/** A silly happening; a reward can tip the dragon into its next stage. */
+function maybeHappen() {
+  if (!happen(state, Date.now(), Math.random)) return;
+  const s = stageFor(state.totalEarned);
+  if (s > state.stage) {
+    state.stage = s;
+    tell(DRAGON_STAGES[s].flavor);
+  }
+  renderer.invalidate();
 }
 
 // ---------- loops: run only while visible ----------
 let tickTimer: number | undefined;
 let saveTimer: number | undefined;
 
+function tickOnce() {
+  creditTime(false);
+  if (Math.random() < happeningChance(TICK_MS / 1000)) maybeHappen();
+  hud.update();
+  chiefPanel.update();
+  chronicle.update(Date.now());
+}
+
 function resume() {
   creditTime(true);
-  hud.update();
+  refresh();
   renderer.start();
-  if (tickTimer === undefined)
-    tickTimer = window.setInterval(() => {
-      creditTime(false);
-      hud.update();
-    }, TICK_MS);
+  if (tickTimer === undefined) tickTimer = window.setInterval(tickOnce, TICK_MS);
   if (saveTimer === undefined) saveTimer = window.setInterval(save, AUTOSAVE_MS);
 }
 
@@ -77,7 +142,7 @@ window.addEventListener('pagehide', () => {
   save();
 });
 if (!document.hidden) resume();
-else hud.update();
+else refresh();
 
 // ---------- settings ----------
 const motionBtn = document.querySelector('#motion') as HTMLButtonElement;
@@ -95,27 +160,7 @@ motionBtn.addEventListener('click', () => {
 
 const saveText = document.querySelector('#save-text') as HTMLTextAreaElement;
 
-/**
- * Two-tap confirm built into the button itself (no confirm() dialog, which
- * some embedded browsers and webviews block). Returns true on the second tap.
- */
-function confirmTap(btn: HTMLButtonElement, prompt: string): boolean {
-  if (btn.dataset.armed === '1') {
-    delete btn.dataset.armed;
-    btn.textContent = btn.dataset.label ?? btn.textContent;
-    return true;
-  }
-  btn.dataset.label ??= btn.textContent ?? '';
-  btn.dataset.armed = '1';
-  btn.textContent = prompt;
-  setTimeout(() => {
-    if (btn.dataset.armed === '1') {
-      delete btn.dataset.armed;
-      btn.textContent = btn.dataset.label ?? '';
-    }
-  }, 4000);
-  return false;
-}
+
 const saveStatus = document.querySelector('#save-status') as HTMLElement;
 
 document.querySelector('#export')!.addEventListener('click', async () => {
@@ -149,8 +194,7 @@ function applyImport(text: string) {
     creditTime(true);
     save();
     showMotion();
-    hud.update();
-    renderer.invalidate();
+    refresh();
     saveStatus.textContent = 'Save loaded.';
   } catch (e) {
     saveStatus.textContent = `Couldn't load that save: ${(e as Error).message}`;
@@ -177,9 +221,7 @@ resetBtn.addEventListener('click', () => {
   state = newGame(Date.now());
   state.settings.motion = motion;
   save();
-  hud.say(DRAGON_STAGES[0].flavor);
-  hud.update();
-  renderer.invalidate();
+  refresh();
 });
 
 // ---------- debug readout: add ?debug to the URL ----------
@@ -192,5 +234,5 @@ if (new URLSearchParams(location.search).has('debug')) {
     last = renderer.draws;
   }, 5000);
   // handy in the console: hoard.state, hoard.save()
-  (window as any).hoard = { get state() { return state; }, save, skip: (s: number) => { state.lastTick -= s * 1000; creditTime(true); hud.update(); } };
+  (window as any).hoard = { get state() { return state; }, save, skip: (s: number) => { state.lastTick -= s * 1000; creditTime(true); refresh(); } };
 }
