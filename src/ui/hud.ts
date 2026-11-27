@@ -1,7 +1,8 @@
 // The DOM side panel. Updated once per economy tick, and only the bits of
 // text that changed are written, so it costs next to nothing.
 
-import { CREW, DRAGON_STAGES, IDLE, JOBS, RESOURCES, ROOMS, UPGRADES, type ResourceId, type UpgradeDef } from '../game/data';
+import { toolSummary } from '../game/forge';
+import { CREW, DIG, DRAGON_STAGES, IDLE, JOBS, RESOURCES, ROOMS, UPGRADES, type ResourceId, type UpgradeDef } from '../game/data';
 import { animalsOpen, setHerd } from '../game/dragon';
 import {
   appeal,
@@ -13,7 +14,6 @@ import {
   crew,
   digBlocked,
   digRate,
-  digWork,
   flows,
   herdersFit,
   incomePerSecond,
@@ -27,11 +27,11 @@ import {
   resourceDef,
   resourceOpen,
   roomCapacity,
-  roomExtent,
+  roomVolume,
   roomOpen,
   setDigging,
   setRecipe,
-  storehouseGoods,
+  storeGoods,
   supportsFor,
   upgradeVisible,
   veteranBonus,
@@ -91,6 +91,7 @@ interface JobRow {
   li: HTMLLIElement;
   count: HTMLElement;
   vet: HTMLElement;
+  tools: HTMLElement;
   rate: HTMLElement;
   hint: HTMLElement;
   down: HTMLButtonElement;
@@ -111,7 +112,8 @@ export class Hud {
   private jobRows = new Map<string, JobRow>();
   private idleCount!: HTMLElement;
   private newcomerSelect!: HTMLSelectElement;
-  private roomRows = new Map<string, { li: HTMLLIElement; size: HTMLElement; holds: HTMLElement; bar: HTMLElement; barWrap: HTMLElement; dig: HTMLElement; btn: HTMLButtonElement }>();
+  private roomRows = new Map<string, { li: HTMLLIElement; size: HTMLElement; holds: HTMLElement; dig: HTMLElement; btn: HTMLButtonElement }>();
+  private groupHeads = new Map<string, HTMLElement>();
   private upgradeKey = '';
   private upRows = new Map<string, HTMLButtonElement>();
 
@@ -164,7 +166,7 @@ export class Hud {
 
     for (const def of JOBS) {
       const li = row(
-        `<div class="row-main"><b></b> <span class="count"></span> <span class="vet"></span><div class="desc"></div><div class="sub"></div><div class="hint"></div></div><div class="job-buttons"><button type="button" class="small down">−</button><button type="button" class="small up">+</button></div>`,
+        `<div class="row-main"><b></b> <span class="count"></span> <span class="vet"></span><div class="desc"></div><div class="sub"></div><div class="desc tools"></div><div class="hint"></div></div><div class="job-buttons"><button type="button" class="small down">−</button><button type="button" class="small up">+</button></div>`,
       );
       li.querySelector('b')!.textContent = def.name;
       li.querySelector('.desc')!.textContent = def.description;
@@ -172,7 +174,7 @@ export class Hud {
       const up = li.querySelector<HTMLButtonElement>('.up')!;
       down.addEventListener('click', () => this.move(def.id, -1));
       up.addEventListener('click', () => this.move(def.id, 1));
-      const r: JobRow = { li, count: li.querySelector('.count')!, vet: li.querySelector('.vet')!, rate: li.querySelector('.sub')!, hint: li.querySelector('.hint')!, down, up };
+      const r: JobRow = { li, count: li.querySelector('.count')!, vet: li.querySelector('.vet')!, rate: li.querySelector('.sub')!, tools: li.querySelector('.tools')!, hint: li.querySelector('.hint')!, down, up };
       if (def.id === 'herder' || def.id === 'alchemist') {
         const wrap = document.createElement('div');
         wrap.className = 'desc newcomers';
@@ -204,28 +206,28 @@ export class Hud {
 
   private buildRooms() {
     const list = $('#rooms');
-    for (const def of ROOMS) {
-      const li = row(
-        `<div class="row-main"><b></b> <span class="count size"></span><div class="desc"></div><div class="sub holds"></div><div class="bar dig-bar"><div></div></div><div class="desc dig"></div></div><button type="button"></button>`,
-      );
-      li.querySelector('b')!.textContent = def.name;
-      li.querySelector('.desc')!.textContent = def.description;
-      const btn = li.querySelector('button')!;
-      btn.addEventListener('click', () => {
-        const s = this.getState();
-        const next = s.digging === def.id ? null : def.id;
-        if (setDigging(s, next)) this.onChange({ kind: 'dig', room: next });
-      });
-      this.roomRows.set(def.id, {
-        li,
-        size: li.querySelector('.size')!,
-        holds: li.querySelector('.holds')!,
-        barWrap: li.querySelector('.dig-bar')!,
-        bar: li.querySelector('.dig-bar > div')!,
-        dig: li.querySelector('.dig')!,
-        btn,
-      });
-      list.append(li);
+    const groups = { living: 'Living', work: 'Work', stores: 'Stores' } as const;
+    for (const [g, title] of Object.entries(groups)) {
+      const head = document.createElement('li');
+      head.className = 'room-group';
+      head.textContent = title;
+      list.append(head);
+      this.groupHeads.set(g, head);
+      for (const def of ROOMS.filter((r) => r.group === g)) {
+        const li = row(
+          `<div class="row-main"><b></b> <span class="count size"></span><div class="desc"></div><div class="sub holds"></div><div class="desc dig"></div></div><button type="button"></button>`,
+        );
+        li.querySelector('b')!.textContent = def.name;
+        li.querySelector('.desc')!.textContent = def.description;
+        const btn = li.querySelector('button')!;
+        btn.addEventListener('click', () => {
+          const s = this.getState();
+          const next = s.digging === def.id ? null : def.id;
+          if (setDigging(s, next)) this.onChange({ kind: 'dig', room: next });
+        });
+        this.roomRows.set(def.id, { li, size: li.querySelector('.size')!, holds: li.querySelector('.holds')!, dig: li.querySelector('.dig')!, btn });
+        list.append(li);
+      }
     }
   }
 
@@ -304,7 +306,8 @@ export class Hud {
       setText(row.vet, c.n > 0 ? (vet === 'new crew' ? 'New crew' : `${vet} +${bonus}%`) : '');
       row.vet.title = c.n > 0 ? `Experience: a crew gets better the longer it works the same job, up to +${Math.round(CREW.maxBonus * 100)}%. This crew is at +${bonus}%.` : '';
       const each = perKobold(s, def);
-      const what = def.produces ? resName(def.produces.resource) : def.digs ? 'digging' : def.researches ? 'research' : 'turned over';
+      const what = def.produces ? resName(def.produces.resource) : def.digs ? 'digging' : def.researches ? 'research' : def.smiths ? 'forge work' : 'turned over';
+      setText(row.tools, toolSummary(s, def.id));
       const total = jobOutput(s, def);
       setText(row.rate, workers(s, def.id) > 0 ? `${formatNumber(total)} ${what} / s (${formatNumber(each)} each)` : `${formatNumber(each)} ${what} / s each`);
       setText(row.hint, hints[def.id] ?? '');
@@ -324,45 +327,46 @@ export class Hud {
   }
 
   private updateRooms(s: GameState) {
-    const rate = digRate(s);
+    const paces = digRate(s) / DIG.workPerPace;
     const blocked = digBlocked(s);
     const f = flows(s);
+    const shown = new Set<string>();
     for (const def of ROOMS) {
       const row = this.roomRows.get(def.id)!;
       setHidden(row.li, !roomOpen(s, def));
       if (row.li.hidden) continue;
-      const room = s.rooms[def.id] ?? { size: 1, progress: 0 };
-      const ext = roomExtent(s, def.id);
-      setText(row.size, `size ${ext < room.size + 0.05 ? room.size : ext.toFixed(1)}`);
+      shown.add(def.group);
+      const vol = roomVolume(s, def.id);
+      setText(row.size, `${formatNumber(vol)} cubic paces`);
       const cap = roomCapacity(s, def);
       let holds: string;
-      if (def.holds === 'copper') holds = `Holds ${formatNumber(cap)} copper`;
-      else if (def.holds === 'beds') holds = `${cap} beds, ${population(s)} taken`;
+      if (def.holds === 'beds') holds = `${cap} beds, ${population(s)} taken`;
       else if (def.holds === 'herders') holds = `Fits ${cap} herders, ${workers(s, 'herder')} working`;
+      else if (def.holds === 'smiths') holds = `Fits ${cap} blacksmiths, ${workers(s, 'blacksmith')} working`;
       else if (def.holds === 'dragon') holds = s.stage === 0 ? 'Waiting for the dragon to hatch' : `The dragon grows into it`;
       else {
-        const goods = storehouseGoods(s);
-        holds = `Holds ${formatNumber(cap)}: ${formatNumber(f[goods[0].id].cap)} each of ${goods.map((g) => resName(g.id)).join(', ')}`;
+        const goods = storeGoods(s, def.id);
+        holds = goods.length ? `Holds ${goods.map((g) => `${formatNumber(f[g.id].cap)} ${resName(g.id)}`).join(', ')}` : '';
       }
       setText(row.holds, holds);
 
       const digging = s.digging === def.id;
-      const toSize = room.size + 1;
-      const need = digWork(def, toSize);
-      setHidden(row.barWrap, !digging && room.progress === 0);
-      row.bar.style.width = `${Math.min(100, (room.progress / need) * 100).toFixed(1)}%`;
-      const supports = supportsFor(toSize, s);
-      const uses = supports.length ? ` Uses ${supports.map((x) => `${formatNumber(x.perWork)} ${resName(x.resource)}`).join(' and ')} per dig to hold the ceiling up.` : '';
+      const supports = supportsFor(vol, s);
+      const uses = supports.length ? ` Uses ${supports.map((x) => `${formatNumber(x.perPace)} ${resName(x.resource)}`).join(' and ')} per cubic pace to hold the ceiling up.` : '';
+      const nextTier = DIG.supports.find((x) => x.fromPaces > vol);
+      const later = nextTier ? ` From ${formatNumber(nextTier.fromPaces)} paces it also needs ${resName(nextTier.resource)}.` : '';
       let dig = '';
       if (digging) {
-        if (blocked) dig = `Stalled: out of ${resName(blocked)}.${resourceOpen(s, blocked) ? '' : ' It has to be researched first.'}${uses}`;
-        else if (rate <= 0) dig = `Waiting for diggers.${uses}`;
-        else dig = `Growing as it's dug. Size ${toSize} in about ${formatDuration((need - room.progress) / rate)}.${uses}`;
+        if (blocked === 'full') dig = `As big as it can be dug for now.`;
+        else if (blocked) dig = `Stalled: out of ${resName(blocked)}.${resourceOpen(s, blocked) ? '' : ' It has to be researched first.'}${uses}`;
+        else if (paces <= 0) dig = `Waiting for diggers.${uses}${later}`;
+        else dig = `Growing by about ${formatNumber(paces * 3600)} cubic paces an hour.${uses}${later}`;
       }
       setText(row.dig, dig);
       row.dig.classList.toggle('warn', digging && !!blocked);
       setText(row.btn, digging ? 'Stop digging' : 'Dig here');
     }
+    for (const [g, head] of this.groupHeads) setHidden(head, !shown.has(g));
   }
 
   private updateUpgrades(s: GameState) {

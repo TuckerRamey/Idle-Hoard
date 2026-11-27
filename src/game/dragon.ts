@@ -3,7 +3,7 @@
 // how the warren looks after it, not from a number filling up.
 
 import { DRAGON_STAGES, type ResourceId } from './data';
-import { capacity, production, resourceOpen, roomExtent, workers } from './economy';
+import { capacity, production, resourceOpen, roomVolume, workers } from './economy';
 import { fullName, GIFTS, lieutenants, nameKobold, findNamed, addHistory, type NamedKobold } from './kobolds';
 import { opened, researchEffect } from './research';
 import type { GameState } from './state';
@@ -95,7 +95,7 @@ export const REQUESTS: RequestDef[] = [
   { resource: 'copper', seconds: 1_800, min: 200, text: 'The dragon wants more shiny things. It keeps pushing coins around and sighing.' },
   { resource: 'wood', seconds: 1_800, min: 50, text: 'The dragon wants something to scratch its back on.' },
   { resource: 'stone', seconds: 1_800, min: 50, text: 'The dragon wants a nice flat stone to sleep on.' },
-  { resource: 'iron', seconds: 2_400, min: 10, text: 'The dragon wants something to chew. Something metal.' },
+  { resource: 'bars', seconds: 2_400, min: 10, text: 'The dragon wants something to chew. Something metal.' },
   { resource: 'meat', seconds: 1_200, min: 10, text: 'The dragon wants something crunchy, right now, please.' },
 ];
 
@@ -182,8 +182,8 @@ export interface MoltDef {
 }
 
 export const MOLTS: MoltDef[] = [
-  { from: 1, lair: 3, displays: 2, granted: 2, contentHours: 12, lieutenants: 0 },
-  { from: 2, lair: 6, displays: 4, granted: 4, contentHours: 24, lieutenants: 1 },
+  { from: 1, lair: 1_000, displays: 2, granted: 2, contentHours: 12, lieutenants: 0 },
+  { from: 2, lair: 3_000, displays: 4, granted: 4, contentHours: 24, lieutenants: 1 },
 ];
 
 /** A trait the dragon gets at a molt, from what it ate most. */
@@ -208,9 +208,9 @@ export interface MoltNeed {
 export function moltNeeds(state: GameState): MoltNeed[] | null {
   const m = MOLTS.find((x) => x.from === state.stage);
   if (!m) return null;
-  const lair = roomExtent(state, 'lair');
+  const lair = roomVolume(state, 'lair');
   const needs: MoltNeed[] = [
-    { label: `Lair dug to size ${m.lair}`, have: Math.floor(lair * 10) / 10, need: m.lair, met: lair >= m.lair },
+    { label: `Lair dug to ${m.lair} cubic paces`, have: Math.floor(lair), need: m.lair, met: lair >= m.lair },
     { label: `${m.displays} displays in the hoard room`, have: displaysOwned(state), need: m.displays, met: displaysOwned(state) >= m.displays },
     { label: `${m.granted} of its requests granted`, have: state.dragon.granted, need: m.granted, met: state.dragon.granted >= m.granted },
     {

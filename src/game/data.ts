@@ -3,23 +3,27 @@
 // src/render/manifest.ts if it needs a new sprite).
 
 export type SpriteId = string;
-export type ResourceId = 'copper' | 'wood' | 'stone' | 'iron' | 'meat';
+export type ResourceId = 'copper' | 'wood' | 'stone' | 'ore' | 'bars' | 'steel' | 'meat';
 
 export interface ResourceDef {
   id: ResourceId;
   name: string;
-  /** Which room holds it: the hoard room, or a share of the storehouse. */
-  store: 'hoard' | 'storehouse';
+  /** The room that holds it. Goods sharing a room split its space evenly. */
+  store: string;
+  /** How many fit in one cubic pace. */
+  perPace: number;
   /** Research that uncovers it. A new game knows only copper, wood and stone. */
   requires?: string;
 }
 
 export const RESOURCES: ResourceDef[] = [
-  { id: 'copper', name: 'Copper', store: 'hoard' },
-  { id: 'wood', name: 'Mushroom wood', store: 'storehouse' },
-  { id: 'stone', name: 'Stone', store: 'storehouse' },
-  { id: 'iron', name: 'Iron', store: 'storehouse', requires: 'ore-sniffing' },
-  { id: 'meat', name: 'Meat', store: 'storehouse', requires: 'crab-wrangling' },
+  { id: 'copper', name: 'Copper', store: 'hoard', perPace: 200 },
+  { id: 'wood', name: 'Mushroom wood', store: 'woodpile', perPace: 40 },
+  { id: 'stone', name: 'Stone', store: 'stoneyard', perPace: 50 },
+  { id: 'ore', name: 'Iron ore', store: 'metals', perPace: 40, requires: 'ore-sniffing' },
+  { id: 'bars', name: 'Iron bars', store: 'metals', perPace: 80, requires: 'smithing' },
+  { id: 'steel', name: 'Steel', store: 'metals', perPace: 80, requires: 'steelmaking' },
+  { id: 'meat', name: 'Meat', store: 'larder', perPace: 30, requires: 'crab-wrangling' },
 ];
 
 /** How a job's kobolds move around the cave. Purely visual. */
@@ -45,6 +49,8 @@ export interface JobDef {
   researches?: number;
   /** Input each kobold turns over per second with the chosen recipe. */
   converts?: number;
+  /** Forge work each kobold does per second. */
+  smiths?: number;
   /** Research that opens this job. */
   requires?: string;
   sprite: SpriteId;
@@ -102,8 +108,8 @@ export const JOBS: JobDef[] = [
   {
     id: 'miner',
     name: 'Miner',
-    description: 'Digs iron ore out of the deep seams and bangs it into rough bars.',
-    produces: { resource: 'iron', rate: 0.1 },
+    description: 'Digs iron ore out of the deep seams. The forge turns it into bars.',
+    produces: { resource: 'ore', rate: 0.1 },
     requires: 'ore-sniffing',
     sprite: 'kobold-miner',
     motion: { kind: 'haul', lane: 2, speed: 11 },
@@ -127,7 +133,17 @@ export const JOBS: JobDef[] = [
     requires: 'alchemy',
     sprite: 'kobold-alchemist',
     motion: { kind: 'station', x: 116, y: 90, spacing: 6 },
-    firstText: 'The first alchemist turned a bucket of stone into a very small piece of iron, and fainted with pride.',
+    firstText: 'The first alchemist turned a bucket of stone into a very small lump of ore, and fainted with pride.',
+  },
+  {
+    id: 'blacksmith',
+    name: 'Blacksmith',
+    description: 'Works the forge: smelts ore into bars and makes tools. The forge sets how many fit.',
+    smiths: 1,
+    requires: 'smithing',
+    sprite: 'kobold-blacksmith',
+    motion: { kind: 'station', x: 150, y: 100, spacing: 7 },
+    firstText: 'The first blacksmith hit the anvil once, very hard, and decided this was the job for them.',
   },
 ];
 
@@ -138,24 +154,26 @@ export const IDLE = 'idle';
 export const CREW = { maxBonus: 0.3, halfHours: 6 };
 
 /**
- * Rooms. Each has a size; digging makes it one size bigger. A room's size
- * sets how much it holds (copper, storehouse goods, or beds).
+ * Rooms. Each is measured in cubic paces; digging adds volume. A room's
+ * volume sets what it holds: goods (by how many fit in a pace), beds,
+ * herders, smiths, or room for the dragon.
  */
 export interface RoomDef {
   id: string;
   name: string;
   description: string;
-  /** copper, storehouse goods, beds, herders the pasture fits, or room for the dragon. */
-  holds: 'copper' | 'storehouse' | 'beds' | 'herders' | 'dragon';
+  /** Goods (see ResourceDef.store), or paces per bed / herder / smith, or the dragon's lair. */
+  holds: 'goods' | 'beds' | 'herders' | 'smiths' | 'dragon';
+  /** For beds, herders and smiths: cubic paces each one needs. */
+  pacesEach?: number;
+  /** Which list it shows in. */
+  group: 'living' | 'work' | 'stores';
   /** Research that opens this room. */
   requires?: string;
   /** Dragon stage needed before this room can be dug. */
   minStage?: number;
-  /** Capacity at size 1, and how it grows per size. */
-  base: number;
-  growth: number;
-  /** Dig work to reach size 2; each size after needs DIG.growth times more. */
-  digBase: number;
+  /** Volume a new game (or a newly opened room) starts with. */
+  start: number;
 }
 
 export const ROOMS: RoomDef[] = [
@@ -163,64 +181,98 @@ export const ROOMS: RoomDef[] = [
     id: 'hoard',
     name: 'Hoard room',
     description: 'Where the copper and the dragon live. A bigger room holds more and draws more kobolds.',
-    holds: 'copper',
-    base: 20_000,
-    growth: 3,
-    digBase: 400,
-  },
-  {
-    id: 'storehouse',
-    name: 'Storehouse',
-    description: 'Wood and stone. The space is shared evenly, so one pile can never crowd out the others.',
-    holds: 'storehouse',
-    base: 4_000,
-    growth: 2.2,
-    digBase: 120,
+    holds: 'goods',
+    group: 'living',
+    start: 100,
   },
   {
     id: 'den',
     name: 'Den',
     description: 'Beds. Every kobold needs one, so the den sets how many can stay.',
     holds: 'beds',
-    base: 4,
-    growth: 1.5, // beds = base × size^growth
-    digBase: 100,
+    pacesEach: 10,
+    group: 'living',
+    start: 40,
   },
   {
     id: 'lair',
     name: 'Lair',
     description: 'Where the dragon sleeps. It grows into its lair like a goldfish: each molt needs a bigger one.',
     holds: 'dragon',
+    group: 'living',
     minStage: 1,
-    base: 1,
-    growth: 1,
-    digBase: 1_500,
+    start: 50,
   },
   {
     id: 'pasture',
     name: 'Pasture',
-    description: 'A damp cave meadow for the dragon\'s dinner. Its size sets how many herders it fits.',
+    description: "A damp cave meadow for the dragon's dinner. Its size sets how many herders it fits.",
     holds: 'herders',
+    pacesEach: 10,
+    group: 'work',
     requires: 'crab-wrangling',
-    base: 3,
-    growth: 1.4, // herders = base × size^growth
-    digBase: 120,
+    start: 30,
+  },
+  {
+    id: 'forge',
+    name: 'Forge',
+    description: 'Anvils, bellows and a lot of noise. Its size sets how many blacksmiths fit.',
+    holds: 'smiths',
+    pacesEach: 10,
+    group: 'work',
+    requires: 'smithing',
+    start: 30,
+  },
+  {
+    id: 'woodpile',
+    name: 'Woodpile',
+    description: 'Mushroom wood, stacked. Bulky.',
+    holds: 'goods',
+    group: 'stores',
+    start: 50,
+  },
+  {
+    id: 'stoneyard',
+    name: 'Stone yard',
+    description: 'Stone blocks in neat rows.',
+    holds: 'goods',
+    group: 'stores',
+    start: 50,
+  },
+  {
+    id: 'larder',
+    name: 'Larder',
+    description: 'Meat for the dragon, kept cool.',
+    holds: 'goods',
+    group: 'stores',
+    requires: 'crab-wrangling',
+    start: 50,
+  },
+  {
+    id: 'metals',
+    name: 'Metal store',
+    description: 'Ore, bars and steel. The space is shared evenly between them.',
+    holds: 'goods',
+    group: 'stores',
+    requires: 'ore-sniffing',
+    start: 50,
   },
 ];
 
 export const DIG = {
-  /** Each size needs this many times more work than the one before. */
-  growth: 2.3,
+  /** Dig work per cubic pace. The same for every room and every pace. */
+  workPerPace: 2,
   /**
-   * Small rooms need no supports. From these sizes on, each unit of dig work
-   * uses this much of a resource to hold the ceiling up. Iron has to be
-   * researched before the iron tier can be met.
+   * Small rooms need no supports. From these volumes on, each cubic pace dug
+   * uses this much of a resource to hold the ceiling up.
    */
   supports: [
-    { fromSize: 3, resource: 'wood' as ResourceId, perWork: 0.5 },
-    { fromSize: 6, resource: 'stone' as ResourceId, perWork: 0.5 },
-    { fromSize: 10, resource: 'iron' as ResourceId, perWork: 0.2 },
+    { fromPaces: 150, resource: 'wood' as ResourceId, perPace: 1 },
+    { fromPaces: 500, resource: 'stone' as ResourceId, perPace: 1 },
+    { fromPaces: 1_500, resource: 'bars' as ResourceId, perPace: 0.4 },
   ],
+  /** Without deep delving, no room can be dug past this. */
+  maxPaces: 4_000,
 };
 
 /** What the alchemist can make. Always a loss: that's the point. */
@@ -234,16 +286,14 @@ export interface RecipeDef {
 }
 
 export const RECIPES: RecipeDef[] = [
-  { id: 'stone-to-iron', name: 'Stone into iron', from: 'stone', ratio: 8, to: 'iron' },
-  { id: 'copper-to-iron', name: 'Copper into iron', from: 'copper', ratio: 40, to: 'iron' },
+  { id: 'stone-to-ore', name: 'Stone into iron ore', from: 'stone', ratio: 8, to: 'ore' },
+  { id: 'copper-to-ore', name: 'Copper into iron ore', from: 'copper', ratio: 40, to: 'ore' },
   { id: 'wood-to-meat', name: 'Mushroom jerky (the dragon eats it, grudgingly)', from: 'wood', ratio: 6, to: 'meat' },
   { id: 'copper-to-stone', name: 'Copper into stone', from: 'copper', ratio: 5, to: 'stone' },
   { id: 'wood-to-stone', name: 'Petrified mushroom', from: 'wood', ratio: 3, to: 'stone' },
 ];
 
 export type UpgradeEffect =
-  | { kind: 'jobMult'; job: string; mult: number }
-  | { kind: 'globalMult'; mult: number }
   /** A display in the hoard room: adds appeal, which draws kobolds. */
   | { kind: 'appeal'; points: number };
 
@@ -258,46 +308,6 @@ export interface UpgradeDef {
 }
 
 export const UPGRADES: UpgradeDef[] = [
-  {
-    id: 'bigger-sacks',
-    name: 'Bigger sacks',
-    description: 'Scavengers carry twice as much copper.',
-    cost: { copper: 100 },
-    requires: { job: 'scavenger', count: 3 },
-    effect: { kind: 'jobMult', job: 'scavenger', mult: 2 },
-  },
-  {
-    id: 'stone-axes',
-    name: 'Stone axes',
-    description: 'Woodcutters fell mushrooms 50% faster.',
-    cost: { copper: 250, stone: 60 },
-    requires: { job: 'woodcutter', count: 2 },
-    effect: { kind: 'jobMult', job: 'woodcutter', mult: 1.5 },
-  },
-  {
-    id: 'mushroom-sledges',
-    name: 'Mushroom sledges',
-    description: 'Quarriers drag stone 50% faster.',
-    cost: { copper: 300, wood: 80 },
-    requires: { job: 'quarrier', count: 2 },
-    effect: { kind: 'jobMult', job: 'quarrier', mult: 1.5 },
-  },
-  {
-    id: 'sturdy-shovels',
-    name: 'Sturdy shovels',
-    description: 'Diggers dig 50% faster.',
-    cost: { copper: 500, wood: 60, stone: 60 },
-    requires: { job: 'digger', count: 2 },
-    effect: { kind: 'jobMult', job: 'digger', mult: 1.5 },
-  },
-  {
-    id: 'shiny-tribute',
-    name: 'Shiny tribute',
-    description: 'Every kobold works harder to impress the dragon. Everything +50%.',
-    cost: { copper: 50_000 },
-    requires: { stage: 2 },
-    effect: { kind: 'globalMult', mult: 1.5 },
-  },
   // hoard room displays: they draw kobolds
   {
     id: 'mural',
@@ -404,8 +414,8 @@ export const HOARD_SIZE_THRESHOLDS = [0, 50, 1_000, 20_000, 500_000, 10_000_000]
  * doesn't count. The den's beds set how many can stay.
  */
 export const ATTRACTION = {
-  /** Appeal per size of the hoard room. */
-  perHoardSize: 2,
+  /** Appeal per 50 cubic paces of hoard room. */
+  perHoardPaces: 1,
   /** Appeal per kind of oddity found. */
   perOddity: 2,
   /** Seconds between arrivals = this / appeal. */

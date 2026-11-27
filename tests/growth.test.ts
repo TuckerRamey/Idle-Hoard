@@ -2,14 +2,13 @@
 // the pasture, and rooms growing as they're dug.
 import { describe, expect, it } from 'vitest';
 import type { Chief } from '../src/game/chief';
-import { DIG, RECIPES, ROOMS, type ResourceId } from '../src/game/data';
+import { DIG, RECIPES, type ResourceId } from '../src/game/data';
 import { cravingHintSeconds, DIET, grantRequest, mood, moltNeeds, MOLTS, setHerd, REQUEST } from '../src/game/dragon';
 import {
   advanceTo,
   beds,
   capacity,
   digBlocked,
-  digWork,
   herdersFit,
   jobHints,
   jobOutput,
@@ -17,9 +16,8 @@ import {
   population,
   recipeRatio,
   resourceOpen,
-  roomCapacity,
   stageFor,
-  storehouseGoods,
+  storeGoods,
   supportsFor,
   tick,
   veteranLabel,
@@ -33,7 +31,6 @@ import { newGame, rng, type GameState } from '../src/game/state';
 
 const T0 = 1_700_000_000_000;
 const chief: Chief = { name: 'Snik', cunning: 0, voice: 0, nerve: 0, quirk: 'none' };
-const room = (id: string) => ROOMS.find((r) => r.id === id)!;
 
 function game(): GameState {
   const s = newGame(T0);
@@ -48,36 +45,38 @@ function learn(s: GameState, ...ids: string[]) {
   for (const id of ids) s.research.done.push(id);
 }
 
-describe('rooms grow as they are dug', () => {
-  it('a half-dug room already holds more', () => {
+describe('rooms measured in volume', () => {
+  it('supports change at set volumes: bars from 1,500 paces, and bars need the forge', () => {
     const s = game();
-    const before = capacity(s, 'copper');
-    s.rooms.hoard.progress = digWork(room('hoard'), 2) / 2;
-    expect(capacity(s, 'copper')).toBeGreaterThan(before);
-    expect(capacity(s, 'copper')).toBeLessThan(roomCapacity(s, room('hoard'), 2));
-  });
-
-  it('whole sizes only change the supports: iron from size 10, and iron must be researched', () => {
-    const s = game();
-    s.rooms.den.size = 9;
+    s.rooms.den.volume = 1_500;
     s.digging = 'den';
     s.crews.digger = { n: 1, exp: 0 };
     s.res.wood = 100;
     s.res.stone = 100;
-    expect(DIG.supports.find((x) => x.resource === 'iron')!.fromSize).toBe(10);
-    expect(digBlocked(s)).toBe('iron');
+    expect(DIG.supports.find((x) => x.resource === 'bars')!.fromPaces).toBe(1_500);
+    expect(digBlocked(s)).toBe('bars');
     tick(s, 60);
-    expect(s.rooms.den.progress).toBe(0);
+    expect(s.rooms.den.volume).toBe(1_500);
+  });
+
+  it('a dig crossing a support threshold starts paying there', () => {
+    const s = game();
+    s.rooms.den.volume = 140;
+    s.digging = 'den';
+    s.crews.digger = { n: 1, exp: 0 };
+    s.res.wood = 100;
+    tick(s, 40); // 20 paces: 10 free, 10 with wood
+    expect(s.rooms.den.volume).toBeCloseTo(160);
+    expect(s.res.wood).toBeCloseTo(90);
   });
 });
 
 describe('research', () => {
   it('a new game knows only copper, wood and stone', () => {
     const s = game();
-    expect(resourceOpen(s, 'iron')).toBe(false);
+    expect(resourceOpen(s, 'ore')).toBe(false);
     expect(resourceOpen(s, 'meat')).toBe(false);
-    expect(storehouseGoods(s).map((r) => r.id)).toEqual(['wood', 'stone']);
-    expect(capacity(s, 'iron')).toBe(0);
+    expect(capacity(s, 'ore')).toBe(0);
   });
 
   it('researchers uncover new resources and jobs, one at a time', () => {
@@ -88,8 +87,8 @@ describe('research', () => {
     const r = tick(s, researchDef('ore-sniffing')!.cost / 0.9);
     expect(s.res.stone).toBeLessThan(500 - 199);
     expect(r.learned).toContain('ore-sniffing');
-    expect(resourceOpen(s, 'iron')).toBe(true);
-    expect(storehouseGoods(s)).toHaveLength(3);
+    expect(resourceOpen(s, 'ore')).toBe(true);
+    expect(storeGoods(s, 'metals').map((g) => g.id)).toEqual(['ore']);
     s.idle = 2;
     s.crews.miner = { n: 2, exp: 0 };
     expect(jobOutput(s, jobDef('miner')!)).toBeGreaterThan(0);
@@ -105,12 +104,12 @@ describe('research', () => {
     expect(s.research.progress).toEqual({});
     expect(s.research.current).toBe('crab-wrangling');
     expect(s.res.stone).toBeCloseTo(800);
-    // with no wood, crab wrangling waits and stone-only echo maps goes first
+    // with no wood, crab wrangling waits and a stone-only project goes first
     const t = game();
     t.res.stone = 1000;
     chooseResearch(t, 'ore-sniffing');
     addResearch(t, researchDef('ore-sniffing')!.cost);
-    expect(t.research.current).toBe('echo-maps');
+    expect(t.research.current).toBe('smithing');
   });
 
   it('uses resources a little with every point, and keeps progress per project', () => {
@@ -152,7 +151,7 @@ describe('research', () => {
   it('new research bonuses do what they say', () => {
     const s = game();
     learn(s, 'ore-sniffing', 'crab-wrangling', 'alchemy', 'echo-maps', 'pit-props', 'smokehouse', 'better-jerky', 'name-tags', 'storytelling', 'bunk-beds', 'safety-goggles', 'lab-notebooks', 'bouncy-helmets');
-    expect(supportsFor(3, s)[0].perWork).toBeCloseTo(DIG.supports[0].perWork * 0.75);
+    expect(supportsFor(200, s)[0].perPace).toBeCloseTo(DIG.supports[0].perPace * 0.75);
     expect(recipeRatio(s, RECIPES.find((r) => r.id === 'wood-to-meat')!)).toBe(4);
     expect(capacity(s, 'meat')).toBeGreaterThan(capacity(s, 'wood'));
     expect(lieutenantSlots(s)).toBe(1 + s.stage + 1);
@@ -160,7 +159,7 @@ describe('research', () => {
     nameKobold(s, 'scavenger', 'the Test', 'Was tested.', T0, rng(s));
     expect(crewLift(s, 'scavenger')).toBeCloseTo(1.05);
     learn(s, 'kobold-arithmetic', 'transmutation-theory');
-    expect(recipeRatio(s, RECIPES.find((r) => r.id === 'stone-to-iron')!)).toBeCloseTo(6);
+    expect(recipeRatio(s, RECIPES.find((r) => r.id === 'stone-to-ore')!)).toBeCloseTo(6);
   });
 
   it('every project costs something the game has by the time it opens', () => {
@@ -266,7 +265,7 @@ describe('the dragon', () => {
     s.stage = 1;
     s.totalEarned = 2000;
     learn(s, 'crab-wrangling');
-    s.rooms.pasture = { size: 1, progress: 0 };
+    s.rooms.pasture = { volume: 30 };
     return s;
   }
 
@@ -351,7 +350,7 @@ describe('the dragon', () => {
     const s = hatched();
     const m = MOLTS[0];
     expect(moltNeeds(s)!.every((n) => n.met)).toBe(false);
-    s.rooms.lair = { size: m.lair, progress: 0 };
+    s.rooms.lair = { volume: m.lair };
     s.upgrades.push('mural', 'mushroom-garden');
     s.dragon.granted = m.granted;
     s.dragon.content = m.contentHours * 3600 - 5;
@@ -372,18 +371,18 @@ describe('alchemy', () => {
     const s = game();
     learn(s, 'ore-sniffing', 'alchemy');
     s.crews.alchemist = { n: 2, exp: 0 };
-    s.recipe = 'stone-to-iron';
+    s.recipe = 'stone-to-ore';
     s.res.stone = 80;
     tick(s, 100);
     expect(s.res.stone).toBe(0);
-    expect(s.res.iron).toBeCloseTo(10);
+    expect(s.res.ore).toBeCloseTo(10);
   });
 });
 
 describe('beds', () => {
   it('bunk beds research fits more kobolds', () => {
     const s = game();
-    s.rooms.den.size = 4;
+    s.rooms.den.volume = 300;
     const before = beds(s);
     learn(s, 'bunk-beds');
     expect(beds(s)).toBe(Math.floor(before * 1.25));
@@ -395,7 +394,7 @@ describe('a long absence with everything going', () => {
     const s = game();
     learn(s, 'ore-sniffing', 'crab-wrangling');
     s.stage = 1;
-    s.rooms.pasture = { size: 2, progress: 0 };
+    s.rooms.pasture = { volume: 60 };
     s.crews = {
       scavenger: { n: 10, exp: 0 },
       woodcutter: { n: 6, exp: 0 },
@@ -410,6 +409,6 @@ describe('a long absence with everything going', () => {
     expect(population(s)).toBeGreaterThanOrEqual(pop);
     for (const v of Object.values(s.res)) expect(Number.isFinite(v) && v >= 0).toBe(true);
     expect(r.events.length).toBeGreaterThan(0);
-    expect(s.rooms.lair.size).toBeGreaterThan(1);
+    expect(s.rooms.lair.volume).toBeGreaterThan(50);
   });
 });

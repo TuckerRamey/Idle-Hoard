@@ -1,5 +1,6 @@
 import type { Chief } from './chief';
 import type { DragonRequest } from './dragon';
+import type { ForgeSlot, ToolStock } from './forge';
 import type { NamedKobold } from './kobolds';
 import { ROOMS, type ResourceId } from './data';
 
@@ -26,14 +27,13 @@ export interface Crew {
 }
 
 export interface RoomState {
-  size: number;
-  /** Dig work done toward the next size. */
-  progress: number;
+  /** Cubic paces. */
+  volume: number;
 }
 
 /** Everything that is saved. Keep it plain JSON. */
 export interface GameState {
-  /** Resources held. Copper is in the hoard room, the rest in the storehouse. */
+  /** Resources held, each in its own store (copper in the hoard room). */
   res: Record<ResourceId, number>;
   /** Lifetime copper buried. Drives dragon growth; never goes down. */
   totalEarned: number;
@@ -73,6 +73,10 @@ export interface GameState {
   /** The alchemist's recipe. */
   recipe: string;
   dragon: DragonState;
+  /** The forge's order slots. */
+  forge: { slots: ForgeSlot[] };
+  /** Tools each job holds, by tier. They stay with the job. */
+  tools: Record<string, Partial<Record<'stone' | 'iron' | 'steel', ToolStock>>>;
   /** For the game's own dice (mishaps, requests), so runs replay the same in tests. */
   seed: number;
 }
@@ -125,9 +129,9 @@ export interface OddityRecord {
 
 export function newGame(now: number): GameState {
   const rooms: Record<string, RoomState> = {};
-  for (const r of ROOMS) rooms[r.id] = { size: 1, progress: 0 };
+  for (const r of ROOMS) rooms[r.id] = { volume: r.start };
   return {
-    res: { copper: 0, wood: 0, stone: 0, iron: 0, meat: 0 },
+    res: { copper: 0, wood: 0, stone: 0, ore: 0, bars: 0, steel: 0, meat: 0 },
     totalEarned: 0,
     idle: 0,
     crews: {},
@@ -148,8 +152,10 @@ export function newGame(now: number): GameState {
     nextNamedId: 1,
     herd: 'crab',
     herdSettle: 0,
-    recipe: 'stone-to-iron',
+    recipe: 'stone-to-ore',
     dragon: newDragon(),
+    forge: { slots: [] },
+    tools: {},
     seed: (now % 2_147_483_647) || 1,
   };
 }
