@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Idle Hoard</title>
+  </head>
+  <body>
+    <main class="layout">
+      <section class="stage">
+        <canvas id="scene" aria-label="A kobold piles coins onto a hoard"></canvas>
+        <p id="message" class="message" aria-live="polite"></p>
+      </section>
+
+      <section class="panel">
+        <header class="totals">
+          <div><span id="copper" class="big">0</span> <span class="unit">copper</span></div>
+          <div id="rate" class="rate">0 / s</div>
+        </header>
+
+        <div class="growth">
+          <div class="growth-head"><b id="stage-name">Egg</b></div>
+          <div id="stage-bar" class="bar"><div></div></div>
+          <div id="stage-text" class="desc"></div>
+        </div>
+
+        <h2>Kobolds</h2>
+        <ul id="workers" class="list"></ul>
+
+        <div id="upgrades-section" hidden>
+          <h2>Upgrades</h2>
+          <ul id="upgrades" class="list"></ul>
+        </div>
+
+        <details class="settings">
+          <summary>Settings and save</summary>
+          <button id="motion"></button>
+          <p class="desc">The game saves itself every minute and when you close it. Export a copy to move it or keep it safe.</p>
+          <div class="buttons">
+            <button id="export">Copy save</button>
+            <button id="download">Download save</button>
+          </div>
+          <textarea id="save-text" rows="3" placeholder="Paste a save here to load it" spellcheck="false"></textarea>
+          <div class="buttons">
+            <button id="import">Load pasted save</button>
+            <label class="file">Load from file<input id="import-file" type="file" accept=".txt,.json,text/plain" /></label>
+          </div>
+          <p id="save-status" class="desc" aria-live="polite"></p>
+          <button id="reset" class="danger">Start over</button>
+        </details>
+        <p id="debug" class="desc" hidden></p>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
