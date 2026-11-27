@@ -66,3 +66,35 @@ export function rollChief(rand: () => number, name?: string): Chief {
 export function quirkOf(chief: Chief | null): QuirkDef | undefined {
   return chief ? QUIRKS.find((q) => q.id === chief.quirk) : undefined;
 }
+
+// ---------- growing ----------
+
+/** The most pips a stat can have. */
+export const MAX_PIPS = 6;
+/** The Chief gains a pip of your choice every this many dragon requests granted. */
+export const PIP_FAVOR = 10;
+/** ...and a pip of Cunning every this many kinds of oddity found. */
+export const PIP_ODDITIES = 5;
+
+export function statName(id: StatId): string {
+  return STATS.find((s) => s.id === id)!.name;
+}
+
+/** Add a pip to a stat, if there's room. Returns whether it grew. */
+export function raiseStat(chief: Chief | null, stat: StatId): boolean {
+  if (!chief || chief[stat] >= MAX_PIPS) return false;
+  chief[stat]++;
+  return true;
+}
+
+/** Spend a pip the Chief has earned on a stat the player picks. */
+export function spendPip(state: { chief: Chief | null; chiefMarks: { pending: number } }, stat: StatId): boolean {
+  if (state.chiefMarks.pending < 1 || !raiseStat(state.chief, stat)) return false;
+  state.chiefMarks.pending--;
+  return true;
+}
+
+/** Can a pending pip go anywhere? */
+export function pipRoom(chief: Chief | null): boolean {
+  return !!chief && STATS.some((s) => chief[s.id] < MAX_PIPS);
+}

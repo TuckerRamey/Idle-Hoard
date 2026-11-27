@@ -1,6 +1,6 @@
 // The Chief's part of the side panel: making a Chief and their card.
 
-import { quirkOf, rollChief, STATS, type Chief } from '../game/chief';
+import { MAX_PIPS, pipRoom, quirkOf, rollChief, spendPip, STATS, type Chief, type StatId } from '../game/chief';
 import type { GameState } from '../game/state';
 import { $, setText } from './dom';
 
@@ -13,11 +13,14 @@ export class ChiefPanel {
   private title = $('#chief-title');
   private quirk = $('#chief-quirk');
   private stats = $('#chief-stats');
+  private grow = $('#chief-grow');
+  private growButtons = $('#chief-grow-buttons');
   private roll: Chief;
 
   constructor(
     private getState: () => GameState,
     private onFound: (chief: Chief) => void,
+    private onGrow: (stat: StatId) => void = () => {},
   ) {
     this.roll = rollChief(Math.random);
     this.nameInput.value = this.roll.name;
@@ -60,13 +63,33 @@ export class ChiefPanel {
       this.stats.dataset.key = statKey;
       this.stats.replaceChildren(...STATS.map((st) => statRow(st.name, c[st.id], st.effect)));
     }
+    const pending = s.chiefMarks.pending > 0 && pipRoom(c);
+    this.grow.hidden = !pending;
+    const growKey = pending ? statKey + '|' + s.chiefMarks.pending : '';
+    if (pending && this.growButtons.dataset.key !== growKey) {
+      this.growButtons.dataset.key = growKey;
+      this.grow.querySelector('p')!.textContent = `${c.name} can grow${s.chiefMarks.pending > 1 ? ` (${s.chiefMarks.pending} times)` : ''}. Pick one:`;
+      this.growButtons.replaceChildren(
+        ...STATS.map((st) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'small';
+          b.textContent = `+ ${st.name}`;
+          b.disabled = c[st.id] >= MAX_PIPS;
+          b.addEventListener('click', () => {
+            if (spendPip(this.getState(), st.id)) this.onGrow(st.id);
+          });
+          return b;
+        }),
+      );
+    }
   }
 }
 
 function statRow(name: string, value: number, effect: string) {
   const row = document.createElement('div');
   row.className = 'stat';
-  const pips = '●'.repeat(value) + '○'.repeat(Math.max(0, 4 - value));
+  const pips = '●'.repeat(value) + '○'.repeat(Math.max(0, MAX_PIPS - value));
   row.innerHTML = `<span class="stat-name"></span><span class="pips" aria-hidden="true"></span><span class="desc"></span>`;
   row.querySelector('.stat-name')!.textContent = `${name} ${value}`;
   row.querySelector('.pips')!.textContent = pips;

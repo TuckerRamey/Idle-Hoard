@@ -351,7 +351,7 @@ describe('the dragon', () => {
     const m = MOLTS[0];
     expect(moltNeeds(s)!.every((n) => n.met)).toBe(false);
     s.rooms.lair = { volume: m.lair };
-    s.upgrades.push('mural', 'mushroom-garden');
+    s.res.copper = m.value;
     s.dragon.granted = m.granted;
     s.dragon.content = m.contentHours * 3600 - 5;
     s.crews.herder = { n: 2, exp: 0 };

@@ -2,20 +2,19 @@
 // text that changed are written, so it costs next to nothing.
 
 import { toolSummary } from '../game/forge';
-import { CREW, DIG, DRAGON_STAGES, IDLE, JOBS, RESOURCES, ROOMS, UPGRADES, type ResourceId, type UpgradeDef } from '../game/data';
+import { CREW, DIG, DRAGON_STAGES, IDLE, JOBS, RESOURCES, ROOMS, type ResourceId } from '../game/data';
 import { animalsOpen, setHerd } from '../game/dragon';
 import {
   appeal,
   arrivalSeconds,
   assign,
   beds,
-  buyUpgrade,
-  canAfford,
   crew,
   digBlocked,
   digRate,
   flows,
   herdersFit,
+  hoardValue,
   incomePerSecond,
   jobHints,
   jobOpen,
@@ -33,7 +32,6 @@ import {
   setRecipe,
   storeGoods,
   supportsFor,
-  upgradeVisible,
   veteranBonus,
   veteranLabel,
   recipeRatio,
@@ -48,13 +46,12 @@ export type HudEvent =
   | { kind: 'newcomers'; job: string }
   | { kind: 'dig'; room: string | null }
   | { kind: 'herd'; animal: string }
-  | { kind: 'recipe'; id: string }
-  | { kind: 'upgrade'; id: string };
+  | { kind: 'recipe'; id: string };
 
 const STEPS = [1, 5, 20, Infinity];
 const resName = (id: ResourceId) => resourceDef(id).name.toLowerCase();
 
-export function costText(cost: UpgradeDef['cost']): string {
+export function costText(cost: Partial<Record<ResourceId, number>>): string {
   return Object.entries(cost)
     .map(([r, n]) => `${formatNumber(n ?? 0)} ${resName(r as ResourceId)}`)
     .join(', ');
@@ -114,8 +111,6 @@ export class Hud {
   private newcomerSelect!: HTMLSelectElement;
   private roomRows = new Map<string, { li: HTMLLIElement; size: HTMLElement; holds: HTMLElement; dig: HTMLElement; btn: HTMLButtonElement }>();
   private groupHeads = new Map<string, HTMLElement>();
-  private upgradeKey = '';
-  private upRows = new Map<string, HTMLButtonElement>();
 
   constructor(
     private getState: () => GameState,
@@ -242,8 +237,9 @@ export class Hud {
     const hatchAt = DRAGON_STAGES[1].threshold ?? 0;
     if (s.stage === 0) {
       this.stageBar.parentElement!.hidden = false;
-      this.stageBar.style.width = `${Math.min(100, (s.totalEarned / hatchAt) * 100).toFixed(1)}%`;
-      setText(this.stageText, `Hatches at ${formatNumber(hatchAt)} copper buried (${formatNumber(s.totalEarned)} so far)`);
+      const v = hoardValue(s);
+      this.stageBar.style.width = `${Math.min(100, (v / hatchAt) * 100).toFixed(1)}%`;
+      setText(this.stageText, `Hatches when the hoard is worth ${formatNumber(hatchAt)} copper (${formatNumber(v)} so far)`);
     } else {
       this.stageBar.parentElement!.hidden = true;
       setText(this.stageText, '');
@@ -252,7 +248,6 @@ export class Hud {
     this.updateResources(s);
     this.updateJobs(s);
     this.updateRooms(s);
-    this.updateUpgrades(s);
   }
 
   private updateResources(s: GameState) {
@@ -367,33 +362,5 @@ export class Hud {
       setText(row.btn, digging ? 'Stop digging' : 'Dig here');
     }
     for (const [g, head] of this.groupHeads) setHidden(head, !shown.has(g));
-  }
-
-  private updateUpgrades(s: GameState) {
-    const visible = UPGRADES.filter((u) => upgradeVisible(s, u));
-    const key = visible.map((u) => u.id).join();
-    if (key !== this.upgradeKey) {
-      this.upgradeKey = key;
-      this.upRows.clear();
-      const tools = $('#upgrades');
-      const displays = $('#displays');
-      tools.replaceChildren();
-      displays.replaceChildren();
-      for (const u of visible) {
-        const li = row(`<div class="row-main"><b></b><div class="desc"></div><div class="sub"></div></div><button type="button">Buy</button>`);
-        li.querySelector('b')!.textContent = u.name;
-        li.querySelector('.desc')!.textContent = u.description;
-        li.querySelector('.sub')!.textContent = costText(u.cost);
-        const btn = li.querySelector('button')!;
-        btn.addEventListener('click', () => {
-          if (buyUpgrade(this.getState(), u.id)) this.onChange({ kind: 'upgrade', id: u.id });
-        });
-        this.upRows.set(u.id, btn);
-        (u.effect.kind === 'appeal' ? displays : tools).append(li);
-      }
-      $('#upgrades-section').hidden = tools.childElementCount === 0;
-      $('#displays-section').hidden = displays.childElementCount === 0;
-    }
-    for (const u of visible) setDisabled(this.upRows.get(u.id)!, !canAfford(s, u.cost));
   }
 }

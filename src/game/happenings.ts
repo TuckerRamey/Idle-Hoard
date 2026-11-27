@@ -1,7 +1,7 @@
 // Happenings: small, unlikely, silly things that happen to the warren now and
 // then. Kobolds always come out unscathed. Some bring a little copper.
 
-import { KOBOLD_NAMES } from './chief';
+import { KOBOLD_NAMES, MAX_PIPS, raiseStat, statName, type StatId } from './chief';
 import { ODDITIES } from './oddities';
 import { IDLE, JOBS } from './data';
 import { incomePerSecond, population, store, workers } from './economy';
@@ -21,6 +21,8 @@ export interface HappeningDef {
   oddity?: string;
   /** For stacking oddities: how many arrive, [min, max]. */
   oddityCount?: [number, number];
+  /** A rare, once-only happening that teaches the Chief something: a pip in this stat. */
+  chiefPip?: StatId;
 }
 
 export const HAPPENINGS: HappeningDef[] = [
@@ -44,6 +46,9 @@ export const HAPPENINGS: HappeningDef[] = [
   { id: 'spores', text: '{kobold} sneezed in a cloud of mushroom spores and glowed faintly green for a day. Night shifts were never easier.', rewardSeconds: 30, needsJob: 'woodcutter' },
   { id: 'window', text: '{kobold} dug into the den from the wrong side. The hole is now called a window, and everyone agrees it was the plan.', rewardSeconds: 0, needsJob: 'digger' },
   { id: 'old-coins', text: '{kobold} dug into a forgotten stash of somebody else\'s coins. Finders keepers.', rewardSeconds: 120, needsJob: 'digger' },
+  { id: 'rival-band', text: 'A rival band of kobolds crept in to steal the egg. {chief} talked them out of it, and then into staying.', rewardSeconds: 0, chiefPip: 'voice' },
+  { id: 'old-trap', text: '{chief} found an old dwarf trap in a side tunnel, worked out how it ticked, and turned it round to guard the hoard.', rewardSeconds: 0, chiefPip: 'cunning' },
+  { id: 'big-cave-in', text: 'A big cave-in shook the warren. {chief} held a beam up while everyone scrambled out. Nobody was hurt, but it was close.', rewardSeconds: 0, minStage: 1, chiefPip: 'nerve' },
   { id: 'wrong-sack', text: '{kobold} hauled home the wrong sack. It was full of silver. Nobody is giving it back.', rewardSeconds: 120, needsJob: 'scavenger' },
 ];
 
@@ -58,7 +63,9 @@ export function eligible(state: GameState): HappeningDef[] {
       (!h.needsJob || workers(state, h.needsJob) > 0) &&
       // a one-off oddity can only be found once
       !(h.oddity && state.oddities[h.oddity] && !ODDITIES.find((o) => o.id === h.oddity)?.stacks) &&
-      (h.text.includes('{kobold}') ? population(state) > 0 : true),
+      (h.text.includes('{kobold}') ? population(state) > 0 : true) &&
+      // lessons for the Chief happen once, and not when the stat is already full
+      !(h.chiefPip && (state.chiefMarks.events.includes(h.id) || !state.chief || state.chief[h.chiefPip] >= MAX_PIPS)),
   );
 }
 
@@ -93,7 +100,8 @@ let lastId = '';
  */
 export function happen(state: GameState, now: number, rand: () => number): HappeningDef | null {
   if (!state.chief) return null;
-  const pool = eligible(state);
+  // lessons for the Chief are rare: each is in the running about one time in twenty
+  const pool = eligible(state).filter((x) => !x.chiefPip || rand() < 0.05);
   if (pool.length === 0) return null;
   let h = pool[Math.floor(rand() * pool.length) % pool.length];
   // avoid the same happening twice in a row when there's a choice
@@ -134,6 +142,10 @@ export function happen(state: GameState, now: number, rand: () => number): Happe
   if (named) addHistory(named, now, text);
   if (newlyNamed && named) text += ` Ever since, they've been ${fullName(named)}.`;
   if (gain >= 1) text += ` (+${Math.floor(gain).toLocaleString('en-US')} copper)`;
+  if (h.chiefPip) {
+    state.chiefMarks.events.push(h.id);
+    if (raiseStat(state.chief, h.chiefPip)) text += ` ${statName(h.chiefPip)} +1.`;
+  }
   addChronicle(state, now, text);
   return h;
 }

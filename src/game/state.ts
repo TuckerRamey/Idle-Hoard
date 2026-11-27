@@ -1,5 +1,6 @@
 import type { Chief } from './chief';
 import type { DragonRequest } from './dragon';
+import type { ArtPiece } from './art';
 import type { ForgeSlot, ToolStock } from './forge';
 import type { NamedKobold } from './kobolds';
 import { ROOMS, type ResourceId } from './data';
@@ -46,8 +47,6 @@ export interface GameState {
   rooms: Record<string, RoomState>;
   /** The room the diggers are working on, or null. */
   digging: string | null;
-  /** Ids of bought upgrades and displays. */
-  upgrades: string[];
   /** Highest dragon stage reached (index into DRAGON_STAGES). */
   stage: number;
   /** Epoch ms of the last time progress was credited. */
@@ -73,6 +72,10 @@ export interface GameState {
   /** The alchemist's recipe. */
   recipe: string;
   dragon: DragonState;
+  /** Art on display in the hoard room. */
+  art: { pieces: ArtPiece[]; nextId: number };
+  /** How many Chief pips each steady source has given, so none is given twice. */
+  chiefMarks: { favor: number; oddities: number; events: string[]; pending: number };
   /** The forge's order slots. */
   forge: { slots: ForgeSlot[] };
   /** Tools each job holds, by tier. They stay with the job. */
@@ -101,6 +104,8 @@ export interface DragonState {
   /** Meat eaten since the last molt, by animal ('jerky' for the alchemist's). */
   fed: Record<string, number>;
   traits: string[];
+  /** Cubic paces. It grows into its lair while content. */
+  size: number;
 }
 
 export function newDragon(): DragonState {
@@ -118,6 +123,7 @@ export function newDragon(): DragonState {
     nextRequestAt: 1_800,
     fed: {},
     traits: [],
+    size: 0,
   };
 }
 
@@ -131,14 +137,13 @@ export function newGame(now: number): GameState {
   const rooms: Record<string, RoomState> = {};
   for (const r of ROOMS) rooms[r.id] = { volume: r.start };
   return {
-    res: { copper: 0, wood: 0, stone: 0, ore: 0, bars: 0, steel: 0, meat: 0 },
+    res: { copper: 0, silver: 0, gold: 0, wood: 0, stone: 0, ore: 0, bars: 0, steel: 0, meat: 0 },
     totalEarned: 0,
     idle: 0,
     crews: {},
     newcomerJob: 'scavenger',
     rooms,
     digging: 'den',
-    upgrades: [],
     stage: 0,
     lastTick: now,
     createdAt: now,
@@ -154,6 +159,8 @@ export function newGame(now: number): GameState {
     herdSettle: 0,
     recipe: 'stone-to-ore',
     dragon: newDragon(),
+    art: { pieces: [], nextId: 1 },
+    chiefMarks: { favor: 0, oddities: 0, events: [], pending: 0 },
     forge: { slots: [] },
     tools: {},
     seed: (now % 2_147_483_647) || 1,

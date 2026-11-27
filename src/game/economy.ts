@@ -1,7 +1,8 @@
 // The economy: what the warren makes and uses, what the rooms hold, digging,
 // crews, research and kobolds arriving. Pure functions over GameState; no DOM.
 
-import { quirkOf } from './chief';
+import { PIP_ODDITIES, quirkOf, raiseStat } from './chief';
+import { artStep } from './art';
 import {
   ATTRACTION,
   CONFIG,
@@ -14,12 +15,10 @@ import {
   RECIPES,
   RESOURCES,
   ROOMS,
-  UPGRADES,
   type JobDef,
   type RecipeDef,
   type ResourceId,
   type RoomDef,
-  type UpgradeDef,
 } from './data';
 import { dragonAppeal, dragonJobMult, dragonStep, eatRate, moodMult } from './dragon';
 import { forgeMakes, forgeStep, forgeUse, toolMults } from './forge';
@@ -33,7 +32,7 @@ export const roomDef = (id: string) => ROOMS.find((r) => r.id === id);
 export const resourceDef = (id: ResourceId) => RESOURCES.find((r) => r.id === id)!;
 export const recipeDef = (id: string) => RECIPES.find((r) => r.id === id);
 
-export const emptyRes = () => ({ copper: 0, wood: 0, stone: 0, ore: 0, bars: 0, steel: 0, meat: 0 }) as Record<ResourceId, number>;
+export const emptyRes = () => ({ copper: 0, silver: 0, gold: 0, wood: 0, stone: 0, ore: 0, bars: 0, steel: 0, meat: 0 }) as Record<ResourceId, number>;
 
 // ---------- what's open ----------
 
@@ -42,7 +41,8 @@ export function jobOpen(state: GameState, def: JobDef): boolean {
 }
 
 export function resourceOpen(state: GameState, res: ResourceId): boolean {
-  return opened(state, resourceDef(res).requires);
+  const def = resourceDef(res);
+  return opened(state, def.requires) && state.stage >= (def.minStage ?? 0);
 }
 
 export function roomOpen(state: GameState, def: RoomDef): boolean {
@@ -115,10 +115,6 @@ export function assign(state: GameState, jobId: string, k: number): number {
 }
 
 // ---------- multipliers ----------
-
-function bought(state: GameState): UpgradeDef[] {
-  return UPGRADES.filter((u) => state.upgrades.includes(u.id));
-}
 
 export function jobMultiplier(state: GameState, jobId: string): number {
   let m = 1 + veteranBonus(crew(state, jobId).exp);
@@ -237,8 +233,16 @@ export function capacity(state: GameState, res: ResourceId): number {
   const def = resourceDef(res);
   const room = roomDef(def.store);
   if (!room) return 0;
+  const mult = storageMult(state) * researchMult(state, 'storeMult', (e) => e.resource === res);
+  if (room.id === 'hoard') {
+    // one shared pile: what's held, plus however much more fits in the space left
+    let used = 0;
+    for (const g of storeGoods(state, 'hoard')) used += state.res[g.id] / g.perPace;
+    const free = Math.max(0, roomVolume(state, 'hoard') * mult - used);
+    return Math.floor(state.res[res] + free * def.perPace + 1e-9);
+  }
   const share = roomVolume(state, room.id) / Math.max(1, storeGoods(state, room.id).length);
-  return Math.floor(share * def.perPace * storageMult(state) * researchMult(state, 'storeMult', (e) => e.resource === res));
+  return Math.floor(share * def.perPace * mult);
 }
 
 export function beds(state: GameState): number {
@@ -389,12 +393,19 @@ export function jobHints(state: GameState): Record<string, string> {
 
 // ---------- kobolds coming to the hoard ----------
 
-/** How strongly the hoard draws kobolds. Things that change slowly, not copper held. */
+/** The hoard's worth in copper: copper, silver and gold together. */
+export function hoardValue(state: GameState): number {
+  let v = 0;
+  for (const r of RESOURCES) if (r.value) v += state.res[r.id] * r.value;
+  return v;
+}
+
+/** How strongly the hoard draws kobolds: the dragon, the hoard's worth (each tenfold counts the same), art and oddities. */
 export function appeal(state: GameState): number {
   let a = DRAGON_STAGES[state.stage]?.appeal ?? 0;
-  a += (ATTRACTION.perHoardPaces * roomVolume(state, 'hoard')) / 50;
+  a += ATTRACTION.perValueDecade * Math.log10(1 + hoardValue(state));
   a += ATTRACTION.perOddity * Object.keys(state.oddities).length;
-  for (const u of bought(state)) if (u.effect.kind === 'appeal') a += u.effect.points;
+  a += ATTRACTION.perDragonPaces * state.dragon.size;
   a += dragonAppeal(state);
   let m = 1;
   if (state.chief) m *= 1 + 0.1 * state.chief.voice;
@@ -435,11 +446,11 @@ export function arrive(state: GameState, seconds: number): number {
 // ---------- the dragon and the pile ----------
 
 /**
- * The dragon stage a lifetime total has earned. Only hatching comes from
- * copper; later stages come from molting (see dragon.ts).
+ * The dragon stage a hoard value has earned. Only hatching comes from the
+ * hoard's worth; later stages come from evolving (see dragon.ts).
  */
-export function stageFor(totalEarned: number): number {
-  return totalEarned >= (DRAGON_STAGES[1].threshold ?? Infinity) ? 1 : 0;
+export function stageFor(value: number): number {
+  return value >= (DRAGON_STAGES[1].threshold ?? Infinity) ? 1 : 0;
 }
 
 export function hoardSize(copperHeld: number): number {
@@ -509,8 +520,10 @@ export function tick(state: GameState, seconds: number, t = state.lastTick): Tic
     research(state, dt, at, rand, r);
     const before = state.stage;
     r.events.push(...dragonStep(state, dt, at, rand));
+    r.events.push(...artStep(state, dt, at, rand));
+    r.events.push(...oddityPips(state));
     for (const c of Object.values(state.crews)) if (c.n > 0) c.exp += (dt / 3600) * expRate;
-    const s = stageFor(state.totalEarned);
+    const s = stageFor(hoardValue(state));
     if (s > state.stage) state.stage = s;
     if (state.stage > before) r.newStage = state.stage;
   }
@@ -630,26 +643,13 @@ export function advanceTo(state: GameState, now: number): AdvanceResult {
   return out;
 }
 
-// ---------- upgrades and displays ----------
-
-export function upgradeVisible(state: GameState, u: UpgradeDef): boolean {
-  if (state.upgrades.includes(u.id)) return false;
-  const r = u.requires;
-  if (r.stage !== undefined && state.stage < r.stage) return false;
-  if (r.job && workers(state, r.job) < (r.count ?? 1)) return false;
-  return Object.keys(u.cost).every((res) => resourceOpen(state, res as ResourceId));
-}
-
-export function canAfford(state: GameState, cost: Partial<Record<ResourceId, number>>): boolean {
-  return Object.entries(cost).every(([res, n]) => state.res[res as ResourceId] >= (n ?? 0));
-}
-
-export function buyUpgrade(state: GameState, upgradeId: string): boolean {
-  const u = UPGRADES.find((x) => x.id === upgradeId);
-  if (!u || !upgradeVisible(state, u) || !canAfford(state, u.cost)) return false;
-  for (const [res, n] of Object.entries(u.cost)) state.res[res as ResourceId] -= n ?? 0;
-  state.upgrades.push(u.id);
-  return true;
+/** Every few kinds of oddity found, the Chief grows more cunning. */
+function oddityPips(state: GameState): string[] {
+  const earned = Math.floor(Object.keys(state.oddities).length / PIP_ODDITIES);
+  if (earned <= state.chiefMarks.oddities) return [];
+  state.chiefMarks.oddities = earned;
+  if (!raiseStat(state.chief, 'cunning')) return [];
+  return [`${state.chief!.name} has studied the oddities shelf so long they've grown more cunning. Cunning +1.`];
 }
 
 /** How many named kobolds work a job. */

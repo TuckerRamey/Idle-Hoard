@@ -27,6 +27,7 @@
           <div id="dragon" class="dragon" hidden>
             <div id="dragon-mood" class="desc"></div>
             <div id="dragon-craving" class="desc"></div>
+            <div id="dragon-size" class="desc"></div>
             <div id="dragon-request" class="request" hidden>
               <p id="request-text"></p>
               <div class="buttons"><button type="button" id="request-grant" class="primary">Give it</button><button type="button" id="request-dismiss">Not now</button></div>
@@ -85,17 +86,17 @@
           <h2 id="chief-title">Chief</h2>
           <p id="chief-quirk" class="desc"></p>
           <div id="chief-stats" class="stats"></div>
+          <div id="chief-grow" class="chief-grow" hidden>
+            <p class="desc">{chief} can grow. Pick one:</p>
+            <div id="chief-grow-buttons" class="grow-buttons"></div>
+          </div>
         </section>
 
 
-        <div id="upgrades-section" hidden>
-          <ul id="upgrades" class="list"></ul>
-        </div>
-
-        <div id="displays-section" hidden>
-          <h2>Hoard room displays</h2>
-          <p class="desc">Things on show make the hoard more appealing, so kobolds arrive faster.</p>
-          <ul id="displays" class="list"></ul>
+        <div id="art-section" hidden>
+          <h2>Art in the hoard room</h2>
+          <p id="art-status" class="desc"></p>
+          <ul id="art" class="list"></ul>
         </div>
 
         <details id="oddities-section" class="oddities" hidden>

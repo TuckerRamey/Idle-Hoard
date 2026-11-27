@@ -3,11 +3,13 @@
 // how the warren looks after it, not from a number filling up.
 
 import { DRAGON_STAGES, type ResourceId } from './data';
-import { capacity, production, resourceOpen, roomVolume, workers } from './economy';
+import { artAppeal } from './art';
+import { PIP_FAVOR } from './chief';
+import { capacity, hoardValue, production, resourceOpen, roomVolume, store, workers } from './economy';
 import { fullName, GIFTS, lieutenants, nameKobold, findNamed, addHistory, type NamedKobold } from './kobolds';
 import { opened, researchEffect } from './research';
 import type { GameState } from './state';
-import { JOBS, UPGRADES } from './data';
+import { JOBS } from './data';
 
 // ---------- diet ----------
 
@@ -92,7 +94,6 @@ export interface RequestDef {
 }
 
 export const REQUESTS: RequestDef[] = [
-  { resource: 'copper', seconds: 1_800, min: 200, text: 'The dragon wants more shiny things. It keeps pushing coins around and sighing.' },
   { resource: 'wood', seconds: 1_800, min: 50, text: 'The dragon wants something to scratch its back on.' },
   { resource: 'stone', seconds: 1_800, min: 50, text: 'The dragon wants a nice flat stone to sleep on.' },
   { resource: 'bars', seconds: 2_400, min: 10, text: 'The dragon wants something to chew. Something metal.' },
@@ -146,7 +147,7 @@ export function grantRequest(state: GameState, t: number, rand: () => number): s
     state.dragon.request = null;
     state.dragon.granted++;
     state.dragon.favor++;
-    return 'The dragon got what it wanted and purred so loudly the coins rattled.';
+    return 'The dragon got what it wanted and purred so loudly the coins rattled.' + favorPip(state);
   }
   let k: NamedKobold | null | undefined = r.namedId !== null ? findNamed(state, r.namedId) : null;
   if (!k) {
@@ -160,7 +161,16 @@ export function grantRequest(state: GameState, t: number, rand: () => number): s
   state.dragon.request = null;
   state.dragon.granted++;
   state.dragon.favor++;
-  return `${fullName(k)} went to speak with the dragon and came back with ${gift.name}, looking very pleased with themselves.`;
+  return `${fullName(k)} went to speak with the dragon and came back with ${gift.name}, looking very pleased with themselves.` + favorPip(state);
+}
+
+/** Every PIP_FAVOR requests granted, the Chief earns a pip of your choice. */
+function favorPip(state: GameState): string {
+  const earned = Math.floor(state.dragon.favor / PIP_FAVOR);
+  if (earned <= state.chiefMarks.favor) return '';
+  state.chiefMarks.favor = earned;
+  state.chiefMarks.pending++;
+  return ` The dragon has taken a shine to ${state.chief?.name ?? 'the Chief'}, who can grow in one way of your choosing.`;
 }
 
 export function dismissRequest(state: GameState): string | null {
@@ -172,18 +182,21 @@ export function dismissRequest(state: GameState): string | null {
 // ---------- molting ----------
 
 export interface MoltDef {
+  /** Hoard value needed (copper, silver and gold together). */
+  value: number;
+  /** Art pieces on display in the hoard room. */
+  pieces: number;
   /** The stage this molt leaves. */
   from: number;
   lair: number;
-  displays: number;
   granted: number;
   contentHours: number;
   lieutenants: number;
 }
 
 export const MOLTS: MoltDef[] = [
-  { from: 1, lair: 1_000, displays: 2, granted: 2, contentHours: 12, lieutenants: 0 },
-  { from: 2, lair: 3_000, displays: 4, granted: 4, contentHours: 24, lieutenants: 1 },
+  { from: 1, lair: 1_000, value: 10_000, pieces: 0, granted: 2, contentHours: 12, lieutenants: 0 },
+  { from: 2, lair: 3_000, value: 200_000, pieces: 3, granted: 4, contentHours: 24, lieutenants: 1 },
 ];
 
 /** A trait the dragon gets at a molt, from what it ate most. */
@@ -194,8 +207,64 @@ export const DRAGON_TRAITS: Record<string, { name: string; text: string; appeal?
   jerky: { name: 'Jerky-chewer', text: 'Raised on alchemist jerky: patient and chewy. Appeal +5.', appeal: 5 },
 };
 
-export function displaysOwned(state: GameState): number {
-  return UPGRADES.filter((u) => u.effect.kind === 'appeal' && state.upgrades.includes(u.id)).length;
+// ---------- size and refining ----------
+
+export const SIZE = {
+  /** Cubic paces at hatching. */
+  hatch: 20,
+  /** Cubic paces gained per hour while fed and content. */
+  growPerHour: 20,
+  /** It can fill this much of its lair... */
+  lairShare: 0.5,
+  /** ...up to this many paces at each stage (egg, wyrmling, young, adult). */
+  capByStage: [0, 600, 2_000, 8_000],
+};
+
+export const REFINE = {
+  /** Copper eaten per second per cubic pace of dragon, while content... */
+  copperPerPace: 0.005,
+  /** ...shed as silver, this many copper to one silver (worth 10). */
+  copperPerSilver: 5,
+  /** From the young dragon on, silver eaten per second per pace... */
+  silverPerPace: 0.0005,
+  /** ...shed as gold, this many silver to one gold (worth 100). */
+  silverPerGold: 5,
+  /** Stage from which it makes gold. */
+  goldStage: 2,
+};
+
+/** How big the dragon can grow right now: part of its lair, up to its stage's limit. */
+export function sizeCap(state: GameState): number {
+  return Math.min(roomVolume(state, 'lair') * SIZE.lairShare, SIZE.capByStage[state.stage] ?? 0);
+}
+
+/** Is the dragon content enough to grow and refine? Only once it eats meat. */
+export function thriving(state: GameState): boolean {
+  return state.stage > 0 && opened(state, 'crab-wrangling') && !state.dragon.hungry;
+}
+
+/** Copper and silver eaten per second at full pace. */
+export function refineRates(state: GameState): { copper: number; silver: number } {
+  if (!thriving(state)) return { copper: 0, silver: 0 };
+  const size = state.dragon.size;
+  return {
+    copper: size * REFINE.copperPerPace,
+    silver: state.stage >= REFINE.goldStage ? size * REFINE.silverPerPace : 0,
+  };
+}
+
+function refine(state: GameState, dt: number) {
+  const r = refineRates(state);
+  const c = Math.min(state.res.copper, r.copper * dt);
+  if (c > 0) {
+    state.res.copper -= c;
+    store(state, 'silver', c / REFINE.copperPerSilver);
+  }
+  const s = Math.min(state.res.silver, r.silver * dt);
+  if (s > 0 && resourceOpen(state, 'gold')) {
+    state.res.silver -= s;
+    store(state, 'gold', s / REFINE.silverPerGold);
+  }
 }
 
 export interface MoltNeed {
@@ -211,7 +280,7 @@ export function moltNeeds(state: GameState): MoltNeed[] | null {
   const lair = roomVolume(state, 'lair');
   const needs: MoltNeed[] = [
     { label: `Lair dug to ${m.lair} cubic paces`, have: Math.floor(lair), need: m.lair, met: lair >= m.lair },
-    { label: `${m.displays} displays in the hoard room`, have: displaysOwned(state), need: m.displays, met: displaysOwned(state) >= m.displays },
+    { label: `A hoard worth ${m.value.toLocaleString('en-US')} copper`, have: Math.floor(hoardValue(state)), need: m.value, met: hoardValue(state) >= m.value },
     { label: `${m.granted} of its requests granted`, have: state.dragon.granted, need: m.granted, met: state.dragon.granted >= m.granted },
     {
       label: `Fed and content for ${m.contentHours} hours`,
@@ -220,6 +289,8 @@ export function moltNeeds(state: GameState): MoltNeed[] | null {
       met: state.dragon.content >= m.contentHours * 3600,
     },
   ];
+  if (m.pieces)
+    needs.push({ label: `${m.pieces} pieces of art on display`, have: state.art.pieces.length, need: m.pieces, met: state.art.pieces.length >= m.pieces });
   if (m.lieutenants)
     needs.push({ label: `${m.lieutenants} lieutenant to keep it company`, have: lieutenants(state).length, need: m.lieutenants, met: lieutenants(state).length >= m.lieutenants });
   return needs;
@@ -243,7 +314,9 @@ function molt(state: GameState, t: number): string[] {
   if (rec) rec.count++;
   else state.oddities['shed-skins'] = { count: 1, firstAt: t };
   const tr = DRAGON_TRAITS[trait];
+  state.chiefMarks.pending++;
   return [
+    `${state.chief?.name ?? 'The Chief'} stood a little taller watching it. They can grow in one way of your choosing.`,
     `The dragon molted! ${DRAGON_STAGES[state.stage].flavor}`,
     `Its old skin is on the oddities shelf. ${tr ? `It came out ${tr.name.toLowerCase()}: ${tr.text}` : ''}`.trim(),
   ];
@@ -269,6 +342,7 @@ export function dragonStep(state: GameState, dt: number, t: number, rand: () => 
   if (state.herdSettle > 0) state.herdSettle = Math.max(0, state.herdSettle - dt);
   if (state.stage === 0) return lines;
   d.clock += dt;
+  if (d.size < SIZE.hatch) d.size = SIZE.hatch;
 
   // eating
   const want = eatRate(state) * dt;
@@ -284,6 +358,13 @@ export function dragonStep(state: GameState, dt: number, t: number, rand: () => 
   }
   if (d.hungry && !wasHungry && opened(state, 'crab-wrangling')) lines.push('The dragon is hungry and has stopped growing. More herders would help.');
   if (!d.hungry && wasHungry && d.content > 0) lines.push('The dragon has eaten its fill and settled down happily.');
+
+  // growing into the lair, and refining the hoard
+  if (thriving(state)) {
+    const cap = sizeCap(state);
+    if (d.size < cap) d.size = Math.min(cap, d.size + (SIZE.growPerHour * dt) / 3600);
+    refine(state, dt);
+  }
 
   // cravings: a day's hint, then the change
   if (animalsOpen(state).length > 1) {
@@ -321,9 +402,9 @@ export function dragonStep(state: GameState, dt: number, t: number, rand: () => 
   return lines;
 }
 
-/** Extra appeal from the dragon's favor and traits. */
+/** Extra appeal from the dragon's favor, traits and the art in its hoard room. */
 export function dragonAppeal(state: GameState): number {
-  let a = state.dragon.favor * REQUEST.favorAppeal;
+  let a = state.dragon.favor * REQUEST.favorAppeal + artAppeal(state);
   for (const tr of state.dragon.traits) a += DRAGON_TRAITS[tr]?.appeal ?? 0;
   return a;
 }
