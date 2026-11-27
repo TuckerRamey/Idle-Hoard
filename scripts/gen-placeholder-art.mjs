@@ -288,6 +288,7 @@ kobold('kobold-researcher.png', '#b0b8c8', '#6a7080', '#e8e8f0'); // lab coat
 kobold('kobold-miner.png', '#6a6a72', '#3c3c44', '#e8b830', false, 'coins');
 kobold('kobold-herder.png', '#8fa060', '#5a6a38', '#d07a40');
 kobold('kobold-alchemist.png', '#9a6ab8', '#5e3e74', '#5ad0a0');
+kobold('kobold-blacksmith.png', '#7a7a80', '#3e3e44', '#e0782a');
 
 // ---------- hats for named kobolds: 12x12 frames, one row of 6 looks ----------
 // Drawn over a kobold's frame at the same spot, so they sit on the head.

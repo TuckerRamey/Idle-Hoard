@@ -22,6 +22,7 @@ import {
   type UpgradeDef,
 } from './data';
 import { dragonAppeal, dragonJobMult, dragonStep, eatRate, moodMult } from './dragon';
+import { forgeMakes, forgeStep, forgeUse, toolMults } from './forge';
 import { addHistory, crewLift, fullName, nameKobold, namedIn, personalMult } from './kobolds';
 import { ODDITIES } from './oddities';
 import { addResearch, MISHAPS, MISHAP_HOURS, opened, researchDef, researchEffect, researchEffects, researchMult, researchShortOf } from './research';
@@ -32,7 +33,7 @@ export const roomDef = (id: string) => ROOMS.find((r) => r.id === id);
 export const resourceDef = (id: ResourceId) => RESOURCES.find((r) => r.id === id)!;
 export const recipeDef = (id: string) => RECIPES.find((r) => r.id === id);
 
-const emptyRes = () => ({ copper: 0, wood: 0, stone: 0, iron: 0, meat: 0 }) as Record<ResourceId, number>;
+export const emptyRes = () => ({ copper: 0, wood: 0, stone: 0, ore: 0, bars: 0, steel: 0, meat: 0 }) as Record<ResourceId, number>;
 
 // ---------- what's open ----------
 
@@ -121,7 +122,6 @@ function bought(state: GameState): UpgradeDef[] {
 
 export function jobMultiplier(state: GameState, jobId: string): number {
   let m = 1 + veteranBonus(crew(state, jobId).exp);
-  for (const u of bought(state)) if (u.effect.kind === 'jobMult' && u.effect.job === jobId) m *= u.effect.mult;
   m *= researchMult(state, 'jobMult', (e) => e.job === jobId);
   const q = quirkOf(state.chief);
   if (q?.effect.kind === 'jobMult' && q.effect.job === jobId) m *= q.effect.mult;
@@ -130,7 +130,6 @@ export function jobMultiplier(state: GameState, jobId: string): number {
 
 export function globalMultiplier(state: GameState): number {
   let m = DRAGON_STAGES[state.stage]?.incomeMult ?? 1;
-  for (const u of bought(state)) if (u.effect.kind === 'globalMult') m *= u.effect.mult;
   m *= researchMult(state, 'globalMult');
   if (state.chief) m *= 1 + 0.05 * state.chief.nerve;
   for (const o of ODDITIES) if (o.incomeMult && state.oddities[o.id]) m *= o.incomeMult;
@@ -138,7 +137,7 @@ export function globalMultiplier(state: GameState): number {
 }
 
 function baseRate(def: JobDef): number {
-  return def.produces?.rate ?? def.digs ?? def.researches ?? def.converts ?? 0;
+  return def.produces?.rate ?? def.digs ?? def.researches ?? def.converts ?? def.smiths ?? 0;
 }
 
 /** What one crowd kobold in this job makes (or digs, researches, converts) per second. */
@@ -159,8 +158,9 @@ function herdFactor(state: GameState): number {
 export function jobOutput(state: GameState, def: JobDef): number {
   if (!jobOpen(state, def)) return 0;
   const each = baseRate(def) * jobMultiplier(state, def.id) * globalMultiplier(state);
-  let total = crew(state, def.id).n * each * crewLift(state, def.id);
-  for (const k of namedIn(state, def.id)) total += each * personalMult(k);
+  const tools = toolMults(state, def.id);
+  let total = crew(state, def.id).n * each * crewLift(state, def.id) * tools.crew;
+  namedIn(state, def.id).forEach((k, i) => (total += each * personalMult(k) * (tools.named[i] ?? 1)));
   if (def.id === 'herder') total *= herdFactor(state);
   return total;
 }
@@ -212,47 +212,33 @@ function storageMult(state: GameState): number {
   return q?.effect.kind === 'storageMult' ? q.effect.mult : 1;
 }
 
-export function roomSize(state: GameState, roomId: string): number {
-  return state.rooms[roomId]?.size ?? 1;
+/** A room's volume in cubic paces. Rooms grow with every bit of digging. */
+export function roomVolume(state: GameState, roomId: string): number {
+  return state.rooms[roomId]?.volume ?? roomDef(roomId)?.start ?? 0;
 }
 
-/**
- * How far a room is dug, counting the dig in progress: size 3 halfway to 4
- * is 3.5. Rooms grow with every bit of digging; whole sizes only mark where
- * the supports a dig needs change.
- */
-export function roomExtent(state: GameState, roomId: string): number {
-  const room = state.rooms[roomId];
-  const def = roomDef(roomId);
-  if (!room || !def) return 1;
-  return room.size + Math.min(1, room.progress / digWork(def, room.size + 1));
-}
-
-/** What a room holds: copper, storehouse space, beds or herders. Grows smoothly as it's dug. */
-export function roomCapacity(state: GameState, def: RoomDef, size = roomExtent(state, def.id)): number {
-  if (def.holds === 'beds' || def.holds === 'herders') {
-    let m = 1;
-    if (def.holds === 'beds') {
-      m *= storageMult(state);
-      m *= researchMult(state, 'bedsMult');
-    }
-    return Math.floor(def.base * Math.pow(size, def.growth) * m + 1e-9);
-  }
+/** What a room holds: cubic paces of goods, or beds, herders or smiths. */
+export function roomCapacity(state: GameState, def: RoomDef, volume = roomVolume(state, def.id)): number {
   if (def.holds === 'dragon') return 0;
-  return Math.floor(def.base * Math.pow(def.growth, size - 1) * storageMult(state));
+  if (def.holds === 'goods') return volume;
+  let m = 1;
+  if (def.holds === 'beds') m *= storageMult(state) * researchMult(state, 'bedsMult');
+  return Math.floor((volume / (def.pacesEach ?? 1)) * m + 1e-9);
 }
 
-/** Storehouse goods uncovered so far; they share the storehouse evenly. */
-export function storehouseGoods(state: GameState) {
-  return RESOURCES.filter((r) => r.store === 'storehouse' && resourceOpen(state, r.id));
+/** The open goods a store holds; they share its space evenly. */
+export function storeGoods(state: GameState, roomId: string) {
+  return RESOURCES.filter((r) => r.store === roomId && resourceOpen(state, r.id));
 }
 
-/** How much of a resource can be held. Storehouse space is split evenly. */
+/** How much of a resource can be held. */
 export function capacity(state: GameState, res: ResourceId): number {
   if (!resourceOpen(state, res)) return 0;
-  if (resourceDef(res).store === 'hoard') return roomCapacity(state, roomDef('hoard')!);
-  const share = roomCapacity(state, roomDef('storehouse')!) / storehouseGoods(state).length;
-  return Math.floor(share * researchMult(state, 'storeMult', (e) => e.resource === res));
+  const def = resourceDef(res);
+  const room = roomDef(def.store);
+  if (!room) return 0;
+  const share = roomVolume(state, room.id) / Math.max(1, storeGoods(state, room.id).length);
+  return Math.floor(share * def.perPace * storageMult(state) * researchMult(state, 'storeMult', (e) => e.resource === res));
 }
 
 export function beds(state: GameState): number {
@@ -264,15 +250,15 @@ export function herdersFit(state: GameState): number {
   return def && roomOpen(state, def) ? roomCapacity(state, def) : 0;
 }
 
-/** Dig work needed to take a room from `toSize - 1` to `toSize`. */
-export function digWork(def: RoomDef, toSize: number): number {
-  return def.digBase * Math.pow(DIG.growth, toSize - 2);
+/** Supports used per cubic pace dug in a room of this volume. */
+export function supportsFor(volume: number, state?: GameState) {
+  const m = state ? researchMult(state, 'supportsMult') : 1;
+  return DIG.supports.filter((s) => volume >= s.fromPaces).map((s) => ({ ...s, perPace: s.perPace * m }));
 }
 
-/** Supports used per unit of dig work while digging a room toward `toSize`. */
-export function supportsFor(toSize: number, state?: GameState) {
-  const m = state ? researchMult(state, 'supportsMult') : 1;
-  return DIG.supports.filter((s) => toSize >= s.fromSize).map((s) => ({ ...s, perWork: s.perWork * m }));
+/** The biggest a room can be dug. */
+export function maxVolume(state: GameState): number {
+  return researchEffects(state).some((e) => e.kind === 'deepDigging') ? Infinity : DIG.maxPaces;
 }
 
 /** An alchemy recipe's ratio after research: how many in for one out. */
@@ -282,12 +268,23 @@ export function recipeRatio(state: GameState, recipe: RecipeDef): number {
   return Math.max(1, ratio * researchMult(state, 'alchemyMult'));
 }
 
-/** Why the current dig can't go on, or null if it can. */
-export function digBlocked(state: GameState): ResourceId | null {
+/** Why the current dig can't go on: a support that's run out, 'full' at the size limit, or null. */
+export function digBlocked(state: GameState): ResourceId | 'full' | null {
   if (!state.digging) return null;
-  const toSize = roomSize(state, state.digging) + 1;
-  for (const s of supportsFor(toSize, state)) if (state.res[s.resource] < s.perWork * 0.01) return s.resource;
+  const v = roomVolume(state, state.digging);
+  if (v >= maxVolume(state) - 1e-9) return 'full';
+  for (const s of supportsFor(v, state)) if (state.res[s.resource] < s.perPace * 0.01) return s.resource;
   return null;
+}
+
+/** Round volumes worth a line in the chronicle. */
+export function volumeMilestone(v: number): number {
+  const steps = [1, 1.5, 2, 2.5, 4, 5, 6, 8];
+  let base = 100;
+  for (;;) {
+    for (const x of steps) if (base * x > v + 1e-9) return base * x;
+    base *= 10;
+  }
 }
 
 export function setDigging(state: GameState, roomId: string | null): boolean {
@@ -312,10 +309,10 @@ export interface Flow {
   cap: number;
   /** Made per second (jobs, the Chief, alchemy). */
   in: number;
-  /** Used per second at full pace (digging, alchemy, the dragon). */
+  /** Used per second at full pace (digging, alchemy, the forge, the dragon). */
   out: number;
   /** The biggest single use, for hints. */
-  usedBy: 'digging' | 'alchemy' | 'dragon' | null;
+  usedBy: 'digging' | 'alchemy' | 'forge' | 'dragon' | null;
 }
 
 export function flows(state: GameState): Record<ResourceId, Flow> {
@@ -326,11 +323,13 @@ export function flows(state: GameState): Record<ResourceId, Flow> {
     out[res] += n;
     if (!top[res] || n > top[res].n) top[res] = { by, n };
   };
-  const dig = digRate(state);
-  const toSize = state.digging ? roomSize(state, state.digging) + 1 : 0;
+  const paces = digRate(state) / DIG.workPerPace;
+  const vol = state.digging ? roomVolume(state, state.digging) : 0;
   // a dig stalled for one support uses none of the others either
   const blocked = digBlocked(state);
-  if (dig > 0) for (const s of supportsFor(toSize, state)) if (!blocked || blocked === s.resource) use(s.resource, dig * s.perWork, 'digging');
+  if (paces > 0 && blocked !== 'full') for (const s of supportsFor(vol, state)) if (!blocked || blocked === s.resource) use(s.resource, paces * s.perPace, 'digging');
+  for (const [res, n] of Object.entries(forgeUse(state))) use(res as ResourceId, n ?? 0, 'forge');
+  for (const [res, n] of Object.entries(forgeMakes(state))) inn[res as ResourceId] += n ?? 0;
   const recipe = recipeDef(state.recipe);
   const alc = alchemyRate(state);
   if (recipe && alc > 0) {
@@ -351,7 +350,7 @@ export function flows(state: GameState): Record<ResourceId, Flow> {
 export function jobHints(state: GameState): Record<string, string> {
   const hints: Record<string, string> = {};
   const f = flows(state);
-  const why = { digging: 'Digging', alchemy: 'The alchemist', dragon: 'The dragon' } as const;
+  const why = { digging: 'Digging', alchemy: 'The alchemist', forge: 'The forge', dragon: 'The dragon' } as const;
   for (const def of JOBS) {
     const res = def.produces?.resource;
     if (!res || !jobOpen(state, def)) continue;
@@ -366,7 +365,7 @@ export function jobHints(state: GameState): Record<string, string> {
         ? `${who} has run out of ${name}. About ${more} more ${plural(more)} would keep up.`
         : `${who} uses ${name} faster than it comes in. About ${more} more ${plural(more)} would keep up.`;
     } else if (fl.in > 0 && fl.held >= fl.cap) {
-      const room = resourceDef(res).store === 'hoard' ? 'hoard room' : 'storehouse';
+      const room = roomDef(resourceDef(res).store)?.name.toLowerCase() ?? 'store';
       hints[def.id] = `${resourceDef(res).name} is full, so the extra is lost. Dig the ${room} bigger, spend some, or move kobolds.`;
     }
   }
@@ -393,7 +392,7 @@ export function jobHints(state: GameState): Record<string, string> {
 /** How strongly the hoard draws kobolds. Things that change slowly, not copper held. */
 export function appeal(state: GameState): number {
   let a = DRAGON_STAGES[state.stage]?.appeal ?? 0;
-  a += ATTRACTION.perHoardSize * roomExtent(state, 'hoard');
+  a += (ATTRACTION.perHoardPaces * roomVolume(state, 'hoard')) / 50;
   a += ATTRACTION.perOddity * Object.keys(state.oddities).length;
   for (const u of bought(state)) if (u.effect.kind === 'appeal') a += u.effect.points;
   a += dragonAppeal(state);
@@ -470,7 +469,8 @@ export interface TickResult {
   lost: Record<ResourceId, number>;
   newStage: number | null;
   /** Rooms that reached a new size, in order. */
-  dug: { room: string; size: number }[];
+  /** Rooms that passed a round volume. */
+  dug: { room: string; volume: number }[];
   /** Research finished, by id. */
   learned: string[];
   /** Chronicle lines. {chief} is filled in by the caller. */
@@ -505,6 +505,7 @@ export function tick(state: GameState, seconds: number, t = state.lastTick): Tic
     }
     alchemy(state, alchemyRate(state) * dt);
     dig(state, digRate(state) * dt, r);
+    forgeStep(state, dt);
     research(state, dt, at, rand, r);
     const before = state.stage;
     r.events.push(...dragonStep(state, dt, at, rand));
@@ -528,27 +529,25 @@ function alchemy(state: GameState, input: number) {
 }
 
 function dig(state: GameState, work: number, r: TickResult) {
-  // a room can grow several sizes in one go after a long absence
-  for (let guard = 0; guard < 50 && work > 1e-9 && state.digging; guard++) {
+  // supports change at set volumes, so dig up to each one in turn
+  for (let guard = 0; guard < 20 && work > 1e-9 && state.digging; guard++) {
     const def = roomDef(state.digging);
-    const room = state.rooms[state.digging];
-    if (!def || !room) return;
-    const toSize = room.size + 1;
-    const need = digWork(def, toSize) - room.progress;
-    const want = Math.min(work, need);
-    let w = want;
-    for (const s of supportsFor(toSize, state)) w = Math.min(w, state.res[s.resource] / s.perWork);
-    if (w <= 1e-9) return; // stalled for supports
-    for (const s of supportsFor(toSize, state)) state.res[s.resource] = Math.max(0, state.res[s.resource] - w * s.perWork);
-    room.progress += w;
-    work -= w;
-    if (room.progress >= digWork(def, toSize) - 1e-6) {
-      room.size = toSize;
-      room.progress = 0;
-      r.dug.push({ room: def.id, size: toSize });
-    } else if (w < want) {
-      return; // ran out of supports part way
-    }
+    if (!def) return;
+    const room = (state.rooms[def.id] ??= { volume: def.start });
+    const max = maxVolume(state);
+    const next = DIG.supports.find((x) => x.fromPaces > room.volume + 1e-9)?.fromPaces ?? Infinity;
+    const want = Math.min(work / DIG.workPerPace, Math.min(next, max) - room.volume);
+    let paces = want;
+    const sup = supportsFor(room.volume, state);
+    for (const x of sup) paces = Math.min(paces, state.res[x.resource] / x.perPace);
+    if (paces <= 1e-9) return; // stalled for supports, or full
+    for (const x of sup) state.res[x.resource] = Math.max(0, state.res[x.resource] - paces * x.perPace);
+    const before = room.volume;
+    room.volume += paces;
+    work -= paces * DIG.workPerPace;
+    const mark = volumeMilestone(before);
+    if (room.volume >= mark - 1e-6) r.dug.push({ room: def.id, volume: mark });
+    if (paces < want - 1e-9) return; // ran out of supports part way
   }
 }
 

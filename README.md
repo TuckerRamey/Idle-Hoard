@@ -71,7 +71,11 @@ Nobody is hired. Kobolds wander in on their own, drawn by the hoard's **appeal**
 
 Jobs are assignments, not a ladder. Newcomers go to the job picked under Idle (Scavenger by default). The − and + buttons move kobolds between Idle and any job, 1, 5, 20 or all at a time. A crew gets better the longer it works together (up to +30%), and newcomers water that down, so big reshuffles cost a little.
 
-A new game knows copper (in the hoard room), mushroom wood and stone (sharing the storehouse evenly, so one can never crowd out another). Research uncovers iron and meat, which take their own share. When a room is full, the extra is lost until it's dug bigger. Diggers dig one room at a time, picked with **Dig here**, and a room holds a little more with every bit of digging. Whole sizes only mark where a dig starts needing supports: wood from size 3, stone from size 6, iron from size 10. A dig with no supplies stalls, and the job rows say what's short and roughly how many kobolds would fix it.
+Rooms are measured in cubic paces, and digging adds volume at the same rate for every room (`DIG` in `src/game/data.ts`). Each good has its own store: copper in the hoard room, wood in the woodpile, stone in the stone yard, meat in the larder, and iron ore, bars and steel sharing the metal store evenly. A new game knows copper, wood and stone; research uncovers the rest. When a store is full, the extra is lost until it's dug bigger. Diggers dig one room at a time, picked with **Dig here**, and the rooms list is grouped into living rooms, work rooms and stores. Small rooms need no supports; from 150 cubic paces a room needs wood, from 500 stone too, and from 1,500 iron bars, a little for every pace dug. Rooms stop at 4,000 paces until deep delving is researched. A dig with no supplies stalls, and the job rows say what's short and roughly how many kobolds would fix it.
+
+## The forge
+
+Smithing opens the forge (`src/game/forge.ts`). Blacksmiths do forge work, split evenly between the forge's anvils (one, then more through research), and each anvil takes an order: smelt iron ore and wood into bars, make steel, make tools for one job, or make tools for whoever needs them most. Every job has its own tool, in stone, iron and steel tiers; the forge only makes the best tier it knows. The best tools go to named kobolds first, then the crew, and anyone left over works bare-handed. Tools wear out after about a week of use, and stay with their job when kobolds move. The forge room's size caps how many blacksmiths can work.
 
 ## Research and named kobolds
 
@@ -142,11 +146,11 @@ Not built yet, but the code is set up so neither needs a rewrite:
 
 ```
 src/
-  game/       data.ts (content), chief.ts (stats, quirks), research.ts, kobolds.ts (named kobolds),
+  game/       data.ts (content), chief.ts (stats, quirks), research.ts, kobolds.ts (named kobolds), forge.ts,
               dragon.ts (diet, requests, molting), happenings.ts, oddities.ts,
               state.ts, economy.ts (production, rooms, digging, crews, arrivals), save.ts (versioned saves)
   render/     manifest.ts (sprite sheets), scene.ts (what to draw), renderer.ts (canvas + scheduling)
-  ui/         hud.ts (stores, kobolds, rooms, upgrades), dragon-view.ts, research-view.ts, named-view.ts, chief-panel.ts, chronicle.ts, oddities-view.ts, format.ts
+  ui/         hud.ts (stores, kobolds, rooms, upgrades), dragon-view.ts, research-view.ts, forge-view.ts, named-view.ts, chief-panel.ts, chronicle.ts, oddities-view.ts, format.ts
   assets/art/ sprite sheets
 scripts/      gen-placeholder-art.mjs
 tests/        vitest unit tests

@@ -10,14 +10,13 @@ import {
   buyUpgrade,
   capacity,
   digBlocked,
-  digWork,
   flows,
   hoardSize,
   incomePerSecond,
   jobHints,
   population,
   production,
-  roomCapacity,
+  storeGoods,
   stageFor,
   tick,
   veteranBonus,
@@ -46,7 +45,7 @@ describe('new game', () => {
     expect(s.chief).toBeNull();
     expect(population(s)).toBe(0);
     expect(incomePerSecond(s)).toBe(0);
-    for (const r of ROOMS) expect(s.rooms[r.id].size).toBe(1);
+    for (const r of ROOMS) expect(s.rooms[r.id].volume).toBe(r.start);
   });
 });
 
@@ -134,13 +133,11 @@ describe('tick', () => {
     expect(r.lost.wood).toBeGreaterThan(0);
   });
 
-  it('splits the storehouse evenly, so stone can never crowd out wood', () => {
+  it('keeps each good in its own store, so stone can never crowd out wood', () => {
     const s = game();
-    const total = roomCapacity(s, room('storehouse'));
-    expect(capacity(s, 'wood')).toBe(total / 2);
-    expect(capacity(s, 'stone')).toBe(total / 2);
     s.crews.quarrier = { n: 50, exp: 0 };
     tick(s, 86_400);
+    expect(s.res.stone).toBe(capacity(s, 'stone'));
     s.crews = { woodcutter: { n: 1, exp: 0 } };
     tick(s, 10);
     expect(s.res.wood).toBeGreaterThan(0);
@@ -164,59 +161,78 @@ describe('tick', () => {
 });
 
 describe('digging rooms', () => {
-  it('small rooms need only diggers', () => {
+  it('small rooms need only diggers, and grow with every bit of digging', () => {
     const s = game();
     s.crews.digger = { n: 1, exp: 0 };
     s.digging = 'den';
-    const r = tick(s, digWork(room('den'), 2) + 1);
-    expect(r.dug).toEqual([{ room: 'den', size: 2 }]);
-    expect(s.rooms.den.size).toBe(2);
-    expect(beds(s)).toBeGreaterThan(roomCapacity(s, room('den'), 1));
+    const before = beds(s);
+    tick(s, 100);
+    expect(s.rooms.den.volume).toBeGreaterThanOrEqual(room('den').start + 100 / DIG.workPerPace);
+    expect(beds(s)).toBeGreaterThan(before);
   });
 
-  it('bigger rooms use wood to hold the ceiling up, and stall without it', () => {
+  it('big rooms use wood to hold the ceiling up, and stall without it', () => {
     const wood = DIG.supports.find((x) => x.resource === 'wood')!;
     const s = game();
-    s.rooms.den.size = wood.fromSize - 1;
+    s.rooms.den.volume = wood.fromPaces;
     s.crews.digger = { n: 1, exp: 0 };
     s.digging = 'den';
     s.res.wood = 10;
-    tick(s, 5);
-    expect(s.res.wood).toBeCloseTo(10 - 5 * wood.perWork, 0);
+    tick(s, 4);
+    expect(s.res.wood).toBeCloseTo(10 - (4 / DIG.workPerPace) * wood.perPace, 5);
     tick(s, 1000);
     expect(s.res.wood).toBe(0);
     expect(digBlocked(s)).toBe('wood');
-    const progress = s.rooms.den.progress;
+    const vol = s.rooms.den.volume;
     tick(s, 100);
-    expect(s.rooms.den.progress).toBe(progress);
-    expect(s.rooms.den.size).toBe(wood.fromSize - 1);
+    expect(s.rooms.den.volume).toBe(vol);
   });
 
   it('a stalled dig points at the job that fixes it', () => {
     const s = game();
-    s.rooms.storehouse.size = 4;
+    s.rooms.woodpile.volume = 200;
     s.crews.digger = { n: 4, exp: 0 };
-    s.digging = 'storehouse';
+    s.digging = 'woodpile';
     const hints = jobHints(s);
     expect(hints.woodcutter).toMatch(/run out of mushroom wood.*About \d+ more woodcutters?/);
     expect(flows(s).wood.out).toBeGreaterThan(0);
   });
 
-  it('a long absence can dig several sizes', () => {
+  it('a long absence digs a long way and notes round sizes', () => {
     const s = game();
     s.crews.digger = { n: 5, exp: 0 };
     s.crews.woodcutter = { n: 10, exp: 0 };
+    s.crews.quarrier = { n: 10, exp: 0 };
     s.digging = 'hoard';
     const r = advanceTo(s, T0 + 3 * 3600 * 1000);
     expect(r.dug.length).toBeGreaterThan(1);
-    expect(s.rooms.hoard.size).toBe(1 + r.dug.length);
+    expect(s.rooms.hoard.volume).toBeGreaterThan(1000);
   });
 
-  it('room capacity is generous and grows with size', () => {
+  it('stops at the size limit until deep delving', () => {
     const s = game();
-    expect(capacity(s, 'copper')).toBe(room('hoard').base);
-    s.rooms.hoard.size = 3;
-    expect(capacity(s, 'copper')).toBeGreaterThan(room('hoard').base * 4);
+    s.rooms.den.volume = DIG.maxPaces;
+    s.digging = 'den';
+    expect(digBlocked(s)).toBe('full');
+    s.research.done.push('deep-delving');
+    expect(digBlocked(s)).not.toBe('full');
+  });
+
+  it('room capacity grows with volume', () => {
+    const s = game();
+    expect(capacity(s, 'copper')).toBe(room('hoard').start * 200);
+    s.rooms.hoard.volume *= 3;
+    expect(capacity(s, 'copper')).toBe(room('hoard').start * 600);
+  });
+
+  it('each store holds its own goods, and the metal store splits evenly', () => {
+    const s = game();
+    expect(capacity(s, 'wood')).toBe(room('woodpile').start * 40);
+    s.rooms.stoneyard.volume = 1000;
+    expect(capacity(s, 'wood')).toBe(room('woodpile').start * 40);
+    s.research.done.push('ore-sniffing', 'smithing');
+    expect(storeGoods(s, 'metals').map((g) => g.id)).toEqual(['ore', 'bars']);
+    expect(capacity(s, 'ore')).toBe((room('metals').start / 2) * 40);
   });
 });
 
@@ -277,14 +293,14 @@ describe('kobolds coming to the hoard', () => {
     expect(appeal(s)).toBe(base);
     s.stage = 2;
     expect(appeal(s)).toBe(base - DRAGON_STAGES[0].appeal + DRAGON_STAGES[2].appeal);
-    s.rooms.hoard.size = 3;
-    expect(appeal(s)).toBe(base - DRAGON_STAGES[0].appeal + DRAGON_STAGES[2].appeal + 2 * ATTRACTION.perHoardSize);
+    s.rooms.hoard.volume += 100;
+    expect(appeal(s)).toBeCloseTo(base - DRAGON_STAGES[0].appeal + DRAGON_STAGES[2].appeal + 2 * ATTRACTION.perHoardPaces);
     const before = appeal(s);
     s.res.copper = 1e9;
     expect(buyUpgrade(s, 'mural')).toBe(true);
-    expect(appeal(s)).toBe(before + 5);
+    expect(appeal(s)).toBeCloseTo(before + 5);
     s.oddities.kogoat = { count: 1, firstAt: T0 };
-    expect(appeal(s)).toBe(before + 5 + ATTRACTION.perOddity);
+    expect(appeal(s)).toBeCloseTo(before + 5 + ATTRACTION.perOddity);
   });
 
   it('Voice draws kobolds faster', () => {
@@ -296,17 +312,14 @@ describe('kobolds coming to the hoard', () => {
 });
 
 describe('upgrades', () => {
-  it('cost several resources and are bought once', () => {
+  it('are hoard room displays only: tools come from the forge now', () => {
     const s = game();
-    s.crews.woodcutter = { n: 2, exp: 0 };
-    s.res = { copper: 1000, wood: 0, stone: 59, iron: 0, meat: 0 };
-    expect(buyUpgrade(s, 'stone-axes')).toBe(false); // one stone short
-    s.res.stone = 60;
-    const before = production(s).wood;
-    expect(buyUpgrade(s, 'stone-axes')).toBe(true);
-    expect(s.res).toEqual({ copper: 750, wood: 0, stone: 0, iron: 0, meat: 0 });
-    expect(production(s).wood).toBeCloseTo(before * 1.5);
-    expect(buyUpgrade(s, 'stone-axes')).toBe(false);
+    s.res.copper = 299;
+    expect(buyUpgrade(s, 'mural')).toBe(false);
+    s.res.copper = 300;
+    expect(buyUpgrade(s, 'mural')).toBe(true);
+    expect(s.res.copper).toBe(0);
+    expect(buyUpgrade(s, 'mural')).toBe(false);
   });
 });
 

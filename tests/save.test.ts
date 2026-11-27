@@ -30,9 +30,9 @@ describe('save round trip', () => {
     s.res.wood = 7;
     s.crews.digger = { n: 4, exp: 1.5 };
     s.idle = 2;
-    s.rooms.den = { size: 3, progress: 12 };
+    s.rooms.den = { volume: 123.5 };
     s.digging = null;
-    s.upgrades.push('bigger-sacks');
+    s.upgrades.push('mural');
     s.settings.motion = 'low';
     expect(deserialize(serialize(s, T0), T0)).toEqual(s);
   });
@@ -52,12 +52,14 @@ describe('save round trip', () => {
   it('fills in defaults for missing fields (no migration needed for additions)', () => {
     const text = JSON.stringify({ version: SAVE_VERSION, savedAt: T0, state: { res: { copper: 5 } } });
     const s = deserialize(text, T0);
-    expect(s.res).toEqual({ copper: 5, wood: 0, stone: 0, iron: 0, meat: 0 });
+    expect(s.res).toEqual({ copper: 5, wood: 0, stone: 0, ore: 0, bars: 0, steel: 0, meat: 0 });
     expect(s.named).toEqual([]);
     expect(s.research.done).toEqual([]);
     expect(s.dragon.request).toBeNull();
     expect(s.crews).toEqual({});
-    expect(s.rooms.hoard).toEqual({ size: 1, progress: 0 });
+    expect(s.rooms.hoard).toEqual({ volume: 100 });
+    expect(s.forge.slots).toEqual([]);
+    expect(s.tools).toEqual({});
     expect(s.digging).toBe('den');
     expect(s.newcomerJob).toBe('scavenger');
     expect(s.chief).toBeNull();
@@ -70,12 +72,12 @@ describe('save round trip', () => {
     const text = JSON.stringify({
       version: SAVE_VERSION,
       savedAt: T0,
-      state: { crews: { scavenger: { n: 2, exp: 1 }, futureJob: { n: 3, exp: 0 } }, rooms: { vault: { size: 2, progress: 0 } } },
+      state: { crews: { scavenger: { n: 2, exp: 1 }, futureJob: { n: 3, exp: 0 } }, rooms: { vault: { volume: 70 } } },
     });
     const s = deserialize(text, T0);
     expect(s.crews).toEqual({ scavenger: { n: 2, exp: 1 }, futureJob: { n: 3, exp: 0 } });
-    expect(s.rooms.vault).toEqual({ size: 2, progress: 0 });
-    expect(s.rooms.den).toEqual({ size: 1, progress: 0 });
+    expect(s.rooms.vault).toEqual({ volume: 70 });
+    expect(s.rooms.den).toEqual({ volume: 40 });
   });
 
   it('cleans bad numbers', () => {
@@ -205,5 +207,35 @@ describe('load / write', () => {
     expect(load(store, T0).kind).toBe('error');
     expect(store.data[UNREADABLE_KEY]).toBe(future);
     expect(store.data[BACKUP_KEY]).toBeUndefined();
+  });
+});
+
+describe('saves from version 2 (rooms by size, one storehouse)', () => {
+  it('starts the warren over but keeps the Chief, chronicle, oddities and settings', () => {
+    const v2 = {
+      version: 2,
+      savedAt: T0,
+      state: {
+        res: { copper: 5000, wood: 10, stone: 10, iron: 4, meat: 2 },
+        rooms: { storehouse: { size: 3, progress: 0 } },
+        chief: { name: 'Snik', cunning: 1, voice: 2, nerve: 3, quirk: 'packrat' },
+        chronicle: [{ t: T0, text: 'The dragon molted.' }],
+        oddities: { kogoat: { count: 1, firstAt: T0 } },
+        settings: { motion: 'low' },
+        stage: 2,
+      },
+    };
+    const store = memoryStore({ [SAVE_KEY]: JSON.stringify(v2) });
+    const r = load(store, T0);
+    expect(r.kind === 'loaded' && r.migratedFrom).toBe(2);
+    const s = r.state;
+    expect(s.chief?.name).toBe('Snik');
+    expect(s.chronicle).toEqual(v2.state.chronicle);
+    expect(s.oddities).toEqual(v2.state.oddities);
+    expect(s.settings.motion).toBe('low');
+    expect(s.stage).toBe(0);
+    expect(s.res.copper).toBe(0);
+    expect(s.rooms.storehouse).toBeUndefined();
+    expect(store.data[BACKUP_KEY]).toBe(JSON.stringify(v2));
   });
 });

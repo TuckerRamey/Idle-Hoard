@@ -16,7 +16,7 @@ export type ResearchEffect =
   | { kind: 'globalMult'; mult: number }
   /** Dig supports cost this much (0.75 = 25% less). */
   | { kind: 'supportsMult'; mult: number }
-  /** One good's share of the storehouse. */
+  /** How much of one good its store holds. */
   | { kind: 'storeMult'; resource: ResourceId; mult: number }
   /** An alchemy recipe's ratio becomes this. */
   | { kind: 'recipeRatio'; recipe: string; ratio: number }
@@ -31,6 +31,10 @@ export type ResearchEffect =
   /** Research from mishaps times this. */
   | { kind: 'mishapResearch'; mult: number }
   | { kind: 'lieutenantSlots'; add: number }
+  /** More forge order slots. */
+  | { kind: 'forgeSlots'; add: number }
+  /** Rooms can be dug past DIG.maxPaces. */
+  | { kind: 'deepDigging' }
   /** How much a named (non-lieutenant) kobold lifts their crew. */
   | { kind: 'namedLift'; bonus: number };
 
@@ -54,7 +58,7 @@ export const RESEARCH: ResearchDef[] = [
   {
     id: 'ore-sniffing',
     name: 'Ore sniffing',
-    description: 'Opens iron and the miner job. Iron holds up very big rooms.',
+    description: 'Opens iron ore, the miner job and the metal store.',
     cost: 600,
     resources: { stone: 200 },
     requires: [],
@@ -63,7 +67,7 @@ export const RESEARCH: ResearchDef[] = [
   {
     id: 'crab-wrangling',
     name: 'Crab wrangling',
-    description: 'Opens the pasture, herders and meat, so the dragon can be fed. Starts with crabs.',
+    description: 'Opens the pasture, herders, meat and the larder, so the dragon can be fed. Starts with crabs.',
     cost: 900,
     resources: { wood: 150 },
     requires: [],
@@ -113,7 +117,7 @@ export const RESEARCH: ResearchDef[] = [
     name: 'Alchemy',
     description: 'Opens the alchemist: turns plentiful things into scarce ones, at a steep loss.',
     cost: 4_000,
-    resources: { iron: 50 },
+    resources: { ore: 50 },
     requires: ['ore-sniffing'],
     doneText: 'The researchers turned a rock into a slightly different rock. They are calling it alchemy.',
   },
@@ -151,8 +155,8 @@ export const RESEARCH: ResearchDef[] = [
     name: 'Mine carts',
     description: 'Rails and little carts. Diggers +25%, miners +25%.',
     cost: 12_000,
-    resources: { iron: 80 },
-    requires: ['pit-props'],
+    resources: { bars: 80 },
+    requires: ['pit-props', 'smithing'],
     effects: [
       { kind: 'jobMult', job: 'digger', mult: 1.25 },
       { kind: 'jobMult', job: 'miner', mult: 1.25 },
@@ -162,7 +166,7 @@ export const RESEARCH: ResearchDef[] = [
   {
     id: 'smokehouse',
     name: 'Smokehouse',
-    description: 'Smoked meat keeps. The storehouse holds 50% more meat.',
+    description: 'Smoked meat keeps. The larder holds 50% more.',
     cost: 5_000,
     resources: { wood: 400 },
     requires: ['crab-wrangling'],
@@ -217,8 +221,8 @@ export const RESEARCH: ResearchDef[] = [
     name: 'Transmutation theory',
     description: 'Alchemy with fewer guesses. Every recipe loses 25% less.',
     cost: 30_000,
-    resources: { iron: 150 },
-    requires: ['alchemy', 'kobold-arithmetic'],
+    resources: { bars: 150 },
+    requires: ['alchemy', 'kobold-arithmetic', 'smithing'],
     effects: [{ kind: 'alchemyMult', mult: 0.75 }],
     doneText: 'The alchemists have a theory now. It is mostly arrows, but it works.',
   },
@@ -242,7 +246,65 @@ export const RESEARCH: ResearchDef[] = [
     effects: [{ kind: 'namedLift', bonus: 0.05 }],
     doneText: 'Storytelling nights by the hoard. Every story gets bigger each time it is told.',
   },
+  {
+    id: 'smithing',
+    name: 'Smithing',
+    description: 'Opens the forge and blacksmiths: iron bars from ore, and stone tools for every job.',
+    cost: 2_000,
+    resources: { stone: 300 },
+    requires: ['ore-sniffing'],
+    doneText: 'The researchers built a forge. They are not allowed near it any more.',
+  },
+  {
+    id: 'ironworking',
+    name: 'Ironworking',
+    description: 'The forge makes iron tools instead of stone ones.',
+    cost: 5_000,
+    resources: { bars: 60 },
+    requires: ['smithing'],
+    doneText: 'Iron tools! The stone ones will be used until they crumble.',
+  },
+  {
+    id: 'steelmaking',
+    name: 'Steelmaking',
+    description: 'The forge can make steel from bars, and steel tools.',
+    cost: 12_000,
+    resources: { bars: 200 },
+    requires: ['ironworking'],
+    doneText: 'Steel. It took a lot of charcoal and one singed tail, but it is very shiny.',
+  },
+  {
+    id: 'second-anvil',
+    name: 'Second anvil',
+    description: 'The forge can work on two orders at once. Its work is split between them.',
+    cost: 6_000,
+    resources: { bars: 100 },
+    requires: ['smithing'],
+    effects: [{ kind: 'forgeSlots', add: 1 }],
+    doneText: 'A second anvil. The forge is twice as loud.',
+  },
+  {
+    id: 'third-anvil',
+    name: 'Third anvil',
+    description: 'A third order at once.',
+    cost: 15_000,
+    resources: { steel: 50 },
+    requires: ['second-anvil', 'steelmaking'],
+    effects: [{ kind: 'forgeSlots', add: 1 }],
+    doneText: 'A third anvil. Nobody in the warren can hear anything now.',
+  },
+  {
+    id: 'deep-delving',
+    name: 'Deep delving',
+    description: 'Iron-braced galleries. Rooms can be dug past 4,000 cubic paces.',
+    cost: 20_000,
+    resources: { bars: 200 },
+    requires: ['mine-carts'],
+    effects: [{ kind: 'deepDigging' }],
+    doneText: 'Deep delving. The diggers found the bottom of the world, and dug a bit further.',
+  },
 ];
+
 export interface MishapDef {
   /** {kobold} is filled in. */
   text: string;

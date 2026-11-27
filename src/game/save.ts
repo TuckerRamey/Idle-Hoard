@@ -14,7 +14,7 @@ import { RESOURCES } from './data';
 import type { NamedKobold } from './kobolds';
 import { CHRONICLE_MAX, newDragon, newGame, type ChronicleEntry, type Crew, type DragonState, type GameState, type RoomState } from './state';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 export const SAVE_KEY = 'idle-hoard.save';
 export const BACKUP_KEY = 'idle-hoard.save.backup';
 export const UNREADABLE_KEY = 'idle-hoard.save.unreadable';
@@ -33,6 +33,17 @@ export const MIGRATIONS: Record<number, Migration> = {
   // chronicle, the oddities shelf and the settings come along.
   1: (s) => ({
     chief: s?.chief ? { ...s.chief, quirk: OLD_QUIRKS[s.chief.quirk] ?? s.chief.quirk } : null,
+    chronicle: s?.chronicle,
+    oddities: s?.oddities,
+    settings: s?.settings,
+    createdAt: s?.createdAt,
+    lastTick: s?.lastTick,
+  }),
+  // Version 3 measured rooms in cubic paces, split the storehouse into
+  // stores, and turned iron into ore and bars. During early development the
+  // warren starts over; the Chief, chronicle, oddities and settings stay.
+  2: (s) => ({
+    chief: s?.chief ?? null,
     chronicle: s?.chronicle,
     oddities: s?.oddities,
     settings: s?.settings,
@@ -128,8 +139,24 @@ function normalizeCrews(v: unknown): Record<string, Crew> {
 function normalizeRooms(v: unknown, base: Record<string, RoomState>): Record<string, RoomState> {
   const out: Record<string, RoomState> = { ...base };
   if (!v || typeof v !== 'object') return out;
-  for (const [k, r] of Object.entries(v as Record<string, any>))
-    out[k] = { size: Math.max(1, Math.floor(num(r?.size, 1))), progress: num(r?.progress, 0) };
+  for (const [k, r] of Object.entries(v as Record<string, any>)) out[k] = { volume: num(r?.volume, out[k]?.volume ?? 0) };
+  return out;
+}
+
+function normalizeSlots(v: unknown): GameState['forge']['slots'] {
+  if (!Array.isArray(v)) return [];
+  return v.map((x) => ({ order: typeof x?.order === 'string' ? x.order : null, progress: num(x?.progress, 0) }));
+}
+
+function normalizeTools(v: unknown): GameState['tools'] {
+  const out: GameState['tools'] = {};
+  if (!v || typeof v !== 'object') return out;
+  for (const [job, tiers] of Object.entries(v as Record<string, any>)) {
+    if (!tiers || typeof tiers !== 'object') continue;
+    out[job] = {};
+    for (const t of ['stone', 'iron', 'steel'] as const)
+      if (tiers[t]) out[job][t] = { n: Math.floor(num(tiers[t].n, 0)), wear: Math.min(1, num(tiers[t].wear, 0)) };
+  }
   return out;
 }
 
@@ -228,6 +255,8 @@ export function normalize(raw: unknown, now: number): GameState {
     herdSettle: num(r.herdSettle, 0),
     recipe: typeof r.recipe === 'string' ? r.recipe : base.recipe,
     dragon: normalizeDragon(r.dragon),
+    forge: { slots: normalizeSlots(r.forge?.slots) },
+    tools: normalizeTools(r.tools),
     seed: Number.isInteger(r.seed) ? r.seed : base.seed,
   };
 }

@@ -41,6 +41,7 @@ body { font: 14px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif; }
 h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 16px 0 6px; }
 .list { list-style: none; margin: 0; padding: 0; }
 .list li { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.list li[hidden] { display: none; }
 .list li.locked { color: var(--muted); font-style: italic; }
 .row-main { flex: 1; min-width: 0; }
 .count { color: var(--accent); }
@@ -127,3 +128,5 @@ select { max-width: 100%; font: inherit; color: var(--text); background: var(--b
 .history .when { font-size: 11px; opacity: 0.8; }
 .list li .bar { margin-top: 4px; }
 .bar[hidden] { display: none; }
+.room-group { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 8px 0 2px; border: 0; }
+.tools:empty { display: none; }

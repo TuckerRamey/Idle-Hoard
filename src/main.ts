@@ -14,6 +14,7 @@ import { Hud } from './ui/hud';
 import { OdditiesView } from './ui/oddities-view';
 import { DragonView } from './ui/dragon-view';
 import { ResearchView } from './ui/research-view';
+import { ForgeView } from './ui/forge-view';
 import { NamedView } from './ui/named-view';
 import { animalName } from './game/dragon';
 import { fullName } from './game/kobolds';
@@ -64,6 +65,10 @@ const researchView = new ResearchView(getState, (id) => {
   if (def) tell(`{chief} told the researchers to work on ${def.name.toLowerCase()}.`);
   refresh();
 });
+const forgeView = new ForgeView(getState, () => {
+  refresh();
+  save();
+});
 const namedView = new NamedView(getState, (k, what) => {
   if (what === 'lieutenant') tell(`{chief} made ${fullName(k)} a lieutenant.`);
   else if (what === 'stand-down') tell(`${fullName(k)} stepped down as lieutenant.`);
@@ -79,6 +84,7 @@ function updatePanels() {
   hud.update();
   dragonView.update();
   researchView.update();
+  forgeView.update();
   namedView.update(Date.now());
 }
 
@@ -112,6 +118,8 @@ if (loaded.kind === 'error') {
   tell(`Your old save couldn't be read (${loaded.error}). It was kept as a backup and a new game started.`);
 } else if (loaded.kind === 'loaded' && loaded.migratedFrom === 1) {
   tell('The warren was rebuilt for a new way of working: crews, rooms and storage. {chief}, the chronicle and the oddities shelf came along, and the egg is back in the copper. A backup of the old save was kept.');
+} else if (loaded.kind === 'loaded' && loaded.migratedFrom === 2) {
+  tell('The warren was dug out again, measured in cubic paces this time, with separate stores and a place for a forge. {chief}, the chronicle and the oddities shelf came along, and the egg is back in the copper. A backup of the old save was kept.');
 } else if (loaded.kind === 'loaded' && loaded.migratedFrom) {
   tell(`Save updated from version ${loaded.migratedFrom}. A backup of the old one was kept.`);
 }
@@ -127,10 +135,9 @@ function creditTime(isReturn: boolean) {
   if (before < beds(state) && after >= beds(state) && after > 0) tell('Every bed in the den is taken. Newcomers will have to wait until it is dug bigger.');
   for (const d of r.dug) {
     const room = ROOMS.find((x) => x.id === d.room)!;
-    const cap = roomCapacity(state, room, d.size);
-    const holds =
-      room.holds === 'beds' ? `: ${cap} beds` : room.holds === 'copper' ? `: room for ${formatNumber(cap)} copper` : room.holds === 'herders' ? `: room for ${cap} herders` : room.holds === 'storehouse' ? `: room for ${formatNumber(cap)} goods` : '';
-    tell(`The ${room.name.toLowerCase()} was dug out to size ${d.size}${holds}.`);
+    const cap = roomCapacity(state, room, d.volume);
+    const holds = room.holds === 'beds' ? `: ${cap} beds` : room.holds === 'herders' ? `: room for ${cap} herders` : room.holds === 'smiths' ? `: room for ${cap} blacksmiths` : '';
+    tell(`The ${room.name.toLowerCase()} was dug out to ${formatNumber(d.volume)} cubic paces${holds}.`);
   }
   // research, mishaps and the dragon; after a long absence keep only the latest few
   for (const line of r.events.slice(-12)) tell(line);
