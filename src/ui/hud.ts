@@ -1,7 +1,7 @@
 // The DOM side panel. Updated once per economy tick, and only the bits of
 // text that changed are written, so it costs next to nothing.
 
-import { DRAGON_STAGES, IDLE, JOBS, RESOURCES, ROOMS, UPGRADES, type ResourceId, type UpgradeDef } from '../game/data';
+import { CREW, DRAGON_STAGES, IDLE, JOBS, RESOURCES, ROOMS, UPGRADES, type ResourceId, type UpgradeDef } from '../game/data';
 import { animalsOpen, setHerd } from '../game/dragon';
 import {
   appeal,
@@ -36,6 +36,7 @@ import {
   upgradeVisible,
   veteranBonus,
   veteranLabel,
+  recipeRatio,
   workers,
 } from '../game/economy';
 import type { GameState } from '../game/state';
@@ -298,7 +299,10 @@ export class Hud {
       const c = crew(s, def.id);
       const stars = namedInJob(s, def.id);
       setText(row.count, `×${c.n}${stars ? ` + ${stars} named` : ''}`);
-      setText(row.vet, c.n > 0 ? `${veteranLabel(c.exp)} +${Math.round(veteranBonus(c.exp) * 100)}%` : '');
+      const bonus = Math.round(veteranBonus(c.exp) * 100);
+      const vet = veteranLabel(c.exp);
+      setText(row.vet, c.n > 0 ? (vet === 'new crew' ? 'New crew' : `${vet} +${bonus}%`) : '');
+      row.vet.title = c.n > 0 ? `Experience: a crew gets better the longer it works the same job, up to +${Math.round(CREW.maxBonus * 100)}%. This crew is at +${bonus}%.` : '';
       const each = perKobold(s, def);
       const what = def.produces ? resName(def.produces.resource) : def.digs ? 'digging' : def.researches ? 'research' : 'turned over';
       const total = jobOutput(s, def);
@@ -315,7 +319,7 @@ export class Hud {
         const fit = herdersFit(s);
         syncOptions(row.extra, animalsOpen(s).map((x) => [x.id, x.name]), s.herd);
         row.extra.title = `The pasture fits ${fit} herders`;
-      } else if (row.extra) syncOptions(row.extra, recipesOpen(s).map((x) => [x.id, `${x.name}, ${x.ratio} to 1`]), s.recipe);
+      } else if (row.extra) syncOptions(row.extra, recipesOpen(s).map((x) => [x.id, `${x.name}, ${formatNumber(recipeRatio(s, x))} to 1`]), s.recipe);
     }
   }
 
@@ -347,8 +351,8 @@ export class Hud {
       const need = digWork(def, toSize);
       setHidden(row.barWrap, !digging && room.progress === 0);
       row.bar.style.width = `${Math.min(100, (room.progress / need) * 100).toFixed(1)}%`;
-      const supports = supportsFor(toSize);
-      const uses = supports.length ? ` Uses ${supports.map((x) => `${x.perWork} ${resName(x.resource)}`).join(' and ')} per dig to hold the ceiling up.` : '';
+      const supports = supportsFor(toSize, s);
+      const uses = supports.length ? ` Uses ${supports.map((x) => `${formatNumber(x.perWork)} ${resName(x.resource)}`).join(' and ')} per dig to hold the ceiling up.` : '';
       let dig = '';
       if (digging) {
         if (blocked) dig = `Stalled: out of ${resName(blocked)}.${resourceOpen(s, blocked) ? '' : ' It has to be researched first.'}${uses}`;

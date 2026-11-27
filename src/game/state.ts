@@ -62,7 +62,8 @@ export interface GameState {
   arrivalProgress: number;
   /** Oddities found, by id. */
   oddities: Record<string, OddityRecord>;
-  research: { done: string[]; current: string | null; progress: number };
+  /** `progress` is points put in, per project. */
+  research: { done: string[]; current: string | null; progress: Record<string, number> };
   /** The stars of the crowd. They count toward population but not crew counts. */
   named: NamedKobold[];
   nextNamedId: number;
@@ -142,7 +143,7 @@ export function newGame(now: number): GameState {
     chronicle: [],
     arrivalProgress: 0,
     oddities: {},
-    research: { done: [], current: 'ore-sniffing', progress: 0 },
+    research: { done: [], current: 'ore-sniffing', progress: {} },
     named: [],
     nextNamedId: 1,
     herd: 'crab',

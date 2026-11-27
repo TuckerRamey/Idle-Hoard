@@ -2,8 +2,8 @@
 // the pasture, and rooms growing as they're dug.
 import { describe, expect, it } from 'vitest';
 import type { Chief } from '../src/game/chief';
-import { DIG, ROOMS } from '../src/game/data';
-import { DIET, grantRequest, mood, moltNeeds, MOLTS, setHerd, REQUEST } from '../src/game/dragon';
+import { DIG, RECIPES, ROOMS, type ResourceId } from '../src/game/data';
+import { cravingHintSeconds, DIET, grantRequest, mood, moltNeeds, MOLTS, setHerd, REQUEST } from '../src/game/dragon';
 import {
   advanceTo,
   beds,
@@ -11,19 +11,24 @@ import {
   digBlocked,
   digWork,
   herdersFit,
+  jobHints,
   jobOutput,
   jobDef,
   population,
+  recipeRatio,
   resourceOpen,
   roomCapacity,
   stageFor,
   storehouseGoods,
+  supportsFor,
   tick,
+  veteranLabel,
   workers,
 } from '../src/game/economy';
 import { happen } from '../src/game/happenings';
-import { canPromote, crewLift, LIEUTENANT_EXPERIENCES, makeLieutenant, nameKobold, personalMult } from '../src/game/kobolds';
-import { addResearch, chooseResearch, RESEARCH, researchDef } from '../src/game/research';
+import { canPromote, crewLift, LIEUTENANT_EXPERIENCES, lieutenantSlots, makeLieutenant, nameKobold, personalMult } from '../src/game/kobolds';
+import { addResearch, chooseResearch, RESEARCH, researchDef, researchProgress, researchShortOf } from '../src/game/research';
+import { normalize } from '../src/game/save';
 import { newGame, rng, type GameState } from '../src/game/state';
 
 const T0 = 1_700_000_000_000;
@@ -78,8 +83,10 @@ describe('research', () => {
   it('researchers uncover new resources and jobs, one at a time', () => {
     const s = game();
     s.crews.researcher = { n: 10, exp: 0 };
+    s.res.stone = 500;
     chooseResearch(s, 'ore-sniffing');
     const r = tick(s, researchDef('ore-sniffing')!.cost / 0.9);
+    expect(s.res.stone).toBeLessThan(500 - 199);
     expect(r.learned).toContain('ore-sniffing');
     expect(resourceOpen(s, 'iron')).toBe(true);
     expect(storehouseGoods(s)).toHaveLength(3);
@@ -88,13 +95,105 @@ describe('research', () => {
     expect(jobOutput(s, jobDef('miner')!)).toBeGreaterThan(0);
   });
 
-  it('moves on to the cheapest next project, and keeps leftover points', () => {
+  it('moves on to the cheapest project it can pay for, and drops leftover points', () => {
     const s = game();
+    s.res.stone = 1000;
+    s.res.wood = 1000;
     chooseResearch(s, 'ore-sniffing');
     const done = addResearch(s, researchDef('ore-sniffing')!.cost + 10);
     expect(done.map((d) => d.id)).toEqual(['ore-sniffing']);
-    expect(s.research.progress).toBeCloseTo(10);
+    expect(s.research.progress).toEqual({});
     expect(s.research.current).toBe('crab-wrangling');
+    expect(s.res.stone).toBeCloseTo(800);
+    // with no wood, crab wrangling waits and stone-only echo maps goes first
+    const t = game();
+    t.res.stone = 1000;
+    chooseResearch(t, 'ore-sniffing');
+    addResearch(t, researchDef('ore-sniffing')!.cost);
+    expect(t.research.current).toBe('echo-maps');
+  });
+
+  it('uses resources a little with every point, and keeps progress per project', () => {
+    const s = game();
+    s.res.stone = 1000;
+    s.res.wood = 1000;
+    const ore = researchDef('ore-sniffing')!;
+    chooseResearch(s, 'ore-sniffing');
+    addResearch(s, ore.cost / 2);
+    expect(researchProgress(s, 'ore-sniffing')).toBeCloseTo(ore.cost / 2);
+    expect(s.res.stone).toBeCloseTo(1000 - 100);
+    chooseResearch(s, 'crab-wrangling');
+    addResearch(s, 100);
+    chooseResearch(s, 'ore-sniffing');
+    expect(researchProgress(s, 'ore-sniffing')).toBeCloseTo(ore.cost / 2);
+    expect(researchProgress(s, 'crab-wrangling')).toBeCloseTo(100);
+  });
+
+  it('pauses without resources and sends spare points to a project that can pay', () => {
+    const s = game();
+    s.res.stone = 20; // enough for a tenth of ore sniffing
+    s.res.wood = 1000;
+    const ore = researchDef('ore-sniffing')!;
+    chooseResearch(s, 'ore-sniffing');
+    addResearch(s, ore.cost / 2);
+    expect(researchProgress(s, 'ore-sniffing')).toBeCloseTo(ore.cost / 10);
+    expect(s.res.stone).toBeCloseTo(0);
+    expect(researchShortOf(s, ore)).toEqual(['stone']);
+    expect(s.research.current).toBe('ore-sniffing');
+    const spilled = Object.entries(s.research.progress).filter(([id]) => id !== 'ore-sniffing');
+    expect(spilled).toHaveLength(1);
+    expect(spilled[0][1]).toBeCloseTo(ore.cost / 2 - ore.cost / 10);
+    const hint = jobHints(s);
+    s.crews.researcher = { n: 1, exp: 0 };
+    expect(jobHints(s).researcher).toMatch(/waiting for stone/);
+    expect(hint).toBeDefined();
+  });
+
+  it('new research bonuses do what they say', () => {
+    const s = game();
+    learn(s, 'ore-sniffing', 'crab-wrangling', 'alchemy', 'echo-maps', 'pit-props', 'smokehouse', 'better-jerky', 'name-tags', 'storytelling', 'bunk-beds', 'safety-goggles', 'lab-notebooks', 'bouncy-helmets');
+    expect(supportsFor(3, s)[0].perWork).toBeCloseTo(DIG.supports[0].perWork * 0.75);
+    expect(recipeRatio(s, RECIPES.find((r) => r.id === 'wood-to-meat')!)).toBe(4);
+    expect(capacity(s, 'meat')).toBeGreaterThan(capacity(s, 'wood'));
+    expect(lieutenantSlots(s)).toBe(1 + s.stage + 1);
+    s.crews.scavenger = { n: 3, exp: 0 };
+    nameKobold(s, 'scavenger', 'the Test', 'Was tested.', T0, rng(s));
+    expect(crewLift(s, 'scavenger')).toBeCloseTo(1.05);
+    learn(s, 'kobold-arithmetic', 'transmutation-theory');
+    expect(recipeRatio(s, RECIPES.find((r) => r.id === 'stone-to-iron')!)).toBeCloseTo(6);
+  });
+
+  it('every project costs something the game has by the time it opens', () => {
+    for (const r of RESEARCH) {
+      const s = game();
+      const need = new Set<string>();
+      const walk = (id: string) => {
+        need.add(id);
+        for (const q of researchDef(id)!.requires) walk(q);
+      };
+      for (const q of r.requires) walk(q);
+      learn(s, ...need);
+      for (const res of Object.keys(r.resources ?? {})) expect(resourceOpen(s, res as ResourceId), `${r.id} uses ${res}`).toBe(true);
+    }
+  });
+
+  it('the dragon cookbook gives two days of warning', () => {
+    const s = game();
+    expect(cravingHintSeconds(s)).toBe(DIET.hintSeconds);
+    learn(s, 'dragon-cookbook');
+    expect(cravingHintSeconds(s)).toBe(2 * 86_400);
+  });
+
+  it('a crew is new until its bonus reaches 1%', () => {
+    expect(veteranLabel(0)).toBe('new crew');
+    expect(veteranLabel(0.5)).toBe('green');
+  });
+
+  it('old saves put their shared research pool on the current project', () => {
+    const s = game();
+    const raw = JSON.parse(JSON.stringify(s));
+    raw.research = { done: [], current: 'crab-wrangling', progress: 123 };
+    expect(normalize(raw, T0).research.progress).toEqual({ 'crab-wrangling': 123 });
   });
 
   it('refuses projects whose prerequisites are missing', () => {

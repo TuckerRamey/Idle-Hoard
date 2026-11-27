@@ -5,7 +5,7 @@
 import { DRAGON_STAGES, type ResourceId } from './data';
 import { capacity, production, resourceOpen, roomExtent, workers } from './economy';
 import { fullName, GIFTS, lieutenants, nameKobold, findNamed, addHistory, type NamedKobold } from './kobolds';
-import { opened } from './research';
+import { opened, researchEffect } from './research';
 import type { GameState } from './state';
 import { JOBS, UPGRADES } from './data';
 
@@ -38,6 +38,11 @@ export const DIET = {
   /** Switching the herd halves herders' output for this long while the new animals settle. */
   herdSettleSeconds: 1_800,
 };
+
+/** How far ahead cravings are hinted: a day, or longer with the dragon cookbook. */
+export function cravingHintSeconds(state: GameState): number {
+  return Math.min(DIET.cravingSeconds, researchEffect(state, 'cravingHint')?.seconds ?? DIET.hintSeconds);
+}
 
 export type Mood = 'egg' | 'hungry' | 'fed' | 'delighted';
 
@@ -282,11 +287,11 @@ export function dragonStep(state: GameState, dt: number, t: number, rand: () => 
 
   // cravings: a day's hint, then the change
   if (animalsOpen(state).length > 1) {
-    if (!d.warned && d.clock >= d.changeAt - DIET.hintSeconds) {
+    if (!d.warned && d.clock >= d.changeAt - cravingHintSeconds(state)) {
       d.next = nextCraving(state, rand);
       d.warned = true;
       const hint = ANIMALS.find((a) => a.id === d.next)?.hint;
-      if (hint && d.next !== d.craving) lines.push(`${hint} (It will crave ${animalName(d.next)} in about a day.)`);
+      if (hint && d.next !== d.craving) lines.push(`${hint} (It will crave ${animalName(d.next)} in about ${cravingHintSeconds(state) > DIET.hintSeconds ? 'two days' : 'a day'}.)`);
     }
     if (d.clock >= d.changeAt) {
       if (d.next !== d.craving) lines.push(`The dragon now craves ${animalName(d.next)}.`);
@@ -294,7 +299,7 @@ export function dragonStep(state: GameState, dt: number, t: number, rand: () => 
       d.changeAt = d.clock + DIET.cravingSeconds;
       d.warned = false;
     }
-  } else d.changeAt = Math.max(d.changeAt, d.clock + DIET.hintSeconds);
+  } else d.changeAt = Math.max(d.changeAt, d.clock + cravingHintSeconds(state));
 
   // requests come and go
   if (d.request && d.clock >= d.request.until) {

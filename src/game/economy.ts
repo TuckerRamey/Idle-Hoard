@@ -16,6 +16,7 @@ import {
   ROOMS,
   UPGRADES,
   type JobDef,
+  type RecipeDef,
   type ResourceId,
   type RoomDef,
   type UpgradeDef,
@@ -23,7 +24,7 @@ import {
 import { dragonAppeal, dragonJobMult, dragonStep, eatRate, moodMult } from './dragon';
 import { addHistory, crewLift, fullName, nameKobold, namedIn, personalMult } from './kobolds';
 import { ODDITIES } from './oddities';
-import { addResearch, MISHAPS, MISHAP_HOURS, opened, RESEARCH } from './research';
+import { addResearch, MISHAPS, MISHAP_HOURS, opened, researchDef, researchEffect, researchEffects, researchMult, researchShortOf } from './research';
 import { rng, type Crew, type GameState } from './state';
 
 export const jobDef = (id: string) => JOBS.find((j) => j.id === id);
@@ -76,6 +77,7 @@ export function veteranBonus(hours: number): number {
 
 export function veteranLabel(hours: number): string {
   const b = veteranBonus(hours);
+  if (b < 0.01) return 'new crew';
   if (b < 0.05) return 'green';
   if (b < 0.15) return 'steady';
   if (b < 0.25) return 'seasoned';
@@ -117,14 +119,10 @@ function bought(state: GameState): UpgradeDef[] {
   return UPGRADES.filter((u) => state.upgrades.includes(u.id));
 }
 
-function researchedDefs(state: GameState) {
-  return RESEARCH.filter((r) => state.research.done.includes(r.id));
-}
-
 export function jobMultiplier(state: GameState, jobId: string): number {
   let m = 1 + veteranBonus(crew(state, jobId).exp);
   for (const u of bought(state)) if (u.effect.kind === 'jobMult' && u.effect.job === jobId) m *= u.effect.mult;
-  for (const r of researchedDefs(state)) if (r.effect?.kind === 'jobMult' && r.effect.job === jobId) m *= r.effect.mult;
+  m *= researchMult(state, 'jobMult', (e) => e.job === jobId);
   const q = quirkOf(state.chief);
   if (q?.effect.kind === 'jobMult' && q.effect.job === jobId) m *= q.effect.mult;
   return m * dragonJobMult(state, jobId);
@@ -133,7 +131,7 @@ export function jobMultiplier(state: GameState, jobId: string): number {
 export function globalMultiplier(state: GameState): number {
   let m = DRAGON_STAGES[state.stage]?.incomeMult ?? 1;
   for (const u of bought(state)) if (u.effect.kind === 'globalMult') m *= u.effect.mult;
-  for (const r of researchedDefs(state)) if (r.effect?.kind === 'globalMult') m *= r.effect.mult;
+  m *= researchMult(state, 'globalMult');
   if (state.chief) m *= 1 + 0.05 * state.chief.nerve;
   for (const o of ODDITIES) if (o.incomeMult && state.oddities[o.id]) m *= o.incomeMult;
   return m * moodMult(state);
@@ -236,7 +234,7 @@ export function roomCapacity(state: GameState, def: RoomDef, size = roomExtent(s
     let m = 1;
     if (def.holds === 'beds') {
       m *= storageMult(state);
-      for (const r of researchedDefs(state)) if (r.effect?.kind === 'bedsMult') m *= r.effect.mult;
+      m *= researchMult(state, 'bedsMult');
     }
     return Math.floor(def.base * Math.pow(size, def.growth) * m + 1e-9);
   }
@@ -253,7 +251,8 @@ export function storehouseGoods(state: GameState) {
 export function capacity(state: GameState, res: ResourceId): number {
   if (!resourceOpen(state, res)) return 0;
   if (resourceDef(res).store === 'hoard') return roomCapacity(state, roomDef('hoard')!);
-  return Math.floor(roomCapacity(state, roomDef('storehouse')!) / storehouseGoods(state).length);
+  const share = roomCapacity(state, roomDef('storehouse')!) / storehouseGoods(state).length;
+  return Math.floor(share * researchMult(state, 'storeMult', (e) => e.resource === res));
 }
 
 export function beds(state: GameState): number {
@@ -271,15 +270,23 @@ export function digWork(def: RoomDef, toSize: number): number {
 }
 
 /** Supports used per unit of dig work while digging a room toward `toSize`. */
-export function supportsFor(toSize: number) {
-  return DIG.supports.filter((s) => toSize >= s.fromSize);
+export function supportsFor(toSize: number, state?: GameState) {
+  const m = state ? researchMult(state, 'supportsMult') : 1;
+  return DIG.supports.filter((s) => toSize >= s.fromSize).map((s) => ({ ...s, perWork: s.perWork * m }));
+}
+
+/** An alchemy recipe's ratio after research: how many in for one out. */
+export function recipeRatio(state: GameState, recipe: RecipeDef): number {
+  let ratio = recipe.ratio;
+  for (const e of researchEffects(state)) if (e.kind === 'recipeRatio' && e.recipe === recipe.id) ratio = Math.min(ratio, e.ratio);
+  return Math.max(1, ratio * researchMult(state, 'alchemyMult'));
 }
 
 /** Why the current dig can't go on, or null if it can. */
 export function digBlocked(state: GameState): ResourceId | null {
   if (!state.digging) return null;
   const toSize = roomSize(state, state.digging) + 1;
-  for (const s of supportsFor(toSize)) if (state.res[s.resource] < s.perWork * 0.01) return s.resource;
+  for (const s of supportsFor(toSize, state)) if (state.res[s.resource] < s.perWork * 0.01) return s.resource;
   return null;
 }
 
@@ -323,12 +330,12 @@ export function flows(state: GameState): Record<ResourceId, Flow> {
   const toSize = state.digging ? roomSize(state, state.digging) + 1 : 0;
   // a dig stalled for one support uses none of the others either
   const blocked = digBlocked(state);
-  if (dig > 0) for (const s of supportsFor(toSize)) if (!blocked || blocked === s.resource) use(s.resource, dig * s.perWork, 'digging');
+  if (dig > 0) for (const s of supportsFor(toSize, state)) if (!blocked || blocked === s.resource) use(s.resource, dig * s.perWork, 'digging');
   const recipe = recipeDef(state.recipe);
   const alc = alchemyRate(state);
   if (recipe && alc > 0) {
     use(recipe.from, alc, 'alchemy');
-    if (state.res[recipe.from] > 0) inn[recipe.to] += alc / recipe.ratio;
+    if (state.res[recipe.from] > 0) inn[recipe.to] += alc / recipeRatio(state, recipe);
   }
   if (resourceOpen(state, 'meat') && eatRate(state) > 0) use('meat', eatRate(state), 'dragon');
   const f = {} as Record<ResourceId, Flow>;
@@ -369,6 +376,12 @@ export function jobHints(state: GameState): Record<string, string> {
   else if (state.digging && workers(state, 'digger') === 0) hints.digger = `The ${roomDef(state.digging)!.name.toLowerCase()} is waiting for diggers.`;
   else if (state.digging && population(state) >= beds(state) && state.digging !== 'den') hints.digger = 'Every bed is taken. Dig the den bigger to fit more kobolds.';
   if (workers(state, 'researcher') > 0 && !state.research.current) hints.researcher = 'Nothing being researched. Pick something below.';
+  else if (workers(state, 'researcher') > 0 && state.research.current) {
+    const cur = researchDef(state.research.current);
+    const short = cur ? researchShortOf(state, cur) : [];
+    if (cur && short.length)
+      hints.researcher = `${cur.name} is waiting for ${short.map((x) => resourceDef(x).name.toLowerCase()).join(' and ')}. Spare research goes to other projects meanwhile.`;
+  }
   const recipe = recipeDef(state.recipe);
   if (recipe && workers(state, 'alchemist') > 0 && state.res[recipe.from] < 1)
     hints.alchemist = `Out of ${resourceDef(recipe.from).name.toLowerCase()} to work with.`;
@@ -507,10 +520,11 @@ function alchemy(state: GameState, input: number) {
   const recipe = recipeDef(state.recipe);
   if (!recipe || !(input > 0) || !resourceOpen(state, recipe.to)) return;
   const room = Math.max(0, capacity(state, recipe.to) - state.res[recipe.to]);
-  const use = Math.min(input, state.res[recipe.from], room * recipe.ratio);
+  const ratio = recipeRatio(state, recipe);
+  const use = Math.min(input, state.res[recipe.from], room * ratio);
   if (use <= 0) return;
   state.res[recipe.from] -= use;
-  store(state, recipe.to, use / recipe.ratio);
+  store(state, recipe.to, use / ratio);
 }
 
 function dig(state: GameState, work: number, r: TickResult) {
@@ -523,9 +537,9 @@ function dig(state: GameState, work: number, r: TickResult) {
     const need = digWork(def, toSize) - room.progress;
     const want = Math.min(work, need);
     let w = want;
-    for (const s of supportsFor(toSize)) w = Math.min(w, state.res[s.resource] / s.perWork);
+    for (const s of supportsFor(toSize, state)) w = Math.min(w, state.res[s.resource] / s.perWork);
     if (w <= 1e-9) return; // stalled for supports
-    for (const s of supportsFor(toSize)) state.res[s.resource] = Math.max(0, state.res[s.resource] - w * s.perWork);
+    for (const s of supportsFor(toSize, state)) state.res[s.resource] = Math.max(0, state.res[s.resource] - w * s.perWork);
     room.progress += w;
     work -= w;
     if (room.progress >= digWork(def, toSize) - 1e-6) {
@@ -546,10 +560,10 @@ function research(state: GameState, dt: number, t: number, rand: () => number, r
     r.events.push(done.doneText);
   }
   // mishaps: loud, harmless, and how most kobolds get their names
-  if (rand() >= (n * dt) / (MISHAP_HOURS * 3600)) return;
+  if (rand() >= (n * dt * researchMult(state, 'mishapRate')) / (MISHAP_HOURS * 3600)) return;
   const m = MISHAPS[Math.floor(rand() * MISHAPS.length) % MISHAPS.length];
   const named = namedIn(state, 'researcher');
-  let k = named.length && rand() < 0.35 ? named[Math.floor(rand() * named.length) % named.length] : null;
+  let k = named.length && rand() < (researchEffect(state, 'mishapNamedChance')?.chance ?? 0.35) ? named[Math.floor(rand() * named.length) % named.length] : null;
   let text: string;
   if (k) {
     text = m.text.replaceAll('{kobold}', fullName(k));
@@ -563,9 +577,9 @@ function research(state: GameState, dt: number, t: number, rand: () => number, r
   }
   const e = m.effect;
   if (e?.kind === 'research') {
-    const cur = RESEARCH.find((x) => x.id === state.research.current);
+    const cur = state.research.current ? researchDef(state.research.current) : undefined;
     if (cur)
-      for (const done of addResearch(state, cur.cost * e.fraction)) {
+      for (const done of addResearch(state, cur.cost * e.fraction * researchMult(state, 'mishapResearch'))) {
         r.learned.push(done.id);
         r.events.push(done.doneText);
       }
