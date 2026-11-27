@@ -2,7 +2,7 @@
 
 A quiet idle game about a dragon's hoard, made to sit open on a side screen.
 
-An ambitious kobold finds a dragon egg in the dark and tries to hatch it by burying it in copper. Hire more kobolds, watch the pile grow, and the egg hatches into a wyrmling that keeps growing as the hoard does. There's no clicking needed beyond hiring and buying upgrades.
+An ambitious kobold finds a dragon egg in the dark and tries to hatch it by burying it in copper. Kobolds wander in, you put them to work, dig the cave's rooms bigger, and the egg hatches into a wyrmling that keeps growing as the hoard does. There's no clicking needed beyond moving kobolds, choosing what to dig and buying upgrades.
 
 ## Play it
 
@@ -31,10 +31,11 @@ npm run build      # production build into dist/
 
 Things worth checking by hand when reviewing a change:
 
-1. Start a new game (Settings and save > Start over). Name a Chief, and they should start hauling copper to the egg.
-2. Close the tab, wait a few minutes, reopen. A "while you were away" note should credit the time.
-3. Switch to another tab and back. Nothing should run while hidden (with `?debug`, the draw count stays still).
-4. Settings > Copy save, Start over, paste it back and Load pasted save. Progress should return.
+1. Start a new game (Settings and save > Start over). Name a Chief, and they should start hauling copper to the egg. Kobolds arrive until the den's beds are full.
+2. Move kobolds with − and +, with the 1 / 5 / 20 / All switch. Put some on digging and check the room's bar fills, and that a room past size 2 stalls without wood (the woodcutter row should say so).
+3. Close the tab, wait a few minutes, reopen. A "while you were away" note should credit the time.
+4. Switch to another tab and back. Nothing should run while hidden (with `?debug`, the draw count stays still).
+5. Settings > Copy save, Start over, paste it back and Load pasted save. Progress should return.
 
 ## How it stays light
 
@@ -52,21 +53,25 @@ When you change the shape of the saved state (`src/game/state.ts`):
 - **Adding a field or a new worker/upgrade:** nothing to do. `normalize` in `src/game/save.ts` fills defaults for anything missing.
 - **Renaming, removing or changing the meaning of a field:** bump `SAVE_VERSION`, add `MIGRATIONS[oldVersion]` that converts an old state to the new shape, and add a test with a real old save in `tests/save.test.ts`.
 
+Version 2 replaced the job ladder with crews and rooms. A version 1 save starts the warren over but keeps the Chief, the chronicle, the oddities shelf and the settings.
+
 Before a migrated save is used, the original text is copied to `idle-hoard.save.backup`. A save that can't be read at all (corrupt, or from a newer version of the game) is copied to `idle-hoard.save.unreadable` before a new game starts, so it's never lost.
 
 Players can export a save as text (or a file) from **Settings and save** and import it again.
 
 ## The Chief
 
-A new game starts by naming the Chief, the kobold who found the egg. Their stats (Cunning, Voice, Nerve) always add up to the same total and come with one quirk, so a reroll changes direction, not strength. The Chief hauls copper alone until the egg hatches, then stands by the hoard giving orders.
-
-The Chief earns skill points from renown (lifetime copper, boosted by Cunning) and one per dragon stage. The Taskmaster branch is in; Schemer, Dragon-tender and Tinkerer come later. Stats, quirks and skills are data in `src/game/chief.ts`.
+A new game starts by naming the Chief, the kobold who found the egg. Their stats (Cunning, Voice, Nerve) always add up to the same total and come with one quirk, so a reroll changes direction, not strength. The Chief hauls copper alone until the egg hatches, then stands by the hoard giving orders. There's no skill tree: the Chief will grow through personal events instead (coming next). Stats and quirks are data in `src/game/chief.ts`.
 
 The chronicle under the cave scene is a short story log. Silly happenings (`src/game/happenings.ts`) turn up about every 10 minutes while the game is open, and once after a long absence. Kobolds always come out of them fine, and some bring a little copper.
 
-## Kobolds and jobs
+## Kobolds, jobs and rooms
 
-Nobody is hired. Kobolds wander in on their own, drawn by the copper you hold and by the dragon (`ATTRACTION` in `src/game/data.ts`). Spending copper lowers how many the hoard draws, but nobody leaves. Newcomers start as scavengers. Jobs higher up the ladder open as the dragon grows, and promoting a kobold one rung costs copper for training. Moving one back down is free.
+Nobody is hired. Kobolds wander in on their own, drawn by the hoard's **appeal**: the dragon, the size of the hoard room, the displays in it and the oddities on the shelf. Copper held doesn't count. Every kobold needs a bed, so the **den** sets how many can stay.
+
+Jobs are assignments, not a ladder. Newcomers go to the job picked under Idle (Scavenger by default). The − and + buttons move kobolds between Idle and any job, 1, 5, 20 or all at a time. A crew gets better the longer it works together (up to +30%), and newcomers water that down, so big reshuffles cost a little.
+
+Three resources so far: copper (in the hoard room), mushroom wood and stone (sharing the storehouse evenly, so one can never crowd out the other). When a room is full, the extra is lost until it's dug bigger. Diggers dig one room at a time, picked with **Dig here**. Small rooms need only diggers; from size 3 a dig uses wood, and from size 6 stone too, to hold the ceiling up. A dig with no supplies stalls, and the job rows say what's short and roughly how many kobolds would fix it.
 
 The coin pile in the cave shows the copper you hold right now, so it shrinks when you spend.
 
@@ -78,17 +83,20 @@ Some happenings leave something on the oddities shelf (`src/game/oddities.ts`): 
 
 All game content is data in `src/game/data.ts`:
 
-- `WORKERS` – the job ladder, in order: income, promotion cost, which dragon stage opens the job, which sprite, and how they move (`haul` between tunnel and hoard, or `station` working in place).
-- `UPGRADES` – multipliers for one worker or all income, with requirements.
+- `RESOURCES` – what can be held and which room holds it.
+- `JOBS` – what each job makes (or digs) per kobold, which sprite, and how they move (`haul` between tunnel and hoard, or `station` working in place).
+- `ROOMS` and `DIG` – what each room holds and how it grows, how much work each size takes, and which supports big digs use.
+- `UPGRADES` – tools (multipliers for one job or everything) and hoard room displays (appeal), with costs in any resources.
 - `DRAGON_STAGES` – egg, wyrmling, young, adult: the lifetime copper needed, the sprite, and the message shown.
 - `HOARD_SIZE_THRESHOLDS` – how much copper held makes the coin pile picture grow.
-- `ATTRACTION` – how many kobolds the hoard and dragon draw, and how often they arrive.
+- `ATTRACTION` – how much appeal the hoard room and oddities add, and how appeal turns into arrival time.
+- `CREW` – the crew experience bonus.
 
 ## Swapping in your own art
 
 Sprites are PNG sprite sheets in `src/assets/art/`, described in `src/render/manifest.ts`.
 
-A sheet is a grid of equal-sized frames: **each animation is one row, frames go left to right**. For example the kobold sheets are 12×12 frames with rows `walk` (4 frames), `carry` (4) and `work` (4).
+A sheet is a grid of equal-sized frames: **each animation is one row, frames go left to right**. For example the kobold sheets (scavenger, woodcutter, quarrier, digger, idle, chief) are 12×12 frames with rows `walk` (4 frames), `carry` (4) and `work` (4).
 
 To replace a sprite:
 
@@ -121,10 +129,10 @@ Not built yet, but the code is set up so neither needs a rewrite:
 
 ```
 src/
-  game/       data.ts (content), chief.ts (stats, quirks, skills), happenings.ts, oddities.ts,
-              state.ts, economy.ts (tick, costs, renown), save.ts (versioned saves)
+  game/       data.ts (content), chief.ts (stats, quirks), happenings.ts, oddities.ts,
+              state.ts, economy.ts (production, rooms, digging, crews, arrivals), save.ts (versioned saves)
   render/     manifest.ts (sprite sheets), scene.ts (what to draw), renderer.ts (canvas + scheduling)
-  ui/         hud.ts (kobolds, upgrades), chief-panel.ts, chronicle.ts, oddities-view.ts, format.ts
+  ui/         hud.ts (stores, kobolds, rooms, upgrades), chief-panel.ts, chronicle.ts, oddities-view.ts, format.ts
   assets/art/ sprite sheets
 scripts/      gen-placeholder-art.mjs
 tests/        vitest unit tests

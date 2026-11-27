@@ -1,5 +1,5 @@
 import type { Chief } from './chief';
-import { CONFIG } from './data';
+import { ROOMS, type ResourceId } from './data';
 
 export type MotionSetting = 'normal' | 'low';
 
@@ -17,26 +17,43 @@ export interface ChronicleEntry {
 /** Most chronicle entries kept in the save. */
 export const CHRONICLE_MAX = 40;
 
+/** A crew: how many kobolds work a job, and their average experience in hours. */
+export interface Crew {
+  n: number;
+  exp: number;
+}
+
+export interface RoomState {
+  size: number;
+  /** Dig work done toward the next size. */
+  progress: number;
+}
+
 /** Everything that is saved. Keep it plain JSON. */
 export interface GameState {
-  /** Copper currently in the hoard (spendable). */
-  copper: number;
-  /** Lifetime copper buried. Drives dragon growth and hoard size; never goes down. */
+  /** Resources held. Copper is in the hoard room, the rest in the storehouse. */
+  res: Record<ResourceId, number>;
+  /** Lifetime copper buried. Drives dragon growth; never goes down. */
   totalEarned: number;
-  /** Owned count per worker id. Unknown ids are kept so a newer save isn't damaged. */
-  workers: Record<string, number>;
-  /** Ids of bought upgrades. */
+  /** Kobolds with no job. */
+  idle: number;
+  /** Crews by job id. Unknown ids are kept so a newer save isn't damaged. */
+  crews: Record<string, Crew>;
+  /** Where kobolds who wander in go: a job id, or 'idle'. */
+  newcomerJob: string;
+  rooms: Record<string, RoomState>;
+  /** The room the diggers are working on, or null. */
+  digging: string | null;
+  /** Ids of bought upgrades and displays. */
   upgrades: string[];
   /** Highest dragon stage reached (index into DRAGON_STAGES). */
   stage: number;
-  /** Epoch ms of the last time income was credited. */
+  /** Epoch ms of the last time progress was credited. */
   lastTick: number;
   createdAt: number;
   settings: Settings;
   /** null until the player has named their Chief. */
   chief: Chief | null;
-  /** Ids of learned Chief skills. */
-  skills: string[];
   /** Newest last. */
   chronicle: ChronicleEntry[];
   /** Seconds of progress toward the next kobold arriving. */
@@ -52,17 +69,22 @@ export interface OddityRecord {
 }
 
 export function newGame(now: number): GameState {
+  const rooms: Record<string, RoomState> = {};
+  for (const r of ROOMS) rooms[r.id] = { size: 1, progress: 0 };
   return {
-    copper: 0,
+    res: { copper: 0, wood: 0, stone: 0 },
     totalEarned: 0,
-    workers: { ...CONFIG.startingWorkers },
+    idle: 0,
+    crews: {},
+    newcomerJob: 'scavenger',
+    rooms,
+    digging: 'den',
     upgrades: [],
     stage: 0,
     lastTick: now,
     createdAt: now,
     settings: { motion: 'normal' },
     chief: null,
-    skills: [],
     chronicle: [],
     arrivalProgress: 0,
     oddities: {},

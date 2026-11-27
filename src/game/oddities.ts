@@ -7,12 +7,12 @@ export interface OddityDef {
   description: string;
   /** Stacking oddities keep counting up; others are found once. */
   stacks: boolean;
-  /** A tiny, silly bonus to all income, if any (1.02 = +2%). */
+  /** A tiny, silly bonus to everything made, if any (1.02 = +2%). */
   incomeMult?: number;
 }
 
 export const ODDITIES: OddityDef[] = [
-  { id: 'kogoat', name: 'The Kogoat', description: 'A lost goat, now an honorary kobold. Morale is up. Income +2%.', stacks: false, incomeMult: 1.02 },
+  { id: 'kogoat', name: 'The Kogoat', description: 'A lost goat, now an honorary kobold. Morale is up. Everything +2%.', stacks: false, incomeMult: 1.02 },
   { id: 'lanterns', name: 'Broken lanterns', description: '{n} of them. None of them light. The Chief says that is not the point.', stacks: true },
   { id: 'big-hat', name: 'A hat far too big', description: 'Worn proudly, mostly over the eyes.', stacks: false },
   { id: 'silver-spoon', name: "Someone else's silver spoon", description: 'Its owner has not come looking. Yet.', stacks: false },

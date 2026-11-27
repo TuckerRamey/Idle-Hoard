@@ -47,8 +47,10 @@ export const SPRITES: Record<string, SpriteDef> = {
   'adult-dragon': { src: art('adult-dragon.png'), frameW: 64, frameH: 48, animations: DRAGON_ANIMS },
   'kobold-scavenger': { src: art('kobold-scavenger.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
   'kobold-digger': { src: art('kobold-digger.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
-  'kobold-hauler': { src: art('kobold-hauler.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
-  'kobold-raider': { src: art('kobold-raider.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
+  'kobold-woodcutter': { src: art('kobold-woodcutter.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
+  'kobold-quarrier': { src: art('kobold-quarrier.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
+  // Kobolds with no job yet. They mostly stand about.
+  'kobold-idle': { src: art('kobold-idle.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
   // Same layout as the other kobolds, but row 2 is a pointing "directing" pose.
   'kobold-chief': {
     src: art('kobold-chief.png'),

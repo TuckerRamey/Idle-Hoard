@@ -1,5 +1,6 @@
-// The Chief: the ambitious kobold who found the egg. Their stats, quirk and
-// skills shape the whole run. All content here is data, like data.ts.
+// The Chief: the ambitious kobold who found the egg. Their stats and quirk
+// shape the whole run; they grow through what happens to them, not a skill tree.
+// All content here is data, like data.ts.
 
 export type StatId = 'cunning' | 'voice' | 'nerve';
 
@@ -12,18 +13,18 @@ export interface Chief {
 }
 
 export const STATS: { id: StatId; name: string; effect: string }[] = [
-  { id: 'cunning', name: 'Cunning', effect: '+10% renown per point (skills come faster)' },
-  { id: 'voice', name: 'Voice', effect: 'Kobolds cost 3% less per point' },
-  { id: 'nerve', name: 'Nerve', effect: '+5% income per point' },
+  { id: 'cunning', name: 'Cunning', effect: 'Crews gain experience 10% faster per point' },
+  { id: 'voice', name: 'Voice', effect: 'The hoard draws kobolds 10% faster per point' },
+  { id: 'nerve', name: 'Nerve', effect: 'Everything +5% per point' },
 ];
 
 /** Every roll spends exactly this many stat points, at least 1 in each stat. */
 export const STAT_POINTS = 6;
 
 export type QuirkEffect =
-  | { kind: 'workerMult'; worker: string; mult: number }
-  | { kind: 'costMult'; mult: number }
-  | { kind: 'renownMult'; mult: number };
+  | { kind: 'jobMult'; job: string; mult: number }
+  | { kind: 'appealMult'; mult: number }
+  | { kind: 'storageMult'; mult: number };
 
 export interface QuirkDef {
   id: string;
@@ -34,56 +35,24 @@ export interface QuirkDef {
 
 /** One quirk per Chief. They are meant to be worth about the same. */
 export const QUIRKS: QuirkDef[] = [
-  { id: 'copper-nosed', name: 'Copper-nosed', description: 'Can smell copper through rock. Scavengers +25%.', effect: { kind: 'workerMult', worker: 'scavenger', mult: 1.25 } },
-  { id: 'stonecutter', name: 'Stonecutter', description: 'Grew up in the deep mines. Diggers +25%.', effect: { kind: 'workerMult', worker: 'digger', mult: 1.25 } },
-  { id: 'packmule', name: 'Packmule', description: 'Never puts a sack down. Haulers +25%.', effect: { kind: 'workerMult', worker: 'hauler', mult: 1.25 } },
-  { id: 'light-fingered', name: 'Light-fingered', description: 'Things just end up in their pockets. Raiders +25%.', effect: { kind: 'workerMult', worker: 'raider', mult: 1.25 } },
-  { id: 'silver-tongued', name: 'Silver-tongued', description: 'Talks kobolds into anything. Kobolds cost 8% less.', effect: { kind: 'costMult', mult: 0.92 } },
-  { id: 'dragon-struck', name: 'Dragon-struck', description: 'Utterly devoted to the egg. Renown +20%.', effect: { kind: 'renownMult', mult: 1.2 } },
+  { id: 'copper-nosed', name: 'Copper-nosed', description: 'Can smell copper through rock. Scavengers +25%.', effect: { kind: 'jobMult', job: 'scavenger', mult: 1.25 } },
+  { id: 'stonecutter', name: 'Stonecutter', description: 'Grew up in the deep quarries. Quarriers +25%.', effect: { kind: 'jobMult', job: 'quarrier', mult: 1.25 } },
+  { id: 'mushroom-sniffer', name: 'Mushroom-sniffer', description: 'Knows every mushroom by smell. Woodcutters +25%.', effect: { kind: 'jobMult', job: 'woodcutter', mult: 1.25 } },
+  { id: 'tunnel-rat', name: 'Tunnel-rat', description: 'Happiest with dirt on their snout. Diggers +25%.', effect: { kind: 'jobMult', job: 'digger', mult: 1.25 } },
+  { id: 'silver-tongued', name: 'Silver-tongued', description: 'Talks kobolds into anything. Kobolds arrive 25% faster.', effect: { kind: 'appealMult', mult: 1.25 } },
+  { id: 'packrat', name: 'Packrat', description: 'Can fit anything anywhere. Rooms hold 25% more.', effect: { kind: 'storageMult', mult: 1.25 } },
 ];
 
-export type SkillEffect =
-  | { kind: 'globalMult'; mult: number }
-  | { kind: 'costMult'; mult: number }
-  | { kind: 'offlineHours'; hours: number }
-  /** +bonus income per `per` kobolds of the same kind. */
-  | { kind: 'crewScaling'; per: number; bonus: number };
-
-export interface SkillDef {
-  id: string;
-  branch: BranchId;
-  name: string;
-  description: string;
-  cost: number;
-  requires: string[];
-  effect: SkillEffect;
-}
-
-export type BranchId = 'taskmaster' | 'schemer' | 'tender' | 'tinkerer';
-
-export const BRANCHES: { id: BranchId; name: string; available: boolean }[] = [
-  { id: 'taskmaster', name: 'Taskmaster', available: true },
-  { id: 'schemer', name: 'Schemer', available: false },
-  { id: 'tender', name: 'Dragon-tender', available: false },
-  { id: 'tinkerer', name: 'Tinkerer', available: false },
-];
-
-export const SKILLS: SkillDef[] = [
-  { id: 'crack-the-whip', branch: 'taskmaster', name: 'Crack the whip', description: 'All kobolds work 10% harder.', cost: 1, requires: [], effect: { kind: 'globalMult', mult: 1.1 } },
-  { id: 'bulk-recruiting', branch: 'taskmaster', name: 'Bulk recruiting', description: 'Kobolds cost 10% less.', cost: 1, requires: [], effect: { kind: 'costMult', mult: 0.9 } },
-  { id: 'night-shifts', branch: 'taskmaster', name: 'Night shifts', description: 'Progress while away is credited for 12 more hours.', cost: 1, requires: ['crack-the-whip'], effect: { kind: 'offlineHours', hours: 12 } },
-  { id: 'foremans-eye', branch: 'taskmaster', name: "Foreman's eye", description: 'Each kind of kobold earns +1% for every 5 of that kind.', cost: 2, requires: ['bulk-recruiting'], effect: { kind: 'crewScaling', per: 5, bonus: 0.01 } },
-  { id: 'tireless-warren', branch: 'taskmaster', name: 'Tireless warren', description: 'All income +25%.', cost: 2, requires: ['night-shifts'], effect: { kind: 'globalMult', mult: 1.25 } },
-  { id: 'iron-rule', branch: 'taskmaster', name: 'Iron rule', description: 'All income +50%.', cost: 3, requires: ['tireless-warren', 'foremans-eye'], effect: { kind: 'globalMult', mult: 1.5 } },
-];
+/** Quirks from saves before version 2, mapped to the nearest one today. */
+export const OLD_QUIRKS: Record<string, string> = {
+  packmule: 'packrat',
+  'light-fingered': 'tunnel-rat',
+  'dragon-struck': 'mushroom-sniffer',
+};
 
 export const KOBOLD_NAMES = [
   'Snik', 'Grisk', 'Vesk', 'Tazz', 'Mipp', 'Krag', 'Yizz', 'Durn', 'Skrit', 'Pell', 'Rakka', 'Zib', 'Ossa', 'Fenk', 'Quill', 'Brakk',
 ];
-
-/** Renown needed for the first skill point; each next point needs RENOWN_STEP times more. */
-export const RENOWN_BASE = 100;
-export const RENOWN_STEP = 5;
 
 /** Roll a Chief: stats always total STAT_POINTS (min 1 each) plus one quirk. */
 export function rollChief(rand: () => number, name?: string): Chief {

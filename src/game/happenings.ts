@@ -3,7 +3,7 @@
 
 import { KOBOLD_NAMES } from './chief';
 import { ODDITIES } from './oddities';
-import { incomePerSecond, owned } from './economy';
+import { incomePerSecond, population, store, workers } from './economy';
 import { addChronicle, type GameState } from './state';
 
 export interface HappeningDef {
@@ -14,7 +14,7 @@ export interface HappeningDef {
   rewardSeconds: number;
   minStage?: number;
   maxStage?: number;
-  needsWorker?: string;
+  needsJob?: string;
   /** Oddity left behind for the shelf. One-off oddities make this happening once-only. */
   oddity?: string;
   /** For stacking oddities: how many arrive, [min, max]. */
@@ -24,21 +24,25 @@ export interface HappeningDef {
 export const HAPPENINGS: HappeningDef[] = [
   { id: 'egg-apology', text: '{chief} tripped over the egg, apologized to it for an hour, and found three coins underneath.', rewardSeconds: 20, maxStage: 0 },
   { id: 'egg-warm', text: 'The egg felt warm today. {chief} told everyone it purred. Nobody believes this.', rewardSeconds: 0, maxStage: 0 },
-  { id: 'well', text: '{kobold} fell down a well and climbed out holding a bucket of copper.', rewardSeconds: 60, needsWorker: 'scavenger' },
-  { id: 'cave-in', text: 'A small cave-in buried {kobold}. They dug out the other side, straight into a copper seam.', rewardSeconds: 90, needsWorker: 'digger' },
-  { id: 'sneeze', text: '{kobold} sneezed so hard a loose stone fell out of the wall, along with a forgotten coin purse.', rewardSeconds: 45, needsWorker: 'scavenger' },
+  { id: 'well', text: '{kobold} fell down a well and climbed out holding a bucket of copper.', rewardSeconds: 60, needsJob: 'scavenger' },
+  { id: 'cave-in', text: 'A small cave-in buried {kobold}. They dug out the other side, straight into a copper seam.', rewardSeconds: 90, needsJob: 'quarrier' },
+  { id: 'sneeze', text: '{kobold} sneezed so hard a loose stone fell out of the wall, along with a forgotten coin purse.', rewardSeconds: 45, needsJob: 'scavenger' },
   { id: 'goat', text: 'A lost goat wandered into the warren. It is now an honorary kobold: the Kogoat.', rewardSeconds: 0, oddity: 'kogoat' },
   { id: 'lantern', text: '{chief} came back with {n} more broken lanterns and would not explain.', rewardSeconds: 0, oddity: 'lanterns', oddityCount: [2, 25] },
   { id: 'crab-rock', text: '{kobold} found a rock shaped exactly like a crab. It is not a crab. They checked several times.', rewardSeconds: 0, oddity: 'crab-rock' },
   { id: 'tiny-sword', text: '{kobold} pulled a tiny sword out of a stone. Nobody knows who left it there.', rewardSeconds: 0, oddity: 'tiny-sword' },
   { id: 'first-scale', text: 'The dragon shed its first scale in its sleep. {chief} polished it for an hour.', rewardSeconds: 0, minStage: 1, oddity: 'first-scale' },
-  { id: 'bat', text: 'A bat stole a coin from the hoard. {kobold} stole three back from the bat.', rewardSeconds: 30, needsWorker: 'scavenger' },
+  { id: 'bat', text: 'A bat stole a coin from the hoard. {kobold} stole three back from the bat.', rewardSeconds: 30, needsJob: 'scavenger' },
   { id: 'singed', text: "The dragon sneezed a tiny flame and singed {kobold}'s tail. {kobold} says it was on purpose.", rewardSeconds: 0, minStage: 1 },
   { id: 'lunch', text: "{kobold} got lost for a whole afternoon and came back with someone else's lunch and a silver spoon.", rewardSeconds: 60, minStage: 1, oddity: 'silver-spoon' },
-  { id: 'mine-cart', text: '{kobold} tried riding a mine cart. It went well, then very badly, then well again. They found ore at the bottom.', rewardSeconds: 90, needsWorker: 'digger' },
+  { id: 'mine-cart', text: '{kobold} tried riding a mine cart. It went well, then very badly, then well again. They found ore at the bottom.', rewardSeconds: 90, needsJob: 'quarrier' },
   { id: 'hat', text: '{kobold} found a hat. It is far too big. They are wearing it anyway and refuse to discuss it.', rewardSeconds: 0, oddity: 'big-hat' },
   { id: 'tip', text: 'An adventurer peeked into the cave, saw the dragon snoring, and quietly left a tip.', rewardSeconds: 120, minStage: 2 },
-  { id: 'wrong-sack', text: '{kobold} hauled home the wrong sack. It was full of silver. Nobody is giving it back.', rewardSeconds: 120, needsWorker: 'hauler' },
+  { id: 'toad', text: '{kobold} chopped at a giant mushroom. It was a very surprised toad. They apologized and it moved out of the way.', rewardSeconds: 0, needsJob: 'woodcutter' },
+  { id: 'spores', text: '{kobold} sneezed in a cloud of mushroom spores and glowed faintly green for a day. Night shifts were never easier.', rewardSeconds: 30, needsJob: 'woodcutter' },
+  { id: 'window', text: '{kobold} dug into the den from the wrong side. The hole is now called a window, and everyone agrees it was the plan.', rewardSeconds: 0, needsJob: 'digger' },
+  { id: 'old-coins', text: '{kobold} dug into a forgotten stash of somebody else\'s coins. Finders keepers.', rewardSeconds: 120, needsJob: 'digger' },
+  { id: 'wrong-sack', text: '{kobold} hauled home the wrong sack. It was full of silver. Nobody is giving it back.', rewardSeconds: 120, needsJob: 'scavenger' },
 ];
 
 /** Average seconds between happenings while the game is open. */
@@ -49,10 +53,10 @@ export function eligible(state: GameState): HappeningDef[] {
     (h) =>
       (h.minStage === undefined || state.stage >= h.minStage) &&
       (h.maxStage === undefined || state.stage <= h.maxStage) &&
-      (!h.needsWorker || owned(state, h.needsWorker) > 0) &&
+      (!h.needsJob || workers(state, h.needsJob) > 0) &&
       // a one-off oddity can only be found once
       !(h.oddity && state.oddities[h.oddity] && !ODDITIES.find((o) => o.id === h.oddity)?.stacks) &&
-      (h.text.includes('{kobold}') ? Object.values(state.workers).some((n) => n > 0) : true),
+      (h.text.includes('{kobold}') ? population(state) > 0 : true),
   );
 }
 
@@ -72,9 +76,7 @@ export function happen(state: GameState, now: number, rand: () => number): Happe
   lastId = h.id;
   const names = KOBOLD_NAMES.filter((n) => n !== state.chief!.name);
   const kobold = names[Math.floor(rand() * names.length) % names.length];
-  const gain = h.rewardSeconds * incomePerSecond(state);
-  state.copper += gain;
-  state.totalEarned += gain;
+  const gain = store(state, 'copper', h.rewardSeconds * incomePerSecond(state));
   let found = 0;
   if (h.oddity) {
     const [lo, hi] = h.oddityCount ?? [1, 1];

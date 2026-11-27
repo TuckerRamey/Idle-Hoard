@@ -1,7 +1,7 @@
 import './style.css';
-import { SKILLS, type Chief } from './game/chief';
-import { CONFIG, DRAGON_STAGES, UPGRADES, WORKERS } from './game/data';
-import { advanceTo, offlineCap, population, stageFor } from './game/economy';
+import type { Chief } from './game/chief';
+import { CONFIG, DRAGON_STAGES, JOBS, RESOURCES, ROOMS, UPGRADES } from './game/data';
+import { advanceTo, beds, offlineCap, population, roomCapacity, stageFor, workers } from './game/economy';
 import { happen, happeningChance } from './game/happenings';
 import { browserStore, exportSave, importSave, load, write } from './game/save';
 import { addChronicle, newGame, type GameState } from './game/state';
@@ -32,26 +32,23 @@ function tellOnce(text: string) {
   if (!state.chronicle.some((e) => e.text === filled)) tell(filled);
 }
 
-const hud = new Hud(getState, (kind, id) => {
-  if (kind === 'promote') {
-    const def = WORKERS.find((w) => w.id === id);
-    if (def) tellOnce(def.joinText);
-  } else if (kind === 'upgrade') {
-    const u = UPGRADES.find((x) => x.id === id);
-    if (u) tell(`{chief} ordered ${u.name.toLowerCase()} for the warren.`);
+/** "First woodcutter" style lines, once per job. */
+function firstOnJobs() {
+  for (const def of JOBS) if (workers(state, def.id) > 0) tellOnce(def.firstText);
+}
+
+const hud = new Hud(getState, (e) => {
+  if (e.kind === 'assign') firstOnJobs();
+  else if (e.kind === 'dig' && e.room) {
+    const room = ROOMS.find((r) => r.id === e.room);
+    if (room) tell(`{chief} set the diggers to work on the ${room.name.toLowerCase()}.`);
+  } else if (e.kind === 'upgrade') {
+    const u = UPGRADES.find((x) => x.id === e.id);
+    if (u) tell(u.effect.kind === 'appeal' ? `${u.name} now stands in the hoard room.` : `{chief} ordered ${u.name.toLowerCase()} for the warren.`);
   }
   refresh();
 });
-const chiefPanel = new ChiefPanel(
-  getState,
-  (skillId) => {
-    const sk = SKILLS.find((x) => x.id === skillId);
-    if (sk) tell(`{chief} learned ${sk.name}.`);
-    refresh();
-    save();
-  },
-  (chief) => foundChief(chief),
-);
+const chiefPanel = new ChiefPanel(getState, (chief) => foundChief(chief));
 const chronicle = new ChronicleView(getState);
 const oddities = new OdditiesView(getState);
 const renderer = new Renderer(document.querySelector('#scene') as HTMLCanvasElement, getState);
@@ -84,6 +81,8 @@ function foundChief(chief: Chief) {
 // ---------- opening + offline progress ----------
 if (loaded.kind === 'error') {
   tell(`Your old save couldn't be read (${loaded.error}). It was kept as a backup and a new game started.`);
+} else if (loaded.kind === 'loaded' && loaded.migratedFrom === 1) {
+  tell('The warren was rebuilt for a new way of working: crews, rooms and storage. {chief}, the chronicle and the oddities shelf came along, and the egg is back in the copper. A backup of the old save was kept.');
 } else if (loaded.kind === 'loaded' && loaded.migratedFrom) {
   tell(`Save updated from version ${loaded.migratedFrom}. A backup of the old one was kept.`);
 }
@@ -94,13 +93,23 @@ function creditTime(isReturn: boolean) {
   const before = population(state);
   const r = advanceTo(state, Date.now());
   const after = population(state);
-  if (before === 0 && after > 0) tellOnce(WORKERS[0].joinText);
+  if (after > before) firstOnJobs();
   for (let m = Math.floor(before / 10) * 10 + 10; m <= after; m += 10) tell(`The warren has grown to ${m} kobolds.`);
-  if (r.arrived > 0) renderer.invalidate();
-  if (isReturn && r.credited >= CONFIG.awayNoticeSeconds && r.gained > 0) {
+  if (before < beds(state) && after >= beds(state) && after > 0) tell('Every bed in the den is taken. Newcomers will have to wait until it is dug bigger.');
+  for (const d of r.dug) {
+    const room = ROOMS.find((x) => x.id === d.room)!;
+    const cap = roomCapacity(state, room, d.size);
+    const holds = room.holds === 'beds' ? `${cap} beds` : room.holds === 'copper' ? `room for ${formatNumber(cap)} copper` : `room for ${formatNumber(cap)} goods`;
+    tell(`The ${room.name.toLowerCase()} was dug out to size ${d.size}: ${holds}.`);
+  }
+  if (r.arrived > 0 || r.dug.length) renderer.invalidate();
+  const made = RESOURCES.filter((x) => r.gained[x.id] >= 1).map((x) => `${formatNumber(r.gained[x.id])} ${x.name.toLowerCase()}`);
+  if (isReturn && r.credited >= CONFIG.awayNoticeSeconds && made.length) {
     const capped = r.elapsed > r.credited ? ` Only the first ${formatDuration(offlineCap(state))} counted.` : '';
     const moved = r.arrived > 0 ? ` ${r.arrived} new kobold${r.arrived === 1 ? '' : 's'} moved in.` : '';
-    tell(`While you were away for ${formatDuration(r.elapsed)}, the warren buried ${formatNumber(r.gained)} copper.${moved}${capped}`);
+    const lost = RESOURCES.filter((x) => r.lost[x.id] >= 1).map((x) => x.name.toLowerCase());
+    const full = lost.length ? ` Some ${lost.join(' and ')} was lost because there was no room for it.` : '';
+    tell(`While you were away for ${formatDuration(r.elapsed)}, the warren gathered ${made.join(', ')}.${moved}${full}${capped}`);
     // something silly probably happened while you were gone
     if (r.credited >= 30 * 60) maybeHappen();
   }
