@@ -155,9 +155,21 @@ export function roomSize(state: GameState, roomId: string): number {
   return state.rooms[roomId]?.size ?? 1;
 }
 
-/** What a room holds at a given size: copper, storehouse space, or beds. */
-export function roomCapacity(state: GameState, def: RoomDef, size = roomSize(state, def.id)): number {
-  if (def.holds === 'beds') return Math.round(def.base * Math.pow(size, def.growth) * storageMult(state));
+/**
+ * How far a room is dug, counting the dig in progress: size 3 halfway to 4
+ * is 3.5. Rooms grow with every bit of digging; whole sizes only mark where
+ * the supports a dig needs change.
+ */
+export function roomExtent(state: GameState, roomId: string): number {
+  const room = state.rooms[roomId];
+  const def = roomDef(roomId);
+  if (!room || !def) return 1;
+  return room.size + Math.min(1, room.progress / digWork(def, room.size + 1));
+}
+
+/** What a room holds: copper, storehouse space, or beds. Grows smoothly as it's dug. */
+export function roomCapacity(state: GameState, def: RoomDef, size = roomExtent(state, def.id)): number {
+  if (def.holds === 'beds') return Math.floor(def.base * Math.pow(size, def.growth) * storageMult(state) + 1e-9);
   return Math.floor(def.base * Math.pow(def.growth, size - 1) * storageMult(state));
 }
 
@@ -262,7 +274,7 @@ export function jobHints(state: GameState): Record<string, string> {
 /** How strongly the hoard draws kobolds. Things that change slowly, not copper held. */
 export function appeal(state: GameState): number {
   let a = DRAGON_STAGES[state.stage]?.appeal ?? 0;
-  a += ATTRACTION.perHoardSize * roomSize(state, 'hoard');
+  a += ATTRACTION.perHoardSize * roomExtent(state, 'hoard');
   a += ATTRACTION.perOddity * Object.keys(state.oddities).length;
   for (const u of bought(state)) if (u.effect.kind === 'appeal') a += u.effect.points;
   let m = 1;
