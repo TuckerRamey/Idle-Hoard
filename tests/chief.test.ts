@@ -1,16 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { QUIRKS, rollChief, SKILLS, STAT_POINTS, type Chief } from '../src/game/chief';
-import { WORKERS } from '../src/game/data';
-import {
-  canLearn,
-  chiefRate,
-  incomePerSecond,
-  learnSkill,
-  offlineCap,
-  skillPointsEarned,
-  skillPointsFree,
-  workerCost,
-} from '../src/game/economy';
+import { QUIRKS, rollChief, STAT_POINTS, type Chief } from '../src/game/chief';
+import { appeal, capacity, chiefRate, incomePerSecond, production } from '../src/game/economy';
 import { happen, HAPPENINGS } from '../src/game/happenings';
 import { CHRONICLE_MAX, addChronicle, newGame } from '../src/game/state';
 import { CONFIG } from '../src/game/data';
@@ -53,76 +43,27 @@ describe('the Chief in the economy', () => {
     expect(incomePerSecond(s)).toBeCloseTo(base * 1.2);
   });
 
-  it('Voice and quirks make kobolds cheaper', () => {
-    const s = newGame(T0);
-    const scav = WORKERS[0];
-    const full = workerCost(s, scav);
-    s.chief = { ...plain, voice: 4 };
-    expect(workerCost(s, scav)).toBe(Math.ceil(scav.baseCost * 0.88));
-    s.chief.quirk = 'silver-tongued';
-    expect(workerCost(s, scav)).toBeLessThan(full * 0.88);
-  });
-
-  it('a worker quirk boosts only that worker', () => {
+  it('a job quirk boosts only that job', () => {
     const s = newGame(T0);
     s.chief = { ...plain, nerve: 0 };
-    s.workers.digger = 10;
-    const before = incomePerSecond(s);
+    s.crews.quarrier = { n: 10, exp: 0 };
+    s.crews.scavenger = { n: 10, exp: 0 };
+    const before = production(s);
     s.chief.quirk = 'stonecutter';
-    const digRate = WORKERS.find((w) => w.id === 'digger')!.rate * 10;
-    expect(incomePerSecond(s)).toBeCloseTo(before + digRate * 0.25);
-  });
-});
-
-describe('renown and skills', () => {
-  it('earns no points before the Chief exists or before 100 renown', () => {
-    const s = newGame(T0);
-    s.totalEarned = 1e6;
-    expect(skillPointsEarned(s)).toBe(0);
-    s.chief = { ...plain, cunning: 0 };
-    s.totalEarned = 99;
-    expect(skillPointsEarned(s)).toBe(0);
+    const after = production(s);
+    expect(after.stone).toBeCloseTo(before.stone * 1.25);
+    expect(after.copper).toBeCloseTo(before.copper);
   });
 
-  it('gives a point at 100, 500, 2500... renown, plus one per dragon stage', () => {
+  it('Silver-tongued draws kobolds and Packrat makes rooms hold more', () => {
     const s = newGame(T0);
-    s.chief = { ...plain, cunning: 0 };
-    s.totalEarned = 100;
-    expect(skillPointsEarned(s)).toBe(1);
-    s.totalEarned = 2500;
-    expect(skillPointsEarned(s)).toBe(3);
-    s.stage = 2;
-    expect(skillPointsEarned(s)).toBe(5);
-  });
-
-  it('Cunning speeds renown', () => {
-    const s = newGame(T0);
-    s.chief = { ...plain, cunning: 0 };
-    s.totalEarned = 400;
-    expect(skillPointsEarned(s)).toBe(1);
-    s.chief.cunning = 3; // 400 × 1.3 = 520 renown
-    expect(skillPointsEarned(s)).toBe(2);
-  });
-
-  it('learning spends points and respects prerequisites', () => {
-    const s = newGame(T0);
-    s.chief = { ...plain, cunning: 0 };
-    s.totalEarned = 500; // 2 points
-    const night = SKILLS.find((x) => x.id === 'night-shifts')!;
-    expect(canLearn(s, night)).toBe(false); // needs Crack the whip
-    expect(learnSkill(s, 'crack-the-whip')).toBe(true);
-    expect(learnSkill(s, 'night-shifts')).toBe(true);
-    expect(skillPointsFree(s)).toBe(0);
-    expect(learnSkill(s, 'bulk-recruiting')).toBe(false);
-    expect(offlineCap(s)).toBe(CONFIG.offlineCapSeconds + 12 * 3600);
-  });
-
-  it('cannot learn the same skill twice', () => {
-    const s = newGame(T0);
-    s.chief = plain;
-    s.totalEarned = 1e9;
-    expect(learnSkill(s, 'crack-the-whip')).toBe(true);
-    expect(learnSkill(s, 'crack-the-whip')).toBe(false);
+    s.chief = { ...plain };
+    const a = appeal(s);
+    const cap = capacity(s, 'copper');
+    s.chief.quirk = 'silver-tongued';
+    expect(appeal(s)).toBeCloseTo(a * 1.25);
+    s.chief.quirk = 'packrat';
+    expect(capacity(s, 'copper')).toBe(Math.floor(cap * 1.25));
   });
 });
 
@@ -142,7 +83,7 @@ describe('chronicle and happenings', () => {
     expect(h).not.toBeNull();
     const line = s.chronicle.at(-1)!.text;
     expect(line).not.toMatch(/\{chief\}|\{kobold\}/);
-    expect(s.copper).toBeCloseTo(h.rewardSeconds * CONFIG.chiefRate);
+    expect(s.res.copper).toBeCloseTo(h.rewardSeconds * CONFIG.chiefRate);
   });
 
   it('only picks happenings that fit the warren', () => {
@@ -151,7 +92,7 @@ describe('chronicle and happenings', () => {
     for (let i = 0; i < 50; i++) {
       const h = happen(s, T0, Math.random)!;
       const def = HAPPENINGS.find((x) => x.id === h.id)!;
-      expect(def.needsWorker).toBeUndefined();
+      expect(def.needsJob).toBeUndefined();
       expect(def.minStage ?? 0).toBe(0);
     }
   });

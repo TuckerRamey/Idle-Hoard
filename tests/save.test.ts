@@ -26,16 +26,20 @@ function memoryStore(init: Record<string, string> = {}): KeyValueStore & { data:
 describe('save round trip', () => {
   it('serializes and loads the same state', () => {
     const s = newGame(T0);
-    s.copper = 123.5;
-    s.workers.digger = 4;
-    s.upgrades.push('bigger-pockets');
+    s.res.copper = 123.5;
+    s.res.wood = 7;
+    s.crews.digger = { n: 4, exp: 1.5 };
+    s.idle = 2;
+    s.rooms.den = { size: 3, progress: 12 };
+    s.digging = null;
+    s.upgrades.push('bigger-sacks');
     s.settings.motion = 'low';
     expect(deserialize(serialize(s, T0), T0)).toEqual(s);
   });
 
   it('export/import round trips, and import accepts raw JSON too', () => {
     const s = newGame(T0);
-    s.copper = 42;
+    s.res.copper = 42;
     expect(importSave(exportSave(s, T0), T0)).toEqual(s);
     expect(importSave(serialize(s, T0), T0)).toEqual(s);
   });
@@ -46,47 +50,94 @@ describe('save round trip', () => {
   });
 
   it('fills in defaults for missing fields (no migration needed for additions)', () => {
-    const text = JSON.stringify({ version: SAVE_VERSION, savedAt: T0, state: { copper: 5 } });
+    const text = JSON.stringify({ version: SAVE_VERSION, savedAt: T0, state: { res: { copper: 5 } } });
     const s = deserialize(text, T0);
-    expect(s.copper).toBe(5);
-    expect(s.workers).toEqual({});
+    expect(s.res).toEqual({ copper: 5, wood: 0, stone: 0 });
+    expect(s.crews).toEqual({});
+    expect(s.rooms.hoard).toEqual({ size: 1, progress: 0 });
+    expect(s.digging).toBe('den');
+    expect(s.newcomerJob).toBe('scavenger');
     expect(s.chief).toBeNull();
-    expect(s.skills).toEqual([]);
     expect(s.chronicle).toEqual([]);
     expect(s.settings.motion).toBe('normal');
     expect(s.upgrades).toEqual([]);
   });
 
-  it('keeps unknown worker ids instead of dropping them', () => {
-    const text = JSON.stringify({ version: SAVE_VERSION, savedAt: T0, state: { workers: { scavenger: 2, futureThing: 3 } } });
-    expect(deserialize(text, T0).workers).toEqual({ scavenger: 2, futureThing: 3 });
+  it('keeps unknown job and room ids instead of dropping them', () => {
+    const text = JSON.stringify({
+      version: SAVE_VERSION,
+      savedAt: T0,
+      state: { crews: { scavenger: { n: 2, exp: 1 }, futureJob: { n: 3, exp: 0 } }, rooms: { vault: { size: 2, progress: 0 } } },
+    });
+    const s = deserialize(text, T0);
+    expect(s.crews).toEqual({ scavenger: { n: 2, exp: 1 }, futureJob: { n: 3, exp: 0 } });
+    expect(s.rooms.vault).toEqual({ size: 2, progress: 0 });
+    expect(s.rooms.den).toEqual({ size: 1, progress: 0 });
   });
 
   it('cleans bad numbers', () => {
-    const text = JSON.stringify({ version: SAVE_VERSION, savedAt: T0, state: { copper: -5, totalEarned: 'lots' } });
+    const text = JSON.stringify({ version: SAVE_VERSION, savedAt: T0, state: { res: { copper: -5 }, totalEarned: 'lots', idle: NaN } });
     const s = deserialize(text, T0);
-    expect(s.copper).toBe(0);
+    expect(s.res.copper).toBe(0);
+    expect(s.idle).toBe(0);
     expect(s.totalEarned).toBe(0);
   });
 });
 
-describe('saves from before the Chief existed', () => {
-  it('load with no Chief, so the game asks for one, and keep their free kobold', () => {
-    const v1 = JSON.stringify({
-      version: 1,
-      savedAt: T0,
-      state: { copper: 50, totalEarned: 900, workers: { scavenger: 3 }, upgrades: [], stage: 0, lastTick: T0, createdAt: T0, settings: { motion: 'low' } },
-    });
-    const s = deserialize(v1, T0);
-    expect(s.chief).toBeNull();
-    expect(s.workers.scavenger).toBe(3);
-    expect(s.totalEarned).toBe(900);
+describe('saves from version 1 (the job ladder)', () => {
+  const v1 = {
+    version: 1,
+    savedAt: T0,
+    state: {
+      copper: 5000,
+      totalEarned: 90_000,
+      workers: { scavenger: 12, digger: 4, hauler: 1 },
+      upgrades: ['bigger-pockets'],
+      stage: 1,
+      lastTick: T0,
+      createdAt: T0 - 86_400_000,
+      settings: { motion: 'low' },
+      chief: { name: 'Snik', cunning: 1, voice: 2, nerve: 3, quirk: 'packmule' },
+      skills: ['crack-the-whip'],
+      chronicle: [{ t: T0, text: 'Snik found an egg.' }],
+      arrivalProgress: 4,
+      oddities: { kogoat: { count: 1, firstAt: T0 } },
+    },
+  };
+
+  it('starts the warren over but keeps the Chief, chronicle, oddities and settings', () => {
+    const s = deserialize(JSON.stringify(v1), T0);
+    expect(s.chief).toEqual({ name: 'Snik', cunning: 1, voice: 2, nerve: 3, quirk: 'packrat' });
+    expect(s.chronicle).toEqual(v1.state.chronicle);
+    expect(s.oddities).toEqual(v1.state.oddities);
+    expect(s.settings.motion).toBe('low');
+    expect(s.createdAt).toBe(v1.state.createdAt);
+    expect(s.res.copper).toBe(0);
+    expect(s.totalEarned).toBe(0);
+    expect(s.stage).toBe(0);
+    expect(s.crews).toEqual({});
+    expect(s.upgrades).toEqual([]);
+    expect((s as any).workers).toBeUndefined();
+    expect((s as any).skills).toBeUndefined();
   });
 
-  it('round trips a Chief, skills and chronicle, and cleans a bad Chief', () => {
+  it('keeps a backup of the old save when loading it', () => {
+    const text = JSON.stringify(v1);
+    const store = memoryStore({ [SAVE_KEY]: text });
+    const r = load(store, T0);
+    expect(r.kind === 'loaded' && r.migratedFrom).toBe(1);
+    expect(store.data[BACKUP_KEY]).toBe(text);
+  });
+
+  it('a version 1 save with no Chief still loads', () => {
+    const s = deserialize(JSON.stringify({ version: 1, savedAt: T0, state: { copper: 50, workers: { scavenger: 3 } } }), T0);
+    expect(s.chief).toBeNull();
+    expect(s.idle).toBe(0);
+  });
+
+  it('round trips a Chief and chronicle, and cleans a bad Chief', () => {
     const s = newGame(T0);
-    s.chief = { name: 'Snik', cunning: 1, voice: 2, nerve: 3, quirk: 'packmule' };
-    s.skills = ['crack-the-whip'];
+    s.chief = { name: 'Snik', cunning: 1, voice: 2, nerve: 3, quirk: 'packrat' };
     s.chronicle = [{ t: T0, text: 'Snik found an egg.' }];
     expect(deserialize(serialize(s, T0), T0)).toEqual(s);
     const bad = JSON.stringify({ version: SAVE_VERSION, savedAt: T0, state: { chief: { name: '   ' } } });
@@ -131,11 +182,11 @@ describe('load / write', () => {
   it('loads what write stored', () => {
     const store = memoryStore();
     const s = newGame(T0);
-    s.copper = 77;
+    s.res.copper = 77;
     write(store, s, T0);
     const r = load(store, T0);
     expect(r.kind).toBe('loaded');
-    expect(r.state.copper).toBe(77);
+    expect(r.state.res.copper).toBe(77);
   });
 
   it('keeps an unreadable save instead of losing it', () => {

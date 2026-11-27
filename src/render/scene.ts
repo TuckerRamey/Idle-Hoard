@@ -2,8 +2,8 @@
 // The renderer compares the result with the previous one and only redraws
 // the canvas when something actually changed.
 
-import { DRAGON_STAGES, WORKERS } from '../game/data';
-import { hoardSize, owned } from '../game/economy';
+import { DRAGON_STAGES, JOBS } from '../game/data';
+import { hoardSize, workers } from '../game/economy';
 import type { GameState, MotionSetting } from '../game/state';
 import { SCENE_W, SPRITES } from './manifest';
 
@@ -23,6 +23,8 @@ const HOARD_BOTTOM = 137;
 const TUNNEL_X = 18;
 const LANE_Y = [110, 118, 126];
 const CHIEF_Y = 114;
+const IDLE_X = 40;
+const IDLE_Y = 130;
 /** The Chief hauls a little slower than a scavenger: they keep stopping to admire the egg. */
 const CHIEF_SPEED = 14;
 
@@ -48,19 +50,19 @@ export function buildScene(state: GameState, nowMs: number): DrawOp[] {
   const ops: DrawOp[] = [{ sprite: 'background', anim: 'idle', frame: 0, x: 0, y: 0 }];
 
   // Station workers stand at the back wall, behind the hoard.
-  for (const def of WORKERS) {
-    if (def.job.kind !== 'station') continue;
-    const n = Math.min(owned(state, def.id), MAX_VISIBLE_PER_WORKER);
+  for (const def of JOBS) {
+    if (def.motion.kind !== 'station') continue;
+    const n = Math.min(workers(state, def.id), MAX_VISIBLE_PER_WORKER);
     const fh = SPRITES[def.sprite]?.frameH ?? 12;
     for (let i = 0; i < n; i++) {
       // offset each kobold a little so they don't swing in unison
       const frame = frameAt(def.sprite, 'work', t + i * 370);
-      ops.push({ sprite: def.sprite, anim: 'work', frame, x: def.job.x + i * def.job.spacing, y: def.job.y - fh });
+      ops.push({ sprite: def.sprite, anim: 'work', frame, x: def.motion.x + i * def.motion.spacing, y: def.motion.y - fh });
     }
   }
 
   // Hoard
-  const size = hoardSize(state.copper);
+  const size = hoardSize(state.res.copper);
   const hoard = SPRITES.hoard;
   ops.push({ sprite: 'hoard', anim: 'sizes', frame: size, x: HOARD_X - hoard.frameW / 2, y: HOARD_BOTTOM - hoard.frameH });
   const { rx, ry } = pileShape(size);
@@ -105,16 +107,16 @@ export function buildScene(state: GameState, nowMs: number): DrawOp[] {
   }
 
   // Haulers walk between the tunnel and the hoard.
-  for (const def of WORKERS) {
-    if (def.job.kind !== 'haul') continue;
-    const n = Math.min(owned(state, def.id), MAX_VISIBLE_PER_WORKER);
+  for (const def of JOBS) {
+    if (def.motion.kind !== 'haul') continue;
+    const n = Math.min(workers(state, def.id), MAX_VISIBLE_PER_WORKER);
     if (n === 0) continue;
     const fw = SPRITES[def.sprite]?.frameW ?? 12;
     const from = TUNNEL_X;
     const to = HOARD_X - rx - fw + 4;
     const dist = Math.max(to - from, 1);
-    const cycle = ((2 * dist) / def.job.speed) * 1000;
-    const y = LANE_Y[def.job.lane % LANE_Y.length];
+    const cycle = ((2 * dist) / def.motion.speed) * 1000;
+    const y = LANE_Y[def.motion.lane % LANE_Y.length];
     for (let i = 0; i < n; i++) {
       const p = ((t + (cycle * i) / n) % cycle) / cycle; // 0..1 around the round trip
       const outbound = p < 0.5;
@@ -122,6 +124,13 @@ export function buildScene(state: GameState, nowMs: number): DrawOp[] {
       const anim = outbound ? 'carry' : 'walk';
       ops.push({ sprite: def.sprite, anim, frame: frameAt(def.sprite, anim, t + i * 130), x: Math.round(x), y, flip: !outbound });
     }
+  }
+
+  // Kobolds with no job stand about near the torch, now and then turning round.
+  const idle = Math.min(state.idle, MAX_VISIBLE_PER_WORKER);
+  for (let i = 0; i < idle; i++) {
+    const flip = Math.floor((t + i * 2300) / 5000) % 2 === 1;
+    ops.push({ sprite: 'kobold-idle', anim: 'walk', frame: 0, x: IDLE_X + i * 8, y: IDLE_Y - (i % 2) * 3, flip });
   }
 
   return ops.filter((o) => o.x < SCENE_W);

@@ -225,7 +225,7 @@ dragon('adult-dragon.png', 64, 48);
 // ---------- kobolds: 12x12 frames; row 0 = walk (4), 1 = carry (4), 2 = work (4) ----------
 // The chief variant wears a cape and a little crown, and row 2 is a pointing
 // "directing" pose instead of swinging a pick.
-function kobold(name, skin, dark, extra, chief = false) {
+function kobold(name, skin, dark, extra, chief = false, load = 'coins') {
   const FW = 12, FH = 12;
   const s = sheet(FW * 4, FH * 3);
   for (let row = 0; row < 3; row++)
@@ -254,7 +254,12 @@ function kobold(name, skin, dark, extra, chief = false) {
         c.rect(3, 9, 1, 3, dark);
         c.rect(6, 9, 1, 3, dark);
       }
-      if (row === 1) {
+      if (row === 1 && load === 'mushroom') {
+        // carrying a chunk of mushroom stalk overhead
+        c.rect(3, 0 + bob, 6, 2, '#d8c9a8');
+        c.rect(3, 0 + bob, 1, 2, '#a8946c');
+        c.put(8, 0 + bob, '#f0e4c8');
+      } else if (row === 1) {
         // carrying a coin sack overhead
         c.ellipse(6, 1 + bob, 2.5, 1.6, '#b87333');
         c.put(5, 0 + bob, '#e09a5c');
@@ -276,6 +281,7 @@ function kobold(name, skin, dark, extra, chief = false) {
 }
 kobold('kobold-scavenger.png', '#7a8f3a', '#4d5a24', '#8a5226');
 kobold('kobold-digger.png', '#5a7f9a', '#36506a', '#c0c8d0');
-kobold('kobold-hauler.png', '#a0583a', '#6a3624', '#e8b830');
-kobold('kobold-raider.png', '#7a5a9a', '#4a3666', '#e0405a');
+kobold('kobold-woodcutter.png', '#a0583a', '#6a3624', '#3f8f6e', false, 'mushroom');
+kobold('kobold-quarrier.png', '#7a5a9a', '#4a3666', '#9a9aa8');
+kobold('kobold-idle.png', '#8a8a6a', '#55553f', null);
 kobold('kobold-chief.png', '#c9a13a', '#7d6220', '#5b3a22', true);

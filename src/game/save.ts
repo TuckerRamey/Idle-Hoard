@@ -6,13 +6,14 @@
 //   1. bump SAVE_VERSION
 //   2. add MIGRATIONS[oldVersion] that turns an oldVersion state into the next one
 //   3. add a test in tests/save.test.ts with a real old save
-// Adding a new optional field or a new worker does NOT need a migration;
+// Adding a new optional field, job, room or resource does NOT need a migration;
 // `normalize` fills in defaults.
 
-import { QUIRKS, type Chief } from './chief';
-import { CHRONICLE_MAX, newGame, type ChronicleEntry, type GameState } from './state';
+import { OLD_QUIRKS, QUIRKS, type Chief } from './chief';
+import { RESOURCES } from './data';
+import { CHRONICLE_MAX, newGame, type ChronicleEntry, type Crew, type GameState, type RoomState } from './state';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 export const SAVE_KEY = 'idle-hoard.save';
 export const BACKUP_KEY = 'idle-hoard.save.backup';
 export const UNREADABLE_KEY = 'idle-hoard.save.unreadable';
@@ -26,8 +27,17 @@ export interface SaveFile {
 /** MIGRATIONS[v] upgrades a state at version v to version v + 1. */
 export type Migration = (state: any) => any;
 export const MIGRATIONS: Record<number, Migration> = {
-  // Example for the future:
-  // 1: (s) => ({ ...s, gems: 0 }),
+  // Version 2 replaced the job ladder with crews, rooms and storage. The old
+  // warren can't be translated, so it starts over, but the Chief, the
+  // chronicle, the oddities shelf and the settings come along.
+  1: (s) => ({
+    chief: s?.chief ? { ...s.chief, quirk: OLD_QUIRKS[s.chief.quirk] ?? s.chief.quirk } : null,
+    chronicle: s?.chronicle,
+    oddities: s?.oddities,
+    settings: s?.settings,
+    createdAt: s?.createdAt,
+    lastTick: s?.lastTick,
+  }),
 };
 
 /** Minimal key/value store, so a desktop wrapper (Tauri) can swap in file storage. */
@@ -107,18 +117,36 @@ function normalizeChronicle(v: unknown): ChronicleEntry[] {
     .slice(-CHRONICLE_MAX);
 }
 
+function normalizeCrews(v: unknown): Record<string, Crew> {
+  const out: Record<string, Crew> = {};
+  if (!v || typeof v !== 'object') return out;
+  for (const [k, c] of Object.entries(v as Record<string, any>)) out[k] = { n: Math.floor(num(c?.n, 0)), exp: num(c?.exp, 0) };
+  return out;
+}
+
+function normalizeRooms(v: unknown, base: Record<string, RoomState>): Record<string, RoomState> {
+  const out: Record<string, RoomState> = { ...base };
+  if (!v || typeof v !== 'object') return out;
+  for (const [k, r] of Object.entries(v as Record<string, any>))
+    out[k] = { size: Math.max(1, Math.floor(num(r?.size, 1))), progress: num(r?.progress, 0) };
+  return out;
+}
+
 /** Fill in defaults and drop junk, so small shape changes need no migration. */
 export function normalize(raw: unknown, now: number): GameState {
   const base = newGame(now);
   if (!raw || typeof raw !== 'object') throw new SaveError('Save has no game state');
   const r = raw as Record<string, any>;
-  const workers: Record<string, number> = {};
-  if (r.workers && typeof r.workers === 'object')
-    for (const [k, v] of Object.entries(r.workers)) workers[k] = Math.floor(num(v, 0));
+  const res = { ...base.res };
+  for (const d of RESOURCES) res[d.id] = num(r.res?.[d.id], 0);
   return {
-    copper: num(r.copper, base.copper),
+    res,
     totalEarned: num(r.totalEarned, base.totalEarned),
-    workers: r.workers ? workers : base.workers,
+    idle: Math.floor(num(r.idle, 0)),
+    crews: normalizeCrews(r.crews),
+    newcomerJob: typeof r.newcomerJob === 'string' ? r.newcomerJob : base.newcomerJob,
+    rooms: normalizeRooms(r.rooms, base.rooms),
+    digging: r.digging === null ? null : typeof r.digging === 'string' ? r.digging : base.digging,
     upgrades: strList(r.upgrades),
     stage: Math.floor(num(r.stage, 0)),
     lastTick: num(r.lastTick, now),
@@ -127,7 +155,6 @@ export function normalize(raw: unknown, now: number): GameState {
       motion: r.settings?.motion === 'low' ? 'low' : 'normal',
     },
     chief: normalizeChief(r.chief),
-    skills: strList(r.skills),
     chronicle: normalizeChronicle(r.chronicle),
     arrivalProgress: num(r.arrivalProgress, 0),
     oddities: normalizeOddities(r.oddities),

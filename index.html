@@ -42,27 +42,34 @@
           </div>
         </div></form>
 
+        <h2>Stores</h2>
+        <ul id="resources" class="list"></ul>
+
         <h2>Kobolds · <span id="pop-count">0 kobolds</span></h2>
         <p id="pop-text" class="desc"></p>
-        <ul id="workers" class="list"></ul>
+        <div class="step-row"><span class="desc">Move</span> <div id="step" class="step" role="group" aria-label="How many to move at once"></div></div>
+        <ul id="jobs" class="list"></ul>
+
+        <h2>Rooms</h2>
+        <ul id="rooms" class="list"></ul>
 
 
         <section id="chief-card" class="chief-card" hidden>
           <h2 id="chief-title">Chief</h2>
           <p id="chief-quirk" class="desc"></p>
           <div id="chief-stats" class="stats"></div>
-          <div id="renown-bar" class="bar renown"><div></div></div>
-          <div id="renown-text" class="desc"></div>
-          <details class="skills" open>
-            <summary>Taskmaster skills · <span id="skill-points"></span></summary>
-            <ul id="skills" class="list"></ul>
-          </details>
         </section>
 
 
         <div id="upgrades-section" hidden>
-          <h2>Upgrades</h2>
+          <h2>Tools</h2>
           <ul id="upgrades" class="list"></ul>
+        </div>
+
+        <div id="displays-section" hidden>
+          <h2>Hoard room displays</h2>
+          <p class="desc">Things on show make the hoard more appealing, so kobolds arrive faster.</p>
+          <ul id="displays" class="list"></ul>
         </div>
 
         <details id="oddities-section" class="oddities" hidden>
