@@ -60,7 +60,7 @@ export function buildScene(state: GameState, nowMs: number): DrawOp[] {
   }
 
   // Hoard
-  const size = hoardSize(state.totalEarned);
+  const size = hoardSize(state.copper);
   const hoard = SPRITES.hoard;
   ops.push({ sprite: 'hoard', anim: 'sizes', frame: size, x: HOARD_X - hoard.frameW / 2, y: HOARD_BOTTOM - hoard.frameH });
   const { rx, ry } = pileShape(size);

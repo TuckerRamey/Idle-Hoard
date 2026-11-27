@@ -1,5 +1,6 @@
 import { BRANCHES, quirkOf, RENOWN_BASE, RENOWN_STEP, SKILLS, type SkillDef } from './chief';
 import {
+  ATTRACTION,
   CONFIG,
   DRAGON_STAGES,
   HOARD_SIZE_THRESHOLDS,
@@ -8,6 +9,7 @@ import {
   type UpgradeDef,
   type WorkerDef,
 } from './data';
+import { ODDITIES } from './oddities';
 import type { GameState } from './state';
 
 export function owned(state: GameState, workerId: string): number {
@@ -57,6 +59,7 @@ export function globalMultiplier(state: GameState): number {
   }
   if (state.chief) m *= 1 + 0.05 * state.chief.nerve;
   for (const s of learned(state)) if (s.effect.kind === 'globalMult') m *= s.effect.mult;
+  for (const o of ODDITIES) if (o.incomeMult && state.oddities[o.id]) m *= o.incomeMult;
   return m;
 }
 
@@ -138,10 +141,10 @@ export function stageFor(totalEarned: number): number {
   return s;
 }
 
-export function hoardSize(totalEarned: number): number {
+export function hoardSize(copperHeld: number): number {
   let s = 0;
   HOARD_SIZE_THRESHOLDS.forEach((t, i) => {
-    if (totalEarned >= t) s = i;
+    if (copperHeld >= t) s = i;
   });
   return s;
 }
@@ -193,6 +196,9 @@ export function tick(state: GameState, seconds: number): { gained: number; newSt
   return { gained, newStage };
 }
 
+/** Long absences are worked through in steps of this many seconds. */
+const ADVANCE_STEP = 60;
+
 /**
  * Credit all time since `state.lastTick`, capped at the offline cap.
  * Used every tick, so a sleeping laptop, a hidden tab and a closed game
@@ -202,22 +208,105 @@ export function advanceTo(state: GameState, now: number) {
   const elapsed = Math.max(0, (now - state.lastTick) / 1000);
   const credited = Math.min(elapsed, offlineCap(state));
   state.lastTick = Math.max(state.lastTick, now);
-  const result = tick(state, credited);
-  return { ...result, elapsed, credited };
+  // Income depends on how many kobolds there are, and arrivals depend on the
+  // copper held, so long absences are worked through a minute at a time.
+  let gained = 0;
+  let arrived = 0;
+  let newStage: number | null = null;
+  for (let left = credited; left > 0; left -= ADVANCE_STEP) {
+    const step = Math.min(ADVANCE_STEP, left);
+    const r = tick(state, step);
+    gained += r.gained;
+    if (r.newStage !== null) newStage = r.newStage;
+    arrived += arrive(state, step);
+  }
+  return { gained, newStage, arrived, elapsed, credited };
 }
 
-export function canHire(state: GameState, def: WorkerDef): boolean {
+// ---------- jobs and the ladder ----------
+
+export function jobOpen(state: GameState, def: WorkerDef): boolean {
   return state.stage >= def.unlockStage;
 }
 
-export function hire(state: GameState, workerId: string): boolean {
-  const def = WORKERS.find((w) => w.id === workerId);
-  if (!def || !canHire(state, def)) return false;
-  const cost = workerCost(state, def);
-  if (state.copper < cost) return false;
-  state.copper -= cost;
-  state.workers[def.id] = owned(state, def.id) + 1;
+function ladderIndex(jobId: string): number {
+  return WORKERS.findIndex((w) => w.id === jobId);
+}
+
+/** Copper to promote one kobold into this job, or null if it can't be done at all. */
+export function promotionCost(state: GameState, jobId: string): number | null {
+  const i = ladderIndex(jobId);
+  if (i <= 0) return null;
+  return workerCost(state, WORKERS[i]);
+}
+
+/** Can a kobold move up from the job below into this one right now? */
+export function canPromote(state: GameState, jobId: string): boolean {
+  const i = ladderIndex(jobId);
+  if (i <= 0 || !jobOpen(state, WORKERS[i])) return false;
+  if (owned(state, WORKERS[i - 1].id) < 1) return false;
+  return state.copper >= (promotionCost(state, jobId) ?? Infinity);
+}
+
+/** Move one kobold up from the job below into this one, paying for training. */
+export function promote(state: GameState, jobId: string): boolean {
+  if (!canPromote(state, jobId)) return false;
+  const i = ladderIndex(jobId);
+  state.copper -= promotionCost(state, jobId)!;
+  state.workers[WORKERS[i - 1].id] -= 1;
+  state.workers[jobId] = owned(state, jobId) + 1;
   return true;
+}
+
+/** Move one kobold back down a rung. Free, and no refund. */
+export function demote(state: GameState, jobId: string): boolean {
+  const i = ladderIndex(jobId);
+  if (i <= 0 || owned(state, jobId) < 1) return false;
+  state.workers[jobId] -= 1;
+  state.workers[WORKERS[i - 1].id] = owned(state, WORKERS[i - 1].id) + 1;
+  return true;
+}
+
+// ---------- kobolds coming to the hoard ----------
+
+/** Every kobold in the warren, in any job (not counting the Chief). */
+export function population(state: GameState): number {
+  let n = 0;
+  for (const v of Object.values(state.workers)) n += v;
+  return n;
+}
+
+/** How many kobolds the hoard and dragon draw in. Grows with copper held and the dragon's stage. */
+export function attractionTarget(state: GameState): number {
+  const base = ATTRACTION.baseByStage[Math.min(state.stage, ATTRACTION.baseByStage.length - 1)];
+  const doublings = Math.log2(1 + Math.max(0, state.copper) / ATTRACTION.copperUnit);
+  return Math.floor(base + ATTRACTION.perDoubling * doublings);
+}
+
+export function arrivalSeconds(state: GameState): number {
+  const a = ATTRACTION.arrivalSecondsByStage;
+  return a[Math.min(state.stage, a.length - 1)];
+}
+
+/**
+ * Let `seconds` of arrivals happen. Newcomers join the first job on the
+ * ladder. Nobody comes before there is a Chief. Returns how many arrived.
+ */
+export function arrive(state: GameState, seconds: number): number {
+  if (!state.chief || !(seconds > 0)) return 0;
+  const room = attractionTarget(state) - population(state);
+  if (room <= 0) {
+    state.arrivalProgress = 0;
+    return 0;
+  }
+  const every = arrivalSeconds(state);
+  state.arrivalProgress += seconds;
+  const n = Math.min(room, Math.floor(state.arrivalProgress / every));
+  state.arrivalProgress -= n * every;
+  if (n === room) state.arrivalProgress = 0;
+  const entry = WORKERS[0].id;
+  state.workers[entry] = owned(state, entry) + n;
+  return n;
 }
 
 export function upgradeVisible(state: GameState, u: UpgradeDef): boolean {

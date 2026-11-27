@@ -3,13 +3,18 @@
 
 import { DRAGON_STAGES, UPGRADES, WORKERS } from '../game/data';
 import {
+  arrivalSeconds,
+  attractionTarget,
   buyUpgrade,
-  canHire,
-  hire,
+  canPromote,
+  demote,
   incomePerSecond,
+  jobOpen,
   owned,
+  population,
+  promote,
+  promotionCost,
   upgradeVisible,
-  workerCost,
   workerRate,
 } from '../game/economy';
 import type { GameState } from '../game/state';
@@ -26,12 +31,14 @@ export class Hud {
   private upgradeList = $('#upgrades');
   private workerKey = '';
   private upgradeKey = '';
-  private rows = new Map<string, { count: HTMLElement; rate: HTMLElement; btn: HTMLButtonElement }>();
+  private rows = new Map<string, { count: HTMLElement; rate: HTMLElement; up?: HTMLButtonElement; down?: HTMLButtonElement }>();
+  private popCount = $('#pop-count');
+  private popText = $('#pop-text');
   private upRows = new Map<string, HTMLButtonElement>();
 
   constructor(
     private getState: () => GameState,
-    private onChange: (kind: 'hire' | 'upgrade', id: string) => void,
+    private onChange: (kind: 'promote' | 'demote' | 'upgrade', id: string) => void,
   ) {}
 
   update() {
@@ -57,43 +64,71 @@ export class Hud {
   }
 
   private updateWorkers(s: GameState) {
-    const unlocked = WORKERS.filter((w) => canHire(s, w));
-    const nextLocked = WORKERS.find((w) => !canHire(s, w));
-    const key = unlocked.map((w) => w.id).join() + '|' + (nextLocked?.id ?? '');
+    // the warren's size and the next arrival
+    const pop = population(s);
+    const target = attractionTarget(s);
+    setText(this.popCount, `${pop} kobold${pop === 1 ? '' : 's'}`);
+    if (!s.chief) setText(this.popText, 'Kobolds will come once there is a Chief.');
+    else if (pop < target) {
+      const wait = Math.max(0, arrivalSeconds(s) - s.arrivalProgress);
+      setText(this.popText, `The hoard is drawing ${target}. Next one wanders in within ${Math.ceil(wait)}s.`);
+    } else setText(this.popText, `The hoard is drawing ${target}. A bigger hoard or dragon draws more.`);
+
+    const open = WORKERS.filter((w) => jobOpen(s, w));
+    const nextLocked = WORKERS.find((w) => !jobOpen(s, w));
+    const key = open.map((w) => w.id).join() + '|' + (nextLocked?.id ?? '');
     if (key !== this.workerKey) {
       this.workerKey = key;
       this.workerList.replaceChildren();
       this.rows.clear();
-      for (const def of unlocked) {
+      open.forEach((def, i) => {
         const li = document.createElement('li');
-        li.innerHTML = `<div class="row-main"><b></b> <span class="count"></span><div class="desc"></div><div class="sub"></div></div><button></button>`;
+        li.innerHTML = `<div class="row-main"><b></b> <span class="count"></span><div class="desc"></div><div class="sub"></div></div><div class="job-buttons"></div>`;
         li.querySelector('b')!.textContent = def.name;
         li.querySelector('.desc')!.textContent = def.description;
-        const btn = li.querySelector('button')!;
-        btn.addEventListener('click', () => {
-          if (hire(this.getState(), def.id)) this.onChange('hire', def.id);
-        });
-        this.rows.set(def.id, { count: li.querySelector('.count')!, rate: li.querySelector('.sub')!, btn });
+        const btns = li.querySelector('.job-buttons')!;
+        let down: HTMLButtonElement | undefined;
+        let up: HTMLButtonElement | undefined;
+        if (i > 0) {
+          down = document.createElement('button');
+          down.className = 'small';
+          down.textContent = '−';
+          down.title = `Move one back to ${WORKERS[i - 1].name.toLowerCase()}`;
+          down.setAttribute('aria-label', down.title);
+          down.addEventListener('click', () => {
+            if (demote(this.getState(), def.id)) this.onChange('demote', def.id);
+          });
+          up = document.createElement('button');
+          up.addEventListener('click', () => {
+            if (promote(this.getState(), def.id)) this.onChange('promote', def.id);
+          });
+          btns.append(down, up);
+        }
+        this.rows.set(def.id, { count: li.querySelector('.count')!, rate: li.querySelector('.sub')!, up, down });
         this.workerList.append(li);
-      }
+      });
       if (nextLocked) {
         const li = document.createElement('li');
         li.className = 'locked';
         const stage = DRAGON_STAGES[nextLocked.unlockStage];
         const name = stage.name.toLowerCase();
-        li.textContent = `More kobolds will come when the dragon is ${/^[aeiou]/.test(name) ? 'an' : 'a'} ${name}.`;
+        li.textContent = `A better job opens when the dragon is ${/^[aeiou]/.test(name) ? 'an' : 'a'} ${name}.`;
         this.workerList.append(li);
       }
     }
-    for (const def of unlocked) {
+    open.forEach((def, i) => {
       const row = this.rows.get(def.id)!;
       const n = owned(s, def.id);
-      const cost = workerCost(s, def);
       setText(row.count, `×${n}`);
       setText(row.rate, n > 0 ? `${formatNumber(workerRate(s, def))} / s` : `${formatNumber(def.rate)} / s each`);
-      setText(row.btn, `Hire · ${formatNumber(cost)}`);
-      setDisabled(row.btn, s.copper < cost);
-    }
+      if (row.up && row.down) {
+        const cost = promotionCost(s, def.id) ?? 0;
+        setText(row.up, `Promote · ${formatNumber(cost)}`);
+        row.up.title = `Train a ${WORKERS[i - 1].name.toLowerCase()} to be a ${def.name.toLowerCase()}`;
+        setDisabled(row.up, !canPromote(s, def.id));
+        setDisabled(row.down, n < 1);
+      }
+    });
   }
 
   private updateUpgrades(s: GameState) {

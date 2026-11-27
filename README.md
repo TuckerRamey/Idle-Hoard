@@ -64,14 +64,25 @@ The Chief earns skill points from renown (lifetime copper, boosted by Cunning) a
 
 The chronicle under the cave scene is a short story log. Silly happenings (`src/game/happenings.ts`) turn up about every 10 minutes while the game is open, and once after a long absence. Kobolds always come out of them fine, and some bring a little copper.
 
+## Kobolds and jobs
+
+Nobody is hired. Kobolds wander in on their own, drawn by the copper you hold and by the dragon (`ATTRACTION` in `src/game/data.ts`). Spending copper lowers how many the hoard draws, but nobody leaves. Newcomers start as scavengers. Jobs higher up the ladder open as the dragon grows, and promoting a kobold one rung costs copper for training. Moving one back down is free.
+
+The coin pile in the cave shows the copper you hold right now, so it shrinks when you spend.
+
+## Oddities
+
+Some happenings leave something on the oddities shelf (`src/game/oddities.ts`): the Kogoat, a growing pile of broken lanterns, a hat far too big. Only oddities you've found are listed. A few give a tiny bonus.
+
 ## Adding content
 
 All game content is data in `src/game/data.ts`:
 
-- `WORKERS` – kobold types: income, cost, which dragon stage unlocks them, which sprite, and their visual job (`haul` between tunnel and hoard, or `station` working in place).
+- `WORKERS` – the job ladder, in order: income, promotion cost, which dragon stage opens the job, which sprite, and how they move (`haul` between tunnel and hoard, or `station` working in place).
 - `UPGRADES` – multipliers for one worker or all income, with requirements.
 - `DRAGON_STAGES` – egg, wyrmling, young, adult: the lifetime copper needed, the sprite, and the message shown.
-- `HOARD_SIZE_THRESHOLDS` – when the coin pile picture grows.
+- `HOARD_SIZE_THRESHOLDS` – how much copper held makes the coin pile picture grow.
+- `ATTRACTION` – how many kobolds the hoard and dragon draw, and how often they arrive.
 
 ## Swapping in your own art
 
@@ -110,10 +121,10 @@ Not built yet, but the code is set up so neither needs a rewrite:
 
 ```
 src/
-  game/       data.ts (content), chief.ts (stats, quirks, skills), happenings.ts,
+  game/       data.ts (content), chief.ts (stats, quirks, skills), happenings.ts, oddities.ts,
               state.ts, economy.ts (tick, costs, renown), save.ts (versioned saves)
   render/     manifest.ts (sprite sheets), scene.ts (what to draw), renderer.ts (canvas + scheduling)
-  ui/         hud.ts (kobolds, upgrades), chief-panel.ts, chronicle.ts, format.ts
+  ui/         hud.ts (kobolds, upgrades), chief-panel.ts, chronicle.ts, oddities-view.ts, format.ts
   assets/art/ sprite sheets
 scripts/      gen-placeholder-art.mjs
 tests/        vitest unit tests

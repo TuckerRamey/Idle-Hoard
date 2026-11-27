@@ -96,3 +96,9 @@ button.primary:hover:not(:disabled) { background: #f2c84a; }
 .skills summary { cursor: pointer; color: var(--muted); }
 .list li.learned b { color: var(--accent); }
 @media (max-width: 380px) { .stat { grid-template-columns: 70px 1fr; } .stat .desc { grid-column: 1 / -1; } }
+
+.job-buttons { display: flex; gap: 6px; }
+button.small { min-width: 36px; justify-content: center; }
+#pop-count { color: var(--text); text-transform: none; letter-spacing: 0; }
+.oddities { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 10px; }
+.oddities summary { cursor: pointer; color: var(--muted); }

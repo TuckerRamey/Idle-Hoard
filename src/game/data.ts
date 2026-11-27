@@ -11,20 +11,25 @@ export type JobDef =
   /** Stand at a spot by the cave wall and work in place (digging etc). */
   | { kind: 'station'; x: number; y: number; spacing: number };
 
+/**
+ * A job on the ladder. WORKERS is in ladder order: newcomers always start in
+ * the first job, and a kobold is promoted one rung at a time.
+ */
 export interface WorkerDef {
   id: string;
   name: string;
   description: string;
-  /** Copper per second for each one owned, before multipliers. */
+  /** Copper per second for each kobold in this job, before multipliers. */
   rate: number;
+  /** Copper to promote a kobold into this job (training and tools). Unused for the first job. */
   baseCost: number;
-  /** Cost multiplier per one already owned. */
+  /** Promotion cost multiplier per kobold already in this job. */
   costGrowth: number;
-  /** Dragon stage index needed before this worker can be hired. */
+  /** Dragon stage index needed before this job opens. */
   unlockStage: number;
   sprite: SpriteId;
   job: JobDef;
-  /** Chronicle line when the first one is hired. {chief} becomes the Chief's name. */
+  /** Chronicle line for the first kobold in this job. {chief} becomes the Chief's name. */
   joinText: string;
 }
 
@@ -57,19 +62,19 @@ export interface DragonStageDef {
 export const WORKERS: WorkerDef[] = [
   {
     id: 'scavenger',
-    name: 'Kobold scavenger',
-    description: 'Picks copper out of the tunnels and piles it on the hoard.',
+    name: 'Scavenger',
+    description: 'Picks copper out of the tunnels. Every newcomer starts here.',
     rate: 1,
     baseCost: 15,
     costGrowth: 1.15,
     unlockStage: 0,
     sprite: 'kobold-scavenger',
     job: { kind: 'haul', lane: 0, speed: 18 },
-    joinText: '{chief} talked a scavenger into helping. They mostly argue about who carries more.',
+    joinText: 'A kobold wandered in, drawn by the glitter. {chief} handed them a sack before they could leave.',
   },
   {
     id: 'digger',
-    name: 'Kobold digger',
+    name: 'Miner',
     description: 'Chips coins and ore out of the cave walls.',
     rate: 8,
     baseCost: 150,
@@ -77,23 +82,23 @@ export const WORKERS: WorkerDef[] = [
     unlockStage: 1,
     sprite: 'kobold-digger',
     job: { kind: 'station', x: 44, y: 98, spacing: 9 },
-    joinText: 'The first digger arrives with a pick nearly bigger than they are.',
+    joinText: 'The first miner gets a pick nearly bigger than they are. They love it.',
   },
   {
     id: 'hauler',
-    name: 'Kobold hauler',
-    description: 'Drags whole sacks of silver up from the deep mines.',
+    name: 'Hauler',
+    description: 'Drags whole sacks of copper up from the deep mines.',
     rate: 60,
     baseCost: 2_000,
     costGrowth: 1.15,
     unlockStage: 2,
     sprite: 'kobold-hauler',
     job: { kind: 'haul', lane: 1, speed: 12 },
-    joinText: 'A hauler joins, dragging an empty sack and a lot of promises.',
+    joinText: 'The first hauler sets off with an empty sack and a lot of promises.',
   },
   {
     id: 'raider',
-    name: 'Kobold raider',
+    name: 'Raider',
     description: 'Comes back from the surface with things that were not theirs.',
     rate: 400,
     baseCost: 25_000,
@@ -101,7 +106,7 @@ export const WORKERS: WorkerDef[] = [
     unlockStage: 3,
     sprite: 'kobold-raider',
     job: { kind: 'haul', lane: 2, speed: 24 },
-    joinText: 'A raider swears loyalty to {chief}, then pockets a coin from the hoard. Old habits.',
+    joinText: 'The first raider swears loyalty to {chief}, then pockets a coin from the hoard. Old habits.',
   },
 ];
 
@@ -176,8 +181,23 @@ export const DRAGON_STAGES: DragonStageDef[] = [
   },
 ];
 
-/** Hoard pile size (frame in the hoard sheet) by lifetime copper buried. */
-export const HOARD_SIZE_THRESHOLDS = [0, 200, 5_000, 100_000, 2_000_000, 50_000_000];
+/** Hoard pile size (frame in the hoard sheet) by the copper currently held. */
+export const HOARD_SIZE_THRESHOLDS = [0, 50, 1_000, 20_000, 500_000, 10_000_000];
+
+/**
+ * Kobolds come to the hoard on their own. The warren draws kobolds until it
+ * reaches a target size, which grows with the copper you hold and with the
+ * dragon. Spending copper lowers the target, but nobody leaves.
+ */
+export const ATTRACTION = {
+  /** Kobolds the dragon alone draws, by stage (egg, wyrmling, young, adult). */
+  baseByStage: [1, 4, 10, 25],
+  /** Extra kobolds each time the copper held doubles past `copperUnit`. */
+  perDoubling: 3,
+  copperUnit: 50,
+  /** Seconds between arrivals while below the target, by stage. */
+  arrivalSecondsByStage: [30, 20, 12, 8],
+};
 
 export const CONFIG = {
   /** New games start with no hired kobolds: the Chief hauls the first copper alone. */

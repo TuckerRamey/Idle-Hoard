@@ -89,6 +89,16 @@ function normalizeChief(c: any): Chief | null {
   };
 }
 
+function normalizeOddities(v: unknown): GameState['oddities'] {
+  const out: GameState['oddities'] = {};
+  if (!v || typeof v !== 'object') return out;
+  for (const [k, o] of Object.entries(v as Record<string, any>)) {
+    const count = Math.floor(num(o?.count, 0));
+    if (count > 0) out[k] = { count, firstAt: num(o?.firstAt, 0) };
+  }
+  return out;
+}
+
 function normalizeChronicle(v: unknown): ChronicleEntry[] {
   if (!Array.isArray(v)) return [];
   return v
@@ -119,6 +129,8 @@ export function normalize(raw: unknown, now: number): GameState {
     chief: normalizeChief(r.chief),
     skills: strList(r.skills),
     chronicle: normalizeChronicle(r.chronicle),
+    arrivalProgress: num(r.arrivalProgress, 0),
+    oddities: normalizeOddities(r.oddities),
   };
 }
 

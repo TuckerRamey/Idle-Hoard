@@ -156,3 +156,22 @@ describe('chronicle and happenings', () => {
     }
   });
 });
+
+describe('oddities', () => {
+  it('a one-off oddity is found once, a stacking one keeps counting', () => {
+    const s = newGame(T0);
+    s.chief = plain;
+    for (let i = 0; i < 400; i++) happen(s, T0 + i, Math.random);
+    expect(s.oddities.kogoat?.count).toBe(1);
+    expect(s.oddities.lanterns.count).toBeGreaterThan(25);
+    expect(s.chronicle.filter((e) => e.text.includes('Kogoat')).length).toBeLessThanOrEqual(1);
+  });
+
+  it('the Kogoat lifts morale', () => {
+    const s = newGame(T0);
+    s.chief = { ...plain, nerve: 0 };
+    const before = incomePerSecond(s);
+    s.oddities.kogoat = { count: 1, firstAt: T0 };
+    expect(incomePerSecond(s)).toBeCloseTo(before * 1.02);
+  });
+});
