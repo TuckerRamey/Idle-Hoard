@@ -3,7 +3,9 @@
 
 import { KOBOLD_NAMES } from './chief';
 import { ODDITIES } from './oddities';
+import { IDLE, JOBS } from './data';
 import { incomePerSecond, population, store, workers } from './economy';
+import { addHistory, fullName, nameKobold, namedIn, type NamedKobold } from './kobolds';
 import { addChronicle, type GameState } from './state';
 
 export interface HappeningDef {
@@ -60,6 +62,29 @@ export function eligible(state: GameState): HappeningDef[] {
   );
 }
 
+/**
+ * Happenings memorable enough to give a crowd kobold a name: [title, trait].
+ * About half the time the kobold involved becomes named; a named kobold who
+ * is picked adds it to their story instead.
+ */
+export const NAMING: Record<string, [string, string]> = {
+  well: ['Wellborn', 'Can hold their breath for ages'],
+  'cave-in': ['the Unburied', 'Digs out of anything'],
+  sneeze: ['Sneezer', 'Sneezes at the worst moments'],
+  'crab-rock': ['Crabwise', 'Checks every rock twice'],
+  'tiny-sword': ['Swordpuller', 'Carries a sword one kobold tall'],
+  bat: ['Batbane', 'Holds grudges against bats'],
+  singed: ['the Singed', 'Singed tail'],
+  lunch: ['the Lost', 'No sense of direction at all'],
+  'mine-cart': ['Cartrider', 'Rides anything with wheels'],
+  hat: ['Big-hat', 'Wears a hat far too big'],
+  toad: ['Toadfriend', 'Friends with a very large toad'],
+  spores: ['the Glowing', 'Glows faintly in the dark'],
+  window: ['Windowmaker', 'Thinks every wall needs a window'],
+  'old-coins': ['Finderkeeper', 'Always finds the coins'],
+  'wrong-sack': ['Wrongsack', 'Never checks the sack'],
+};
+
 let lastId = '';
 
 /**
@@ -75,7 +100,27 @@ export function happen(state: GameState, now: number, rand: () => number): Happe
   if (pool.length > 1 && h.id === lastId) h = pool[(pool.indexOf(h) + 1) % pool.length];
   lastId = h.id;
   const names = KOBOLD_NAMES.filter((n) => n !== state.chief!.name);
-  const kobold = names[Math.floor(rand() * names.length) % names.length];
+  let kobold = names[Math.floor(rand() * names.length) % names.length];
+  let named: NamedKobold | null = null;
+  let newlyNamed = false;
+  if (h.text.includes('{kobold}')) {
+    const pool = h.needsJob ? namedIn(state, h.needsJob) : state.named;
+    const naming = NAMING[h.id];
+    if (pool.length && rand() < 0.4) named = pool[Math.floor(rand() * pool.length) % pool.length];
+    else if (naming && rand() < 0.5) {
+      const jobs = h.needsJob ? [h.needsJob] : [...JOBS.map((j) => j.id).filter((j) => (state.crews[j]?.n ?? 0) > 0), ...(state.idle > 0 ? [IDLE] : [])];
+      if (jobs.length) {
+        const job = jobs[Math.floor(rand() * jobs.length) % jobs.length];
+        named = nameKobold(state, job, naming[0], '', now, rand);
+        if (named) {
+          named.history = [];
+          named.traits.push(naming[1]);
+          newlyNamed = true;
+        }
+      }
+    }
+    if (named) kobold = named.name;
+  }
   const gain = store(state, 'copper', h.rewardSeconds * incomePerSecond(state));
   let found = 0;
   if (h.oddity) {
@@ -86,6 +131,8 @@ export function happen(state: GameState, now: number, rand: () => number): Happe
     else state.oddities[h.oddity] = { count: found, firstAt: now };
   }
   let text = h.text.replaceAll('{chief}', state.chief.name).replaceAll('{kobold}', kobold).replaceAll('{n}', String(found));
+  if (named) addHistory(named, now, text);
+  if (newlyNamed && named) text += ` Ever since, they've been ${fullName(named)}.`;
   if (gain >= 1) text += ` (+${Math.floor(gain).toLocaleString('en-US')} copper)`;
   addChronicle(state, now, text);
   return h;

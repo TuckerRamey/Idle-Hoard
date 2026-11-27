@@ -24,6 +24,16 @@
           <div class="growth-head"><b id="stage-name">Egg</b></div>
           <div id="stage-bar" class="bar"><div></div></div>
           <div id="stage-text" class="desc"></div>
+          <div id="dragon" class="dragon" hidden>
+            <div id="dragon-mood" class="desc"></div>
+            <div id="dragon-craving" class="desc"></div>
+            <div id="dragon-request" class="request" hidden>
+              <p id="request-text"></p>
+              <div class="buttons"><button type="button" id="request-grant" class="primary">Give it</button><button type="button" id="request-dismiss">Not now</button></div>
+            </div>
+            <div class="desc molt-head">Next molt needs:</div>
+            <ul id="molt-needs" class="molt"></ul>
+          </div>
         </div>
 
         <form id="chief-form"><div id="chief-create" class="chief-create" hidden>
@@ -50,8 +60,19 @@
         <div class="step-row"><span class="desc">Move</span> <div id="step" class="step" role="group" aria-label="How many to move at once"></div></div>
         <ul id="jobs" class="list"></ul>
 
+        <details id="named-section" class="named-section" open hidden>
+          <summary>Named kobolds · <span id="named-summary"></span></summary>
+          <ul id="named" class="list"></ul>
+        </details>
+
         <h2>Rooms</h2>
         <ul id="rooms" class="list"></ul>
+
+        <div id="research-section" hidden>
+          <h2>Research</h2>
+          <p id="research-status" class="desc"></p>
+          <ul id="research" class="list"></ul>
+        </div>
 
 
         <section id="chief-card" class="chief-card" hidden>

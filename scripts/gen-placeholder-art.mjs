@@ -284,4 +284,36 @@ kobold('kobold-digger.png', '#5a7f9a', '#36506a', '#c0c8d0');
 kobold('kobold-woodcutter.png', '#a0583a', '#6a3624', '#3f8f6e', false, 'mushroom');
 kobold('kobold-quarrier.png', '#7a5a9a', '#4a3666', '#9a9aa8');
 kobold('kobold-idle.png', '#8a8a6a', '#55553f', null);
+kobold('kobold-researcher.png', '#b0b8c8', '#6a7080', '#e8e8f0'); // lab coat
+kobold('kobold-miner.png', '#6a6a72', '#3c3c44', '#e8b830', false, 'coins');
+kobold('kobold-herder.png', '#8fa060', '#5a6a38', '#d07a40');
+kobold('kobold-alchemist.png', '#9a6ab8', '#5e3e74', '#5ad0a0');
+
+// ---------- hats for named kobolds: 12x12 frames, one row of 6 looks ----------
+// Drawn over a kobold's frame at the same spot, so they sit on the head.
+{
+  const FW = 12, FH = 12, N = 6;
+  const s = sheet(FW * N, FH);
+  const colors = ['#e0405a', '#4a8ae0', '#e8b830', '#5ad0a0', '#e9e1d4', '#c070e0'];
+  for (let f = 0; f < N; f++) {
+    const c = cell(s, f * FW, 0, FW, FH);
+    const col = colors[f];
+    if (f % 3 === 0) {
+      // pointy hat
+      c.rect(5, 1, 4, 1, col);
+      c.rect(6, 0, 2, 1, col);
+    } else if (f % 3 === 1) {
+      // cap with a brim
+      c.rect(5, 1, 3, 1, col);
+      c.rect(5, 0, 2, 1, col);
+      c.rect(8, 1, 2, 1, col);
+    } else {
+      // a feather
+      c.rect(5, 1, 4, 1, col);
+      c.line(5, 1, 3, -1, '#f6f0d0');
+      c.put(4, 0, '#f6f0d0');
+    }
+  }
+  save('hats.png', s);
+}
 kobold('kobold-chief.png', '#c9a13a', '#7d6220', '#5b3a22', true);

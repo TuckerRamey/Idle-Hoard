@@ -12,6 +12,12 @@ import { confirmTap } from './ui/dom';
 import { formatDuration, formatNumber } from './ui/format';
 import { Hud } from './ui/hud';
 import { OdditiesView } from './ui/oddities-view';
+import { DragonView } from './ui/dragon-view';
+import { ResearchView } from './ui/research-view';
+import { NamedView } from './ui/named-view';
+import { animalName } from './game/dragon';
+import { fullName } from './game/kobolds';
+import { researchDef } from './game/research';
 
 const TICK_MS = 1000;
 const AUTOSAVE_MS = 60_000;
@@ -45,16 +51,39 @@ const hud = new Hud(getState, (e) => {
   } else if (e.kind === 'upgrade') {
     const u = UPGRADES.find((x) => x.id === e.id);
     if (u) tell(u.effect.kind === 'appeal' ? `${u.name} now stands in the hoard room.` : `{chief} ordered ${u.name.toLowerCase()} for the warren.`);
-  }
+  } else if (e.kind === 'herd') tell(`{chief} had the pasture switched over to ${animalName(e.animal)}. The new herd will take half an hour to settle.`);
   refresh();
+});
+const dragonView = new DragonView(getState, (line) => {
+  tell(line);
+  refresh();
+  save();
+});
+const researchView = new ResearchView(getState, (id) => {
+  const def = id ? researchDef(id) : undefined;
+  if (def) tell(`{chief} told the researchers to work on ${def.name.toLowerCase()}.`);
+  refresh();
+});
+const namedView = new NamedView(getState, (k, what) => {
+  if (what === 'lieutenant') tell(`{chief} made ${fullName(k)} a lieutenant.`);
+  else if (what === 'stand-down') tell(`${fullName(k)} stepped down as lieutenant.`);
+  refresh();
+  save();
 });
 const chiefPanel = new ChiefPanel(getState, (chief) => foundChief(chief));
 const chronicle = new ChronicleView(getState);
 const oddities = new OdditiesView(getState);
 const renderer = new Renderer(document.querySelector('#scene') as HTMLCanvasElement, getState);
 
-function refresh() {
+function updatePanels() {
   hud.update();
+  dragonView.update();
+  researchView.update();
+  namedView.update(Date.now());
+}
+
+function refresh() {
+  updatePanels();
   chiefPanel.update();
   chronicle.update(Date.now());
   oddities.update(Date.now());
@@ -99,10 +128,13 @@ function creditTime(isReturn: boolean) {
   for (const d of r.dug) {
     const room = ROOMS.find((x) => x.id === d.room)!;
     const cap = roomCapacity(state, room, d.size);
-    const holds = room.holds === 'beds' ? `${cap} beds` : room.holds === 'copper' ? `room for ${formatNumber(cap)} copper` : `room for ${formatNumber(cap)} goods`;
-    tell(`The ${room.name.toLowerCase()} was dug out to size ${d.size}: ${holds}.`);
+    const holds =
+      room.holds === 'beds' ? `: ${cap} beds` : room.holds === 'copper' ? `: room for ${formatNumber(cap)} copper` : room.holds === 'herders' ? `: room for ${cap} herders` : room.holds === 'storehouse' ? `: room for ${formatNumber(cap)} goods` : '';
+    tell(`The ${room.name.toLowerCase()} was dug out to size ${d.size}${holds}.`);
   }
-  if (r.arrived > 0 || r.dug.length) renderer.invalidate();
+  // research, mishaps and the dragon; after a long absence keep only the latest few
+  for (const line of r.events.slice(-12)) tell(line);
+  if (r.arrived > 0 || r.dug.length || r.events.length) renderer.invalidate();
   const made = RESOURCES.filter((x) => r.gained[x.id] >= 1).map((x) => `${formatNumber(r.gained[x.id])} ${x.name.toLowerCase()}`);
   if (isReturn && r.credited >= CONFIG.awayNoticeSeconds && made.length) {
     const capped = r.elapsed > r.credited ? ` Only the first ${formatDuration(offlineCap(state))} counted.` : '';
@@ -113,8 +145,8 @@ function creditTime(isReturn: boolean) {
     // something silly probably happened while you were gone
     if (r.credited >= 30 * 60) maybeHappen();
   }
-  if (r.newStage !== null) {
-    tell(DRAGON_STAGES[r.newStage].flavor);
+  if (r.newStage === 1) {
+    tell(DRAGON_STAGES[1].flavor);
     renderer.invalidate();
   }
 }
@@ -137,7 +169,7 @@ let saveTimer: number | undefined;
 function tickOnce() {
   creditTime(false);
   if (Math.random() < happeningChance(TICK_MS / 1000)) maybeHappen();
-  hud.update();
+  updatePanels();
   chiefPanel.update();
   chronicle.update(Date.now());
   oddities.update(Date.now());

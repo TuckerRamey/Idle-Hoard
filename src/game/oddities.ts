@@ -19,6 +19,8 @@ export const ODDITIES: OddityDef[] = [
   { id: 'crab-rock', name: 'Crab-shaped rock', description: 'It is not a crab. Everyone has checked.', stacks: false },
   { id: 'tiny-sword', name: 'A sword one kobold tall', description: 'Pulled from a stone. Nobody knows who left it there.', stacks: false, incomeMult: 1.01 },
   { id: 'first-scale', name: "The dragon's first scale", description: 'Shed in its sleep and polished daily.', stacks: false },
+  { id: 'mystery-coin', name: 'A coin nobody has seen before', description: 'It came out of a research explosion. One side shows a dragon, the other a kobold. The kobold is winking.', stacks: false },
+  { id: 'shed-skins', name: 'Shed dragon skins', description: '{n} of them, each bigger than the last. Kept rolled up in the lair like rugs.', stacks: true },
 ];
 
 export function oddityText(def: OddityDef, count: number): string {

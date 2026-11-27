@@ -11,7 +11,8 @@
 
 import { OLD_QUIRKS, QUIRKS, type Chief } from './chief';
 import { RESOURCES } from './data';
-import { CHRONICLE_MAX, newGame, type ChronicleEntry, type Crew, type GameState, type RoomState } from './state';
+import type { NamedKobold } from './kobolds';
+import { CHRONICLE_MAX, newDragon, newGame, type ChronicleEntry, type Crew, type DragonState, type GameState, type RoomState } from './state';
 
 export const SAVE_VERSION = 2;
 export const SAVE_KEY = 'idle-hoard.save';
@@ -132,6 +133,52 @@ function normalizeRooms(v: unknown, base: Record<string, RoomState>): Record<str
   return out;
 }
 
+function normalizeNamed(v: unknown): NamedKobold[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter((k) => k && typeof k.name === 'string' && typeof k.job === 'string')
+    .map((k) => ({
+      id: Math.floor(num(k.id, 0)),
+      name: String(k.name).slice(0, 32),
+      title: typeof k.title === 'string' ? k.title : '',
+      job: k.job,
+      loves: typeof k.loves === 'string' ? k.loves : '',
+      hates: typeof k.hates === 'string' ? k.hates : '',
+      look: Math.floor(num(k.look, 0)),
+      traits: strList(k.traits),
+      gifts: strList(k.gifts),
+      history: Array.isArray(k.history)
+        ? k.history.filter((h: any) => h && typeof h.text === 'string').map((h: any) => ({ t: num(h.t, 0), text: String(h.text) }))
+        : [],
+      lieutenant: k.lieutenant === true,
+    }));
+}
+
+function normalizeDragon(v: any): DragonState {
+  const d = newDragon();
+  if (!v || typeof v !== 'object') return d;
+  const r = v.request;
+  const request =
+    r && typeof r === 'object' && (r.kind === 'give' || r.kind === 'audience') && typeof r.until === 'number' ? r : null;
+  const fed: Record<string, number> = {};
+  if (v.fed && typeof v.fed === 'object') for (const [k, n] of Object.entries(v.fed)) fed[k] = num(n, 0);
+  return {
+    clock: num(v.clock, d.clock),
+    craving: typeof v.craving === 'string' ? v.craving : d.craving,
+    next: typeof v.next === 'string' ? v.next : d.next,
+    changeAt: num(v.changeAt, d.changeAt),
+    warned: v.warned === true,
+    hungry: v.hungry !== false,
+    content: num(v.content, 0),
+    granted: Math.floor(num(v.granted, 0)),
+    favor: Math.floor(num(v.favor, 0)),
+    request,
+    nextRequestAt: num(v.nextRequestAt, d.nextRequestAt),
+    fed,
+    traits: strList(v.traits),
+  };
+}
+
 /** Fill in defaults and drop junk, so small shape changes need no migration. */
 export function normalize(raw: unknown, now: number): GameState {
   const base = newGame(now);
@@ -158,6 +205,18 @@ export function normalize(raw: unknown, now: number): GameState {
     chronicle: normalizeChronicle(r.chronicle),
     arrivalProgress: num(r.arrivalProgress, 0),
     oddities: normalizeOddities(r.oddities),
+    research: {
+      done: strList(r.research?.done),
+      current: typeof r.research?.current === 'string' ? r.research.current : r.research?.current === null ? null : base.research.current,
+      progress: num(r.research?.progress, 0),
+    },
+    named: normalizeNamed(r.named),
+    nextNamedId: Math.max(1, Math.floor(num(r.nextNamedId, 1)), ...normalizeNamed(r.named).map((k) => k.id + 1)),
+    herd: typeof r.herd === 'string' ? r.herd : base.herd,
+    herdSettle: num(r.herdSettle, 0),
+    recipe: typeof r.recipe === 'string' ? r.recipe : base.recipe,
+    dragon: normalizeDragon(r.dragon),
+    seed: Number.isInteger(r.seed) ? r.seed : base.seed,
   };
 }
 

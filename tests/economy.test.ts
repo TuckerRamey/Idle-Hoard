@@ -148,7 +148,7 @@ describe('tick', () => {
 
   it('hatches the egg once enough copper is buried', () => {
     const s = game();
-    const r = tick(s, DRAGON_STAGES[1].threshold / CONFIG.chiefRate + 1);
+    const r = tick(s, DRAGON_STAGES[1].threshold! / CONFIG.chiefRate + 1);
     expect(r.newStage).toBe(1);
     expect(s.stage).toBe(1);
   });
@@ -198,7 +198,7 @@ describe('digging rooms', () => {
     s.crews.digger = { n: 4, exp: 0 };
     s.digging = 'storehouse';
     const hints = jobHints(s);
-    expect(hints.woodcutter).toMatch(/stalled.*About \d+ more woodcutters?/);
+    expect(hints.woodcutter).toMatch(/run out of mushroom wood.*About \d+ more woodcutters?/);
     expect(flows(s).wood.out).toBeGreaterThan(0);
   });
 
@@ -299,12 +299,12 @@ describe('upgrades', () => {
   it('cost several resources and are bought once', () => {
     const s = game();
     s.crews.woodcutter = { n: 2, exp: 0 };
-    s.res = { copper: 1000, wood: 0, stone: 59 };
+    s.res = { copper: 1000, wood: 0, stone: 59, iron: 0, meat: 0 };
     expect(buyUpgrade(s, 'stone-axes')).toBe(false); // one stone short
     s.res.stone = 60;
     const before = production(s).wood;
     expect(buyUpgrade(s, 'stone-axes')).toBe(true);
-    expect(s.res).toEqual({ copper: 750, wood: 0, stone: 0 });
+    expect(s.res).toEqual({ copper: 750, wood: 0, stone: 0, iron: 0, meat: 0 });
     expect(production(s).wood).toBeCloseTo(before * 1.5);
     expect(buyUpgrade(s, 'stone-axes')).toBe(false);
   });

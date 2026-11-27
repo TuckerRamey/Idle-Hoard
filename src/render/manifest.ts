@@ -49,6 +49,12 @@ export const SPRITES: Record<string, SpriteDef> = {
   'kobold-digger': { src: art('kobold-digger.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
   'kobold-woodcutter': { src: art('kobold-woodcutter.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
   'kobold-quarrier': { src: art('kobold-quarrier.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
+  'kobold-researcher': { src: art('kobold-researcher.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
+  'kobold-miner': { src: art('kobold-miner.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
+  'kobold-herder': { src: art('kobold-herder.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
+  'kobold-alchemist': { src: art('kobold-alchemist.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
+  // Hats for named kobolds, drawn over the kobold at the same spot. One frame per look.
+  hats: { src: art('hats.png'), frameW: 12, frameH: 12, animations: { looks: { row: 0, frames: 6, fps: 0 } } },
   // Kobolds with no job yet. They mostly stand about.
   'kobold-idle': { src: art('kobold-idle.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
   // Same layout as the other kobolds, but row 2 is a pointing "directing" pose.
