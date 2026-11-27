@@ -3,19 +3,23 @@
 // src/render/manifest.ts if it needs a new sprite).
 
 export type SpriteId = string;
-export type ResourceId = 'copper' | 'wood' | 'stone';
+export type ResourceId = 'copper' | 'wood' | 'stone' | 'iron' | 'meat';
 
 export interface ResourceDef {
   id: ResourceId;
   name: string;
   /** Which room holds it: the hoard room, or a share of the storehouse. */
   store: 'hoard' | 'storehouse';
+  /** Research that uncovers it. A new game knows only copper, wood and stone. */
+  requires?: string;
 }
 
 export const RESOURCES: ResourceDef[] = [
   { id: 'copper', name: 'Copper', store: 'hoard' },
   { id: 'wood', name: 'Mushroom wood', store: 'storehouse' },
   { id: 'stone', name: 'Stone', store: 'storehouse' },
+  { id: 'iron', name: 'Iron', store: 'storehouse', requires: 'ore-sniffing' },
+  { id: 'meat', name: 'Meat', store: 'storehouse', requires: 'crab-wrangling' },
 ];
 
 /** How a job's kobolds move around the cave. Purely visual. */
@@ -37,6 +41,12 @@ export interface JobDef {
   produces?: { resource: ResourceId; rate: number };
   /** Dig work each kobold does per second, before multipliers. */
   digs?: number;
+  /** Research each kobold does per second, before multipliers. */
+  researches?: number;
+  /** Input each kobold turns over per second with the chosen recipe. */
+  converts?: number;
+  /** Research that opens this job. */
+  requires?: string;
   sprite: SpriteId;
   motion: MotionDef;
   /** Chronicle line the first time anyone works this job. {chief} becomes the Chief's name. */
@@ -80,6 +90,45 @@ export const JOBS: JobDef[] = [
     motion: { kind: 'station', x: 222, y: 98, spacing: 5 },
     firstText: '{chief} pointed at a wall and said "bigger". The first digger got to work.',
   },
+  {
+    id: 'researcher',
+    name: 'Researcher',
+    description: 'Slightly crazed. Works out new jobs, rooms and tricks, with the occasional small explosion.',
+    researches: 0.1,
+    sprite: 'kobold-researcher',
+    motion: { kind: 'station', x: 200, y: 112, spacing: 9 },
+    firstText: 'The first researcher set up a lab in a corner. Nobody is allowed to sit near it.',
+  },
+  {
+    id: 'miner',
+    name: 'Miner',
+    description: 'Digs iron ore out of the deep seams and bangs it into rough bars.',
+    produces: { resource: 'iron', rate: 0.1 },
+    requires: 'ore-sniffing',
+    sprite: 'kobold-miner',
+    motion: { kind: 'haul', lane: 2, speed: 11 },
+    firstText: 'The first miner came back from the deep seams black with soot and grinning.',
+  },
+  {
+    id: 'herder',
+    name: 'Herder',
+    description: 'Raises animals in the pasture for the dragon to eat. The pasture sets how many herders it fits.',
+    produces: { resource: 'meat', rate: 0.2 },
+    requires: 'crab-wrangling',
+    sprite: 'kobold-herder',
+    motion: { kind: 'station', x: 104, y: 96, spacing: 7 },
+    firstText: 'The first herder has named every animal. This will make dinner awkward.',
+  },
+  {
+    id: 'alchemist',
+    name: 'Alchemist',
+    description: 'Turns something plentiful into something scarce, wastefully. For patching a shortfall, not a main supply.',
+    converts: 1,
+    requires: 'alchemy',
+    sprite: 'kobold-alchemist',
+    motion: { kind: 'station', x: 116, y: 90, spacing: 6 },
+    firstText: 'The first alchemist turned a bucket of stone into a very small piece of iron, and fainted with pride.',
+  },
 ];
 
 /** Kobolds a newcomer can be sent to straight away; 'idle' means they wait. */
@@ -96,7 +145,12 @@ export interface RoomDef {
   id: string;
   name: string;
   description: string;
-  holds: 'copper' | 'storehouse' | 'beds';
+  /** copper, storehouse goods, beds, herders the pasture fits, or room for the dragon. */
+  holds: 'copper' | 'storehouse' | 'beds' | 'herders' | 'dragon';
+  /** Research that opens this room. */
+  requires?: string;
+  /** Dragon stage needed before this room can be dug. */
+  minStage?: number;
   /** Capacity at size 1, and how it grows per size. */
   base: number;
   growth: number;
@@ -132,6 +186,26 @@ export const ROOMS: RoomDef[] = [
     growth: 1.5, // beds = base × size^growth
     digBase: 100,
   },
+  {
+    id: 'lair',
+    name: 'Lair',
+    description: 'Where the dragon sleeps. It grows into its lair like a goldfish: each molt needs a bigger one.',
+    holds: 'dragon',
+    minStage: 1,
+    base: 1,
+    growth: 1,
+    digBase: 1_500,
+  },
+  {
+    id: 'pasture',
+    name: 'Pasture',
+    description: 'A damp cave meadow for the dragon\'s dinner. Its size sets how many herders it fits.',
+    holds: 'herders',
+    requires: 'crab-wrangling',
+    base: 3,
+    growth: 1.4, // herders = base × size^growth
+    digBase: 120,
+  },
 ];
 
 export const DIG = {
@@ -139,14 +213,33 @@ export const DIG = {
   growth: 2.3,
   /**
    * Small rooms need no supports. From these sizes on, each unit of dig work
-   * uses this much of a resource to hold the ceiling up. Later tiers (iron
-   * braces and better) arrive with research.
+   * uses this much of a resource to hold the ceiling up. Iron has to be
+   * researched before the iron tier can be met.
    */
   supports: [
     { fromSize: 3, resource: 'wood' as ResourceId, perWork: 0.5 },
     { fromSize: 6, resource: 'stone' as ResourceId, perWork: 0.5 },
+    { fromSize: 10, resource: 'iron' as ResourceId, perWork: 0.2 },
   ],
 };
+
+/** What the alchemist can make. Always a loss: that's the point. */
+export interface RecipeDef {
+  id: string;
+  name: string;
+  from: ResourceId;
+  /** How many `from` make one `to`. */
+  ratio: number;
+  to: ResourceId;
+}
+
+export const RECIPES: RecipeDef[] = [
+  { id: 'stone-to-iron', name: 'Stone into iron', from: 'stone', ratio: 8, to: 'iron' },
+  { id: 'copper-to-iron', name: 'Copper into iron', from: 'copper', ratio: 40, to: 'iron' },
+  { id: 'wood-to-meat', name: 'Mushroom jerky (the dragon eats it, grudgingly)', from: 'wood', ratio: 6, to: 'meat' },
+  { id: 'copper-to-stone', name: 'Copper into stone', from: 'copper', ratio: 5, to: 'stone' },
+  { id: 'wood-to-stone', name: 'Petrified mushroom', from: 'wood', ratio: 3, to: 'stone' },
+];
 
 export type UpgradeEffect =
   | { kind: 'jobMult'; job: string; mult: number }
@@ -251,8 +344,11 @@ export const UPGRADES: UpgradeDef[] = [
 export interface DragonStageDef {
   id: string;
   name: string;
-  /** Lifetime copper buried in the hoard needed to reach this stage. */
-  threshold: number;
+  /**
+   * Lifetime copper buried needed to reach this stage. Only hatching works
+   * this way; later stages come from molting (see MOLTS in dragon.ts).
+   */
+  threshold?: number;
   sprite: SpriteId;
   /** Text shown when the stage is reached. */
   flavor: string;
@@ -262,12 +358,11 @@ export interface DragonStageDef {
   appeal: number;
 }
 
-/** Stage 0 is the egg. Thresholds are lifetime copper buried. */
+/** Stage 0 is the egg. */
 export const DRAGON_STAGES: DragonStageDef[] = [
   {
     id: 'egg',
     name: 'Egg',
-    threshold: 0,
     sprite: 'egg',
     flavor: 'found a warm egg in the dark and began burying it in copper, hoping to hatch it.',
     incomeMult: 1,
@@ -285,7 +380,6 @@ export const DRAGON_STAGES: DragonStageDef[] = [
   {
     id: 'young',
     name: 'Young dragon',
-    threshold: 100_000,
     sprite: 'young-dragon',
     flavor: 'The dragon has grown. Kobolds come from three caves over just to look at it.',
     incomeMult: 1.25,
@@ -294,7 +388,6 @@ export const DRAGON_STAGES: DragonStageDef[] = [
   {
     id: 'adult',
     name: 'Adult dragon',
-    threshold: 10_000_000,
     sprite: 'adult-dragon',
     flavor: 'A true dragon now. The whole underdark has heard of it.',
     incomeMult: 1.5,

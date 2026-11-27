@@ -4,6 +4,7 @@
 
 import { DRAGON_STAGES, JOBS } from '../game/data';
 import { hoardSize, workers } from '../game/economy';
+import { namedIn } from '../game/kobolds';
 import type { GameState, MotionSetting } from '../game/state';
 import { SCENE_W, SPRITES } from './manifest';
 
@@ -33,6 +34,12 @@ export function stepMs(motion: MotionSetting): number {
   return motion === 'low' ? 1000 : 125;
 }
 
+/** A named kobold's hat, drawn over them; it bobs with the head on walking frames. */
+function hat(look: number, o: DrawOp): DrawOp {
+  const bob = o.anim !== 'work' && o.frame % 2 === 1 ? 1 : 0;
+  return { sprite: 'hats', anim: 'looks', frame: look, x: o.x, y: o.y + bob, flip: o.flip };
+}
+
 function frameAt(sprite: string, anim: string, t: number): number {
   const a = SPRITES[sprite]?.animations[anim];
   if (!a || a.frames <= 1 || a.fps <= 0) return 0;
@@ -54,10 +61,13 @@ export function buildScene(state: GameState, nowMs: number): DrawOp[] {
     if (def.motion.kind !== 'station') continue;
     const n = Math.min(workers(state, def.id), MAX_VISIBLE_PER_WORKER);
     const fh = SPRITES[def.sprite]?.frameH ?? 12;
+    const stars = namedIn(state, def.id);
     for (let i = 0; i < n; i++) {
       // offset each kobold a little so they don't swing in unison
       const frame = frameAt(def.sprite, 'work', t + i * 370);
-      ops.push({ sprite: def.sprite, anim: 'work', frame, x: def.motion.x + i * def.motion.spacing, y: def.motion.y - fh });
+      const op: DrawOp = { sprite: def.sprite, anim: 'work', frame, x: def.motion.x + i * def.motion.spacing, y: def.motion.y - fh };
+      ops.push(op);
+      if (stars[i]) ops.push(hat(stars[i].look, op));
     }
   }
 
@@ -117,20 +127,26 @@ export function buildScene(state: GameState, nowMs: number): DrawOp[] {
     const dist = Math.max(to - from, 1);
     const cycle = ((2 * dist) / def.motion.speed) * 1000;
     const y = LANE_Y[def.motion.lane % LANE_Y.length];
+    const stars = namedIn(state, def.id);
     for (let i = 0; i < n; i++) {
       const p = ((t + (cycle * i) / n) % cycle) / cycle; // 0..1 around the round trip
       const outbound = p < 0.5;
       const x = outbound ? from + dist * (p * 2) : to - dist * ((p - 0.5) * 2);
       const anim = outbound ? 'carry' : 'walk';
-      ops.push({ sprite: def.sprite, anim, frame: frameAt(def.sprite, anim, t + i * 130), x: Math.round(x), y, flip: !outbound });
+      const op: DrawOp = { sprite: def.sprite, anim, frame: frameAt(def.sprite, anim, t + i * 130), x: Math.round(x), y, flip: !outbound };
+      ops.push(op);
+      if (stars[i]) ops.push(hat(stars[i].look, op));
     }
   }
 
   // Kobolds with no job stand about near the torch, now and then turning round.
-  const idle = Math.min(state.idle, MAX_VISIBLE_PER_WORKER);
+  const idleStars = namedIn(state, 'idle');
+  const idle = Math.min(state.idle + idleStars.length, MAX_VISIBLE_PER_WORKER);
   for (let i = 0; i < idle; i++) {
     const flip = Math.floor((t + i * 2300) / 5000) % 2 === 1;
-    ops.push({ sprite: 'kobold-idle', anim: 'walk', frame: 0, x: IDLE_X + i * 8, y: IDLE_Y - (i % 2) * 3, flip });
+    const op: DrawOp = { sprite: 'kobold-idle', anim: 'walk', frame: 0, x: IDLE_X + i * 8, y: IDLE_Y - (i % 2) * 3, flip };
+    ops.push(op);
+    if (idleStars[i]) ops.push(hat(idleStars[i].look, op));
   }
 
   return ops.filter((o) => o.x < SCENE_W);

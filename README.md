@@ -61,7 +61,7 @@ Players can export a save as text (or a file) from **Settings and save** and imp
 
 ## The Chief
 
-A new game starts by naming the Chief, the kobold who found the egg. Their stats (Cunning, Voice, Nerve) always add up to the same total and come with one quirk, so a reroll changes direction, not strength. The Chief hauls copper alone until the egg hatches, then stands by the hoard giving orders. There's no skill tree: the Chief will grow through personal events instead (coming next). Stats and quirks are data in `src/game/chief.ts`.
+A new game starts by naming the Chief, the kobold who found the egg. Their stats (Cunning, Voice, Nerve) always add up to the same total and come with one quirk, so a reroll changes direction, not strength. The Chief hauls copper alone until the egg hatches, then stands by the hoard giving orders. There's no skill tree: the Chief grows through what happens to them. Stats and quirks are data in `src/game/chief.ts`.
 
 The chronicle under the cave scene is a short story log. Silly happenings (`src/game/happenings.ts`) turn up about every 10 minutes while the game is open, and once after a long absence. Kobolds always come out of them fine, and some bring a little copper.
 
@@ -71,7 +71,19 @@ Nobody is hired. Kobolds wander in on their own, drawn by the hoard's **appeal**
 
 Jobs are assignments, not a ladder. Newcomers go to the job picked under Idle (Scavenger by default). The − and + buttons move kobolds between Idle and any job, 1, 5, 20 or all at a time. A crew gets better the longer it works together (up to +30%), and newcomers water that down, so big reshuffles cost a little.
 
-Three resources so far: copper (in the hoard room), mushroom wood and stone (sharing the storehouse evenly, so one can never crowd out the other). When a room is full, the extra is lost until it's dug bigger. Diggers dig one room at a time, picked with **Dig here**. Small rooms need only diggers; from size 3 a dig uses wood, and from size 6 stone too, to hold the ceiling up. A dig with no supplies stalls, and the job rows say what's short and roughly how many kobolds would fix it.
+A new game knows copper (in the hoard room), mushroom wood and stone (sharing the storehouse evenly, so one can never crowd out another). Research uncovers iron and meat, which take their own share. When a room is full, the extra is lost until it's dug bigger. Diggers dig one room at a time, picked with **Dig here**, and a room holds a little more with every bit of digging. Whole sizes only mark where a dig starts needing supports: wood from size 3, stone from size 6, iron from size 10. A dig with no supplies stalls, and the job rows say what's short and roughly how many kobolds would fix it.
+
+## Research and named kobolds
+
+Research is the one unlock track (`src/game/research.ts`). Researchers work on one project at a time; finishing one moves on to the cheapest next. Projects open iron and miners, the pasture and herders, goats and beetles, the alchemist, and a few straight bonuses. Research goes wrong more often than it should: harmless explosions that sometimes leave an oddity, extra research or a bit of free digging.
+
+A crowd kobold gets a name when something memorable happens to them: a research mishap, many of the happenings, or being summoned by the dragon (`src/game/kobolds.ts`). Named kobolds wear a hat in the cave, love one job and hate another, collect traits, gifts and a history, and lift the crew they join. After four experiences one can be made a lieutenant (one slot plus one per dragon stage), which lifts their crew by 15%. Nothing is ever lost for not checking in.
+
+## The dragon
+
+After hatching, the dragon eats meat from the pasture (`src/game/dragon.ts`). Fed, it gives +10% to everything; fed what it craves, +25%. Cravings change every two days, hinted about a day ahead, and switching the herd takes half an hour to settle. Every few hours it asks for something, or asks to speak with a kobold, who comes back with a gift. Ignored requests just fade.
+
+It grows by molting, not from copper: each stage needs a bigger lair, displays in the hoard room, some granted requests and time spent fed. The shed skin goes on the oddities shelf and the dragon gets a trait from what it ate most. The alchemist turns plentiful things into scarce ones at a steep loss, for patching a shortfall.
 
 The coin pile in the cave shows the copper you hold right now, so it shrinks when you spend.
 
@@ -87,7 +99,8 @@ All game content is data in `src/game/data.ts`:
 - `JOBS` – what each job makes (or digs) per kobold, which sprite, and how they move (`haul` between tunnel and hoard, or `station` working in place).
 - `ROOMS` and `DIG` – what each room holds and how it grows, how much work each size takes, and which supports big digs use.
 - `UPGRADES` – tools (multipliers for one job or everything) and hoard room displays (appeal), with costs in any resources.
-- `DRAGON_STAGES` – egg, wyrmling, young, adult: the lifetime copper needed, the sprite, and the message shown.
+- `DRAGON_STAGES` – egg, wyrmling, young, adult: the copper to hatch, the sprite, and the message shown. Molting conditions, diet and requests are in `src/game/dragon.ts`.
+- `RECIPES` – what the alchemist can make, and at what loss.
 - `HOARD_SIZE_THRESHOLDS` – how much copper held makes the coin pile picture grow.
 - `ATTRACTION` – how much appeal the hoard room and oddities add, and how appeal turns into arrival time.
 - `CREW` – the crew experience bonus.
@@ -96,7 +109,7 @@ All game content is data in `src/game/data.ts`:
 
 Sprites are PNG sprite sheets in `src/assets/art/`, described in `src/render/manifest.ts`.
 
-A sheet is a grid of equal-sized frames: **each animation is one row, frames go left to right**. For example the kobold sheets (scavenger, woodcutter, quarrier, digger, idle, chief) are 12×12 frames with rows `walk` (4 frames), `carry` (4) and `work` (4).
+A sheet is a grid of equal-sized frames: **each animation is one row, frames go left to right**. For example the kobold sheets (one per job, plus idle and chief) are 12×12 frames with rows `walk` (4 frames), `carry` (4) and `work` (4).
 
 To replace a sprite:
 
@@ -129,10 +142,11 @@ Not built yet, but the code is set up so neither needs a rewrite:
 
 ```
 src/
-  game/       data.ts (content), chief.ts (stats, quirks), happenings.ts, oddities.ts,
+  game/       data.ts (content), chief.ts (stats, quirks), research.ts, kobolds.ts (named kobolds),
+              dragon.ts (diet, requests, molting), happenings.ts, oddities.ts,
               state.ts, economy.ts (production, rooms, digging, crews, arrivals), save.ts (versioned saves)
   render/     manifest.ts (sprite sheets), scene.ts (what to draw), renderer.ts (canvas + scheduling)
-  ui/         hud.ts (stores, kobolds, rooms, upgrades), chief-panel.ts, chronicle.ts, oddities-view.ts, format.ts
+  ui/         hud.ts (stores, kobolds, rooms, upgrades), dragon-view.ts, research-view.ts, named-view.ts, chief-panel.ts, chronicle.ts, oddities-view.ts, format.ts
   assets/art/ sprite sheets
 scripts/      gen-placeholder-art.mjs
 tests/        vitest unit tests

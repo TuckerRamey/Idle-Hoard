@@ -52,7 +52,10 @@ describe('save round trip', () => {
   it('fills in defaults for missing fields (no migration needed for additions)', () => {
     const text = JSON.stringify({ version: SAVE_VERSION, savedAt: T0, state: { res: { copper: 5 } } });
     const s = deserialize(text, T0);
-    expect(s.res).toEqual({ copper: 5, wood: 0, stone: 0 });
+    expect(s.res).toEqual({ copper: 5, wood: 0, stone: 0, iron: 0, meat: 0 });
+    expect(s.named).toEqual([]);
+    expect(s.research.done).toEqual([]);
+    expect(s.dragon.request).toBeNull();
     expect(s.crews).toEqual({});
     expect(s.rooms.hoard).toEqual({ size: 1, progress: 0 });
     expect(s.digging).toBe('den');
