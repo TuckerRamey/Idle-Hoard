@@ -24,6 +24,8 @@ export interface WorkerDef {
   unlockStage: number;
   sprite: SpriteId;
   job: JobDef;
+  /** Chronicle line when the first one is hired. {chief} becomes the Chief's name. */
+  joinText: string;
 }
 
 export type UpgradeEffect =
@@ -63,6 +65,7 @@ export const WORKERS: WorkerDef[] = [
     unlockStage: 0,
     sprite: 'kobold-scavenger',
     job: { kind: 'haul', lane: 0, speed: 18 },
+    joinText: '{chief} talked a scavenger into helping. They mostly argue about who carries more.',
   },
   {
     id: 'digger',
@@ -74,6 +77,7 @@ export const WORKERS: WorkerDef[] = [
     unlockStage: 1,
     sprite: 'kobold-digger',
     job: { kind: 'station', x: 44, y: 98, spacing: 9 },
+    joinText: 'The first digger arrives with a pick nearly bigger than they are.',
   },
   {
     id: 'hauler',
@@ -85,6 +89,7 @@ export const WORKERS: WorkerDef[] = [
     unlockStage: 2,
     sprite: 'kobold-hauler',
     job: { kind: 'haul', lane: 1, speed: 12 },
+    joinText: 'A hauler joins, dragging an empty sack and a lot of promises.',
   },
   {
     id: 'raider',
@@ -96,6 +101,7 @@ export const WORKERS: WorkerDef[] = [
     unlockStage: 3,
     sprite: 'kobold-raider',
     job: { kind: 'haul', lane: 2, speed: 24 },
+    joinText: 'A raider swears loyalty to {chief}, then pockets a coin from the hoard. Old habits.',
   },
 ];
 
@@ -141,7 +147,7 @@ export const DRAGON_STAGES: DragonStageDef[] = [
     name: 'Egg',
     threshold: 0,
     sprite: 'egg',
-    flavor: 'An ambitious kobold found a warm egg in the dark and is trying to hatch it under a pile of copper.',
+    flavor: 'found a warm egg in the dark and began burying it in copper, hoping to hatch it.',
     incomeMult: 1,
   },
   {
@@ -174,8 +180,10 @@ export const DRAGON_STAGES: DragonStageDef[] = [
 export const HOARD_SIZE_THRESHOLDS = [0, 200, 5_000, 100_000, 2_000_000, 50_000_000];
 
 export const CONFIG = {
-  /** The first ambitious kobold is free. */
-  startingWorkers: { scavenger: 1 } as Record<string, number>,
+  /** New games start with no hired kobolds: the Chief hauls the first copper alone. */
+  startingWorkers: {} as Record<string, number>,
+  /** Copper per second the Chief brings in personally (before multipliers). */
+  chiefRate: 1,
   /** The longest absence that earns offline progress, in seconds. */
   offlineCapSeconds: 24 * 60 * 60,
   /** Absences longer than this show a "while you were away" note. */

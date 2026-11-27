@@ -5,10 +5,21 @@ import { newGame } from '../src/game/state';
 const T0 = 1_700_000_000_000; // a multiple of 1000
 
 describe('scene', () => {
-  it('shows the egg and one kobold at the start', () => {
-    const ops = buildScene(newGame(T0), T0);
+  it('shows the egg and the Chief hauling copper alone at the start', () => {
+    const s = newGame(T0);
+    expect(buildScene(s, T0).some((o) => o.sprite === 'kobold-chief')).toBe(false); // not named yet
+    s.chief = { name: 'Snik', cunning: 2, voice: 2, nerve: 2, quirk: 'packmule' };
+    const ops = buildScene(s, T0);
     expect(ops.some((o) => o.sprite === 'egg')).toBe(true);
-    expect(ops.filter((o) => o.sprite === 'kobold-scavenger')).toHaveLength(1);
+    expect(ops.filter((o) => o.sprite === 'kobold-chief')).toHaveLength(1);
+    expect(ops.filter((o) => o.sprite.startsWith('kobold-') && o.sprite !== 'kobold-chief')).toHaveLength(0);
+  });
+
+  it('the Chief stops hauling and directs once the egg hatches', () => {
+    const s = newGame(T0);
+    s.chief = { name: 'Snik', cunning: 2, voice: 2, nerve: 2, quirk: 'packmule' };
+    s.stage = 1;
+    expect(buildScene(s, T0).find((o) => o.sprite === 'kobold-chief')!.anim).toBe('direct');
   });
 
   it('shows a dragon instead of the egg after hatching', () => {

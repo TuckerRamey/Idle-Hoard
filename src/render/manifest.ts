@@ -49,6 +49,13 @@ export const SPRITES: Record<string, SpriteDef> = {
   'kobold-digger': { src: art('kobold-digger.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
   'kobold-hauler': { src: art('kobold-hauler.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
   'kobold-raider': { src: art('kobold-raider.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
+  // Same layout as the other kobolds, but row 2 is a pointing "directing" pose.
+  'kobold-chief': {
+    src: art('kobold-chief.png'),
+    frameW: 12,
+    frameH: 12,
+    animations: { ...KOBOLD_ANIMS, direct: { row: 2, frames: 4, fps: 1 } },
+  },
 };
 
 /** The scene is drawn at this size and scaled up with crisp pixels. */

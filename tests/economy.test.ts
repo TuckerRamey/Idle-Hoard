@@ -3,6 +3,7 @@ import { CONFIG, DRAGON_STAGES, WORKERS } from '../src/game/data';
 import {
   advanceTo,
   buyUpgrade,
+  workerBaseCost,
   hire,
   incomePerSecond,
   stageFor,
@@ -15,12 +16,12 @@ const T0 = 1_700_000_000_000;
 const scavenger = WORKERS.find((w) => w.id === 'scavenger')!;
 
 describe('new game', () => {
-  it('starts as an egg with one free ambitious kobold', () => {
+  it('starts as an egg with no kobolds and no Chief yet', () => {
     const s = newGame(T0);
     expect(s.stage).toBe(0);
     expect(DRAGON_STAGES[0].id).toBe('egg');
-    expect(s.workers.scavenger).toBe(1);
-    expect(incomePerSecond(s)).toBe(scavenger.rate);
+    expect(s.chief).toBeNull();
+    expect(incomePerSecond(s)).toBe(0);
   });
 });
 
@@ -50,6 +51,7 @@ describe('tick', () => {
 
   it('hatches the egg once enough copper is buried', () => {
     const s = newGame(T0);
+    s.workers.scavenger = 1;
     const r = tick(s, DRAGON_STAGES[1].threshold); // 1 copper/s
     expect(r.newStage).toBe(1);
     expect(s.stage).toBe(1);
@@ -67,6 +69,7 @@ describe('tick', () => {
 
   it('never moves the dragon backwards when copper is spent', () => {
     const s = newGame(T0);
+    s.workers.scavenger = 1;
     tick(s, 2000);
     s.copper = 0;
     tick(s, 1);
@@ -78,6 +81,7 @@ describe('tick', () => {
 describe('advanceTo (offline progress)', () => {
   it('credits the time since the last tick', () => {
     const s = newGame(T0);
+    s.workers.scavenger = 1;
     const r = advanceTo(s, T0 + 90_000);
     expect(r.credited).toBe(90);
     expect(s.copper).toBeCloseTo(90);
@@ -104,16 +108,18 @@ describe('advanceTo (offline progress)', () => {
 
 describe('hiring and upgrades', () => {
   it('costs grow with each one owned', () => {
-    expect(workerCost(scavenger, 0)).toBe(scavenger.baseCost);
-    expect(workerCost(scavenger, 10)).toBeGreaterThan(workerCost(scavenger, 9));
+    expect(workerBaseCost(scavenger, 0)).toBe(scavenger.baseCost);
+    expect(workerBaseCost(scavenger, 10)).toBeGreaterThan(workerBaseCost(scavenger, 9));
   });
 
   it('spends copper and adds a worker', () => {
     const s = newGame(T0);
     s.copper = 100;
+    const cost = workerCost(s, scavenger);
+    expect(cost).toBe(scavenger.baseCost);
     expect(hire(s, 'scavenger')).toBe(true);
-    expect(s.workers.scavenger).toBe(2);
-    expect(s.copper).toBe(100 - workerCost(scavenger, 1));
+    expect(s.workers.scavenger).toBe(1);
+    expect(s.copper).toBe(100 - cost);
   });
 
   it('refuses when too poor or the dragon is too young', () => {

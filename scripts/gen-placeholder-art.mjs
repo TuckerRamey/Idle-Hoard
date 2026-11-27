@@ -226,13 +226,16 @@ dragon('adult-dragon.png', 64, 48);
 }
 
 // ---------- kobolds: 12x12 frames; row 0 = walk (4), 1 = carry (4), 2 = work (4) ----------
-function kobold(name, skin, dark, extra) {
+// The chief variant wears a cape and a little crown, and row 2 is a pointing
+// "directing" pose instead of swinging a pick.
+function kobold(name, skin, dark, extra, chief = false) {
   const FW = 12, FH = 12;
   const s = sheet(FW * 4, FH * 3);
   for (let row = 0; row < 3; row++)
     for (let f = 0; f < 4; f++) {
       const c = cell(s, f * FW, row * FH, FW, FH);
       const bob = row < 2 && f % 2 === 1 ? 1 : 0;
+      if (chief) c.rect(2, 5 + bob, 2, 5, '#b8443c'); // cape
       c.line(2, 8 - bob, 0, 7 - bob, dark); // tail
       c.rect(3, 5 + bob, 4, 4, skin); // body
       c.rect(5, 2 + bob, 4, 3, skin); // head
@@ -240,6 +243,11 @@ function kobold(name, skin, dark, extra) {
       c.put(7, 3 + bob, '#1a1a1a'); // eye
       c.put(5, 1 + bob, dark); // horn
       if (extra) c.rect(3, 6 + bob, 4, 1, extra); // belt / cloth
+      if (chief) {
+        c.rect(6, 1 + bob, 3, 1, '#e8b830'); // crown
+        c.put(6, 0 + bob, '#e8b830');
+        c.put(8, 0 + bob, '#e8b830');
+      }
       // legs
       if (row < 2) {
         const step = [0, 1, 0, -1][f];
@@ -254,7 +262,12 @@ function kobold(name, skin, dark, extra) {
         c.ellipse(6, 1 + bob, 2.5, 1.6, '#b87333');
         c.put(5, 0 + bob, '#e09a5c');
       }
-      if (row === 2) {
+      if (row === 2 && chief) {
+        // pointing: directing the warren
+        const up = f % 2 === 0;
+        c.line(7, 6, 10, up ? 4 : 6, skin);
+        c.put(11, up ? 3 : 6, skin);
+      } else if (row === 2) {
         // swinging a pick
         const up = f < 2;
         c.line(8, 6, up ? 10 : 11, up ? 1 : 8, '#6b4a2b');
@@ -268,3 +281,4 @@ kobold('kobold-scavenger.png', '#7a8f3a', '#4d5a24', '#8a5226');
 kobold('kobold-digger.png', '#5a7f9a', '#36506a', '#c0c8d0');
 kobold('kobold-hauler.png', '#a0583a', '#6a3624', '#e8b830');
 kobold('kobold-raider.png', '#7a5a9a', '#4a3666', '#e0405a');
+kobold('kobold-chief.png', '#c9a13a', '#7d6220', '#5b3a22', true);

@@ -10,7 +10,8 @@
     <main class="layout">
       <section class="stage">
         <canvas id="scene" aria-label="A kobold piles coins onto a hoard"></canvas>
-        <p id="message" class="message" aria-live="polite"></p>
+        <h2 class="chronicle-head">Chronicle</h2>
+        <ul id="chronicle" class="chronicle" aria-live="polite"></ul>
       </section>
 
       <section class="panel">
@@ -24,6 +25,34 @@
           <div id="stage-bar" class="bar"><div></div></div>
           <div id="stage-text" class="desc"></div>
         </div>
+
+        <form id="chief-form"><div id="chief-create" class="chief-create" hidden>
+          <h2>Who found the egg?</h2>
+          <p class="desc">Name the kobold who will become Chief. Every roll of traits is worth the same in total; it only changes which way your warren leans.</p>
+          <label for="chief-name" class="field-label">Name</label>
+          <div class="name-row">
+            <input id="chief-name" maxlength="24" autocomplete="off" spellcheck="false" />
+            <button type="button" id="random-name">Random name</button>
+          </div>
+          <div id="roll-stats" class="stats"></div>
+          <div id="roll-quirk"></div>
+          <div class="buttons">
+            <button type="button" id="reroll">Reroll traits</button>
+            <button type="submit" id="begin" class="primary">Begin</button>
+          </div>
+        </div></form>
+
+        <section id="chief-card" class="chief-card" hidden>
+          <h2 id="chief-title">Chief</h2>
+          <p id="chief-quirk" class="desc"></p>
+          <div id="chief-stats" class="stats"></div>
+          <div id="renown-bar" class="bar renown"><div></div></div>
+          <div id="renown-text" class="desc"></div>
+          <details class="skills" open>
+            <summary>Taskmaster skills · <span id="skill-points"></span></summary>
+            <ul id="skills" class="list"></ul>
+          </details>
+        </section>
 
         <h2>Kobolds</h2>
         <ul id="workers" class="list"></ul>
