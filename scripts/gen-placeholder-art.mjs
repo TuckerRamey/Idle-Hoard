@@ -201,14 +201,10 @@ dragon('adult-dragon.png', 64, 48);
 {
   const FW = 112, FH = 40, N = 6;
   const s = sheet(FW * N, FH);
-  const palettes = [
-    ['#b87333', '#8a5226', '#e09a5c'],
-    ['#b87333', '#8a5226', '#e09a5c'],
-    ['#b87333', '#8a5226', '#c0c8d0'],
-    ['#a9b2bc', '#7d8590', '#e8eef5'],
-    ['#d9a62a', '#a07818', '#c0c8d0'],
-    ['#e8b830', '#b08418', '#fff3a0'],
-  ];
+  // All copper for now: the pile shows what the hoard holds, and it only
+  // holds copper until silver and gold arrive.
+  const copper = ['#b87333', '#8a5226', '#e09a5c'];
+  const palettes = [copper, copper, copper, copper, copper, copper];
   for (let f = 0; f < N; f++) {
     const c = cell(s, f * FW, 0, FW, FH);
     const r = rng(100 + f);
@@ -220,7 +216,8 @@ dragon('adult-dragon.png', 64, 48);
       const x = FW / 2 + Math.cos(a) * rx * d, y = FH - 1 - Math.sin(a) * ry * d;
       c.put(x, y, r() < 0.4 ? hi : shade);
     }
-    if (f >= 3) for (let i = 0; i < f; i++) c.put(FW / 2 - rx * 0.6 + r() * rx * 1.2, FH - ry * 0.6 + r() * ry * 0.4, ['#e0405a', '#40a0e0', '#50d080'][i % 3]);
+    // a few bright glints on the bigger piles
+    if (f >= 3) for (let i = 0; i < f * 2; i++) c.put(FW / 2 - rx * 0.7 + r() * rx * 1.4, FH - 2 - r() * ry * 0.8, '#f6c08a');
   }
   save('hoard.png', s);
 }

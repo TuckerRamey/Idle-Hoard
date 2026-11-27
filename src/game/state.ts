@@ -39,6 +39,16 @@ export interface GameState {
   skills: string[];
   /** Newest last. */
   chronicle: ChronicleEntry[];
+  /** Seconds of progress toward the next kobold arriving. */
+  arrivalProgress: number;
+  /** Oddities found, by id. */
+  oddities: Record<string, OddityRecord>;
+}
+
+export interface OddityRecord {
+  count: number;
+  /** Epoch ms it was first found. */
+  firstAt: number;
 }
 
 export function newGame(now: number): GameState {
@@ -54,6 +64,8 @@ export function newGame(now: number): GameState {
     chief: null,
     skills: [],
     chronicle: [],
+    arrivalProgress: 0,
+    oddities: {},
   };
 }
 

@@ -42,6 +42,11 @@
           </div>
         </div></form>
 
+        <h2>Kobolds · <span id="pop-count">0 kobolds</span></h2>
+        <p id="pop-text" class="desc"></p>
+        <ul id="workers" class="list"></ul>
+
+
         <section id="chief-card" class="chief-card" hidden>
           <h2 id="chief-title">Chief</h2>
           <p id="chief-quirk" class="desc"></p>
@@ -54,13 +59,16 @@
           </details>
         </section>
 
-        <h2>Kobolds</h2>
-        <ul id="workers" class="list"></ul>
 
         <div id="upgrades-section" hidden>
           <h2>Upgrades</h2>
           <ul id="upgrades" class="list"></ul>
         </div>
+
+        <details id="oddities-section" class="oddities" hidden>
+          <summary>Oddities shelf · <span id="oddities-count">0</span></summary>
+          <ul id="oddities" class="list"></ul>
+        </details>
 
         <details class="settings">
           <summary>Settings and save</summary>

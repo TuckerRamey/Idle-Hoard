@@ -1,7 +1,7 @@
 import './style.css';
 import { SKILLS, type Chief } from './game/chief';
 import { CONFIG, DRAGON_STAGES, UPGRADES, WORKERS } from './game/data';
-import { advanceTo, offlineCap, stageFor } from './game/economy';
+import { advanceTo, offlineCap, population, stageFor } from './game/economy';
 import { happen, happeningChance } from './game/happenings';
 import { browserStore, exportSave, importSave, load, write } from './game/save';
 import { addChronicle, newGame, type GameState } from './game/state';
@@ -11,6 +11,7 @@ import { ChronicleView } from './ui/chronicle';
 import { confirmTap } from './ui/dom';
 import { formatDuration, formatNumber } from './ui/format';
 import { Hud } from './ui/hud';
+import { OdditiesView } from './ui/oddities-view';
 
 const TICK_MS = 1000;
 const AUTOSAVE_MS = 60_000;
@@ -25,12 +26,17 @@ const chiefName = () => state.chief?.name ?? 'The Chief';
 function tell(text: string) {
   addChronicle(state, Date.now(), text.replaceAll('{chief}', chiefName()));
 }
+/** Add a line only if the chronicle doesn't already have it (for "first ..." lines). */
+function tellOnce(text: string) {
+  const filled = text.replaceAll('{chief}', chiefName());
+  if (!state.chronicle.some((e) => e.text === filled)) tell(filled);
+}
 
 const hud = new Hud(getState, (kind, id) => {
-  if (kind === 'hire') {
+  if (kind === 'promote') {
     const def = WORKERS.find((w) => w.id === id);
-    if (def && state.workers[id] === 1) tell(def.joinText);
-  } else {
+    if (def) tellOnce(def.joinText);
+  } else if (kind === 'upgrade') {
     const u = UPGRADES.find((x) => x.id === id);
     if (u) tell(`{chief} ordered ${u.name.toLowerCase()} for the warren.`);
   }
@@ -47,12 +53,14 @@ const chiefPanel = new ChiefPanel(
   (chief) => foundChief(chief),
 );
 const chronicle = new ChronicleView(getState);
+const oddities = new OdditiesView(getState);
 const renderer = new Renderer(document.querySelector('#scene') as HTMLCanvasElement, getState);
 
 function refresh() {
   hud.update();
   chiefPanel.update();
   chronicle.update(Date.now());
+  oddities.update(Date.now());
   renderer.invalidate();
 }
 
@@ -83,10 +91,16 @@ creditTime(true);
 
 /** Credit all time since the last tick. Adds a chronicle line after a long absence. */
 function creditTime(isReturn: boolean) {
+  const before = population(state);
   const r = advanceTo(state, Date.now());
+  const after = population(state);
+  if (before === 0 && after > 0) tellOnce(WORKERS[0].joinText);
+  for (let m = Math.floor(before / 10) * 10 + 10; m <= after; m += 10) tell(`The warren has grown to ${m} kobolds.`);
+  if (r.arrived > 0) renderer.invalidate();
   if (isReturn && r.credited >= CONFIG.awayNoticeSeconds && r.gained > 0) {
     const capped = r.elapsed > r.credited ? ` Only the first ${formatDuration(offlineCap(state))} counted.` : '';
-    tell(`While you were away for ${formatDuration(r.elapsed)}, the warren buried ${formatNumber(r.gained)} copper.${capped}`);
+    const moved = r.arrived > 0 ? ` ${r.arrived} new kobold${r.arrived === 1 ? '' : 's'} moved in.` : '';
+    tell(`While you were away for ${formatDuration(r.elapsed)}, the warren buried ${formatNumber(r.gained)} copper.${moved}${capped}`);
     // something silly probably happened while you were gone
     if (r.credited >= 30 * 60) maybeHappen();
   }
@@ -117,6 +131,7 @@ function tickOnce() {
   hud.update();
   chiefPanel.update();
   chronicle.update(Date.now());
+  oddities.update(Date.now());
 }
 
 function resume() {
