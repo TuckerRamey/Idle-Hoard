@@ -5,6 +5,7 @@
 
 import { KOBOLD_NAMES } from './chief';
 import { IDLE, JOBS } from './data';
+import { researchEffect, researchEffects } from './research';
 import type { GameState } from './state';
 
 export interface NamedKobold {
@@ -79,12 +80,15 @@ export function personalMult(k: NamedKobold): number {
 /** How much the named kobolds in a job lift its crew. */
 export function crewLift(state: GameState, job: string): number {
   let b = 0;
-  for (const k of namedIn(state, job)) b += k.lieutenant ? LIEUTENANT_CREW_BONUS : NAMED_CREW_BONUS;
+  const named = researchEffect(state, 'namedLift')?.bonus ?? NAMED_CREW_BONUS;
+  for (const k of namedIn(state, job)) b += k.lieutenant ? LIEUTENANT_CREW_BONUS : named;
   return 1 + b;
 }
 
 export function lieutenantSlots(state: GameState): number {
-  return Math.min(MAX_LIEUTENANTS, LIEUTENANT_BASE_SLOTS + state.stage);
+  let extra = 0;
+  for (const e of researchEffects(state)) if (e.kind === 'lieutenantSlots') extra += e.add;
+  return Math.min(MAX_LIEUTENANTS, LIEUTENANT_BASE_SLOTS + state.stage) + extra;
 }
 
 export function lieutenants(state: GameState): NamedKobold[] {

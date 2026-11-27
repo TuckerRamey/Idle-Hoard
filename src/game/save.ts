@@ -180,6 +180,18 @@ function normalizeDragon(v: any): DragonState {
 }
 
 /** Fill in defaults and drop junk, so small shape changes need no migration. */
+/** Points per project. Older saves had one shared pool; it goes to the project that was current. */
+function normalizeProgress(raw: any, current: any): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (typeof raw === 'number') {
+    if (typeof current === 'string' && raw > 0) out[current] = raw;
+    return out;
+  }
+  if (raw && typeof raw === 'object')
+    for (const [id, v] of Object.entries(raw)) if (typeof v === 'number' && Number.isFinite(v) && v > 0) out[id] = v;
+  return out;
+}
+
 export function normalize(raw: unknown, now: number): GameState {
   const base = newGame(now);
   if (!raw || typeof raw !== 'object') throw new SaveError('Save has no game state');
@@ -208,7 +220,7 @@ export function normalize(raw: unknown, now: number): GameState {
     research: {
       done: strList(r.research?.done),
       current: typeof r.research?.current === 'string' ? r.research.current : r.research?.current === null ? null : base.research.current,
-      progress: num(r.research?.progress, 0),
+      progress: normalizeProgress(r.research?.progress, r.research?.current),
     },
     named: normalizeNamed(r.named),
     nextNamedId: Math.max(1, Math.floor(num(r.nextNamedId, 1)), ...normalizeNamed(r.named).map((k) => k.id + 1)),
