@@ -94,6 +94,28 @@ motionBtn.addEventListener('click', () => {
 });
 
 const saveText = document.querySelector('#save-text') as HTMLTextAreaElement;
+
+/**
+ * Two-tap confirm built into the button itself (no confirm() dialog, which
+ * some embedded browsers and webviews block). Returns true on the second tap.
+ */
+function confirmTap(btn: HTMLButtonElement, prompt: string): boolean {
+  if (btn.dataset.armed === '1') {
+    delete btn.dataset.armed;
+    btn.textContent = btn.dataset.label ?? btn.textContent;
+    return true;
+  }
+  btn.dataset.label ??= btn.textContent ?? '';
+  btn.dataset.armed = '1';
+  btn.textContent = prompt;
+  setTimeout(() => {
+    if (btn.dataset.armed === '1') {
+      delete btn.dataset.armed;
+      btn.textContent = btn.dataset.label ?? '';
+    }
+  }, 4000);
+  return false;
+}
 const saveStatus = document.querySelector('#save-status') as HTMLElement;
 
 document.querySelector('#export')!.addEventListener('click', async () => {
@@ -123,7 +145,6 @@ document.querySelector('#download')!.addEventListener('click', () => {
 function applyImport(text: string) {
   try {
     const imported = importSave(text, Date.now());
-    if (!confirm('Replace your current game with this save?')) return;
     state = imported;
     creditTime(true);
     save();
@@ -136,14 +157,22 @@ function applyImport(text: string) {
   }
 }
 
-document.querySelector('#import')!.addEventListener('click', () => applyImport(saveText.value));
+const importBtn = document.querySelector('#import') as HTMLButtonElement;
+importBtn.addEventListener('click', () => {
+  if (!saveText.value.trim()) {
+    saveStatus.textContent = 'Paste a save into the box first.';
+    return;
+  }
+  if (confirmTap(importBtn, 'Tap again to replace your game')) applyImport(saveText.value);
+});
 document.querySelector('#import-file')!.addEventListener('change', async (e) => {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (file) applyImport(await file.text());
 });
 
-document.querySelector('#reset')!.addEventListener('click', () => {
-  if (!confirm('Start over? Your current hoard will be lost unless you exported it.')) return;
+const resetBtn = document.querySelector('#reset') as HTMLButtonElement;
+resetBtn.addEventListener('click', () => {
+  if (!confirmTap(resetBtn, 'Tap again to erase your hoard')) return;
   const motion = state.settings.motion;
   state = newGame(Date.now());
   state.settings.motion = motion;

@@ -91,6 +91,13 @@ Notes:
 
 `npm run build:single` makes `dist-single/index.html`, the whole game in one file, handy for sharing a quick preview.
 
+## Later: Android and save sync
+
+Not built yet, but the code is set up so neither needs a rewrite:
+
+- **Android:** the layout stacks to one column on a portrait phone, buttons are touch-sized, and confirmations are built into the buttons (no browser dialogs, which some webviews block). Tauri 2 can build the same `dist/` for Android.
+- **Sync:** a save is one plain JSON document with a version and a `savedAt` timestamp, and income is computed from timestamps rather than counted ticks, so two devices can be reconciled by keeping the newer save (or merging by `totalEarned`). Storage already goes through `KeyValueStore` in `src/game/save.ts`, so a synced store can be swapped in there.
+
 ## Project layout
 
 ```
