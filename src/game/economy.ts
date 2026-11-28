@@ -285,7 +285,9 @@ export function capacity(state: GameState, res: ResourceId): number {
     const free = Math.max(0, roomVolume(state, 'hoard') * mult - state.dragon.size - used);
     return Math.floor(state.res[res] + free * def.perPace + 1e-9);
   }
-  const share = roomVolume(state, room.id) / Math.max(1, storeGoods(state, room.id).length);
+  // rare finds (mithril, adamant) keep a small corner and don't crowd out the rest
+  if (def.foundOnly) return Math.max(10, Math.floor(roomVolume(state, room.id) * 0.05 * def.perPace * mult));
+  const share = roomVolume(state, room.id) / Math.max(1, storeGoods(state, room.id).filter((g) => !g.foundOnly).length);
   return Math.floor(share * def.perPace * mult);
 }
 
