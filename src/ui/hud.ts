@@ -3,7 +3,7 @@
 
 import { toolSummary } from '../game/forge';
 import { DIG, DRAGON_STAGES, IDLE, JOBS, RESOURCES, ROOMS, type ResourceId } from '../game/data';
-import { animalsOpen, setHerd } from '../game/dragon';
+import { animalsOpen, setHerd, worthRate } from '../game/dragon';
 import {
   appeal,
   arrivalSeconds,
@@ -17,7 +17,6 @@ import {
   flows,
   herdersFit,
   hoardValue,
-  incomePerSecond,
   jobHints,
   jobOpen,
   jobOutput,
@@ -107,6 +106,8 @@ interface JobRow {
 export class Hud {
   private copper = $('#copper');
   private rate = $('#rate');
+  private worthUnit = $('#worth-unit');
+  private metals = $('#metals');
   private stageName = $('#stage-name');
   private stageBar = $<HTMLDivElement>('#stage-bar > div');
   private stageText = $('#stage-text');
@@ -274,8 +275,12 @@ export class Hud {
 
   update() {
     const s = this.getState();
-    setText(this.copper, formatNumber(s.res.copper));
-    setText(this.rate, `${formatNumber(incomePerSecond(s))} / s`);
+    // the hoard's worth, with what it's made of underneath once there's more than copper
+    setText(this.copper, formatNumber(hoardValue(s)));
+    const metals = RESOURCES.filter((r) => r.value && resourceOpen(s, r.id)).map((r) => `${formatNumber(s.res[r.id])} ${r.name.toLowerCase()}`);
+    setText(this.worthUnit, metals.length > 1 ? 'worth' : 'copper');
+    setText(this.metals, metals.length > 1 ? metals.join(' · ') : '');
+    setText(this.rate, `${formatNumber(worthRate(s))} / s`);
 
     setText(this.stageName, DRAGON_STAGES[s.stage].name);
     const hatchAt = DRAGON_STAGES[1].threshold ?? 0;

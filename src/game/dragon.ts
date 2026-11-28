@@ -2,9 +2,9 @@
 // wants to talk to, and how it molts into its next stage. Growth comes from
 // how the warren looks after it, not from a number filling up.
 
-import { DRAGON_STAGES, type ResourceId } from './data';
+import { DRAGON_STAGES, RESOURCES, type ResourceId } from './data';
 import { artAppeal } from './art';
-import { capacity, hoardValue, jobDef, jobOpen, production, resourceOpen, roomVolume, store, workers } from './economy';
+import { capacity, hoardValue, incomePerSecond, jobDef, jobOpen, production, resourceOpen, roomVolume, store, workers } from './economy';
 import { fullName, GIFTS, lieutenants, canName, nameOrCredit, findNamed, addHistory, type NamedKobold } from './kobolds';
 import { opened, researchEffect } from './research';
 import type { GameState } from './state';
@@ -504,4 +504,12 @@ export function dragonJobMult(state: GameState, job: string): number {
   let m = boostLeft(state, job) > 0 ? FAVOR.mult : 1;
   for (const tr of state.dragon.traits) if (DRAGON_TRAITS[tr]?.job === job) m *= DRAGON_TRAITS[tr].mult ?? 1;
   return m;
+}
+
+/** How fast the hoard's worth grows, in copper a second: what comes in, plus what the dragon's refining adds. */
+export function worthRate(state: GameState): number {
+  const r = refineRates(state);
+  const silver = RESOURCES.find((x) => x.id === 'silver')!.value ?? 10;
+  const gold = RESOURCES.find((x) => x.id === 'gold')!.value ?? 100;
+  return incomePerSecond(state) + r.copper * (silver / REFINE.copperPerSilver - 1) + r.silver * (gold / REFINE.silverPerGold - silver);
 }

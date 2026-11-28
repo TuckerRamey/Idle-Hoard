@@ -164,3 +164,4 @@ select { max-width: 100%; font: inherit; color: var(--text); background: var(--b
 .gear { padding: 2px 8px; font-size: 15px; line-height: 1.2; }
 .tab-panel[data-tab="settings"] .settings { margin-top: 8px; border-top: 0; }
 .tab:hover:not(:disabled), .tab:focus { background: none; }
+.metals { margin-top: 2px; }
