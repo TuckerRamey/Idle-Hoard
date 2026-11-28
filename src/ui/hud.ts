@@ -445,7 +445,11 @@ export class Hud {
 
       const n = diggersIn(s, def.id);
       const stars = namedDiggersIn(s, def.id).map((k) => k.name);
-      setText(row.count, n > 0 || stars.length ? n > 0 ? `×${n} digging${stars.length ? ` + ${stars.join(', ')}` : ''}` : `${stars.join(', ')} digging` : '');
+      // a count, not every name: a busy room can have most of the named diggers on it
+      const named = stars.length ? `${stars.length} named` : '';
+      setText(row.count, n > 0 || stars.length ? n > 0 ? `×${n} digging${named ? ` + ${named}` : ''}` : `${named} digging` : '');
+      const who = stars.length ? `Named diggers here: ${stars.join(', ')}` : '';
+      if (row.count.title !== who) row.count.title = who;
       setDisabled(row.down, n < 1);
       setDisabled(row.up, s.idle < 1);
       const label = this.step === Infinity ? 'all' : String(this.step);
