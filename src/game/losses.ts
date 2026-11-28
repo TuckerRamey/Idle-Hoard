@@ -4,7 +4,7 @@
 // hurt, and sits by the hoard for a few hours. Nobody is ever hurt in the lab.
 // Pure functions over GameState; the step returns chronicle lines.
 
-import { fills } from './areas';
+import { exploreBlocked, fills } from './areas';
 import { crew, workers } from './economy';
 import { toolMults } from './forge';
 import { addHistory, fullName, namedIn } from './kobolds';
@@ -57,14 +57,26 @@ export function resting(k: { restLeft?: number }): boolean {
   return (k.restLeft ?? 0) > 0;
 }
 
-/** Of a job's workers, the share in danger: everyone for scouts and hunters, only those in the deep workings for miners. */
-function exposed(state: GameState, job: string): number {
+/**
+ * Of a job's workers, how many are actually out doing the dangerous work: only
+ * those kobolds face it. Scouts with nothing to look for sit about at home,
+ * hunters past what the grounds can take wait their turn, and miners are only
+ * in danger in the deep workings.
+ */
+export function exposed(state: GameState, job: string): number {
   const n = workers(state, job);
-  if (job !== 'miner' || n === 0) return n;
-  const f = fills(state, 'stone');
-  if (f.raw <= 0) return 0;
-  const deep = f.fills.reduce((a, x) => a + (x.area?.deep ? x.used : 0), 0);
-  return (n * deep) / f.raw;
+  if (n === 0) return 0;
+  if (job === 'scout') {
+    const kind = state.explore.target;
+    return kind && !exploreBlocked(state, kind) ? n : 0;
+  }
+  if (job === 'hunter' || job === 'miner') {
+    const f = fills(state, job === 'hunter' ? 'monsters' : 'stone');
+    if (f.raw <= 0) return 0;
+    const out = f.fills.reduce((a, x) => a + (job === 'miner' && !x.area?.deep ? 0 : x.used), 0);
+    return (n * out) / f.raw;
+  }
+  return n;
 }
 
 /** How much safer research and gear make a job: lower is safer. Better tools mean better ropes, lanterns and armor. */

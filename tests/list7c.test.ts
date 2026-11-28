@@ -3,9 +3,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Chief } from '../src/game/chief';
 import { arrive, beds, tick, workers } from '../src/game/economy';
-import { dangerMult, LOSSES, lossesPerHour, lossStep } from '../src/game/losses';
+import { dangerMult, exposed, LOSSES, lossesPerHour, lossStep } from '../src/game/losses';
 import { nameKobold } from '../src/game/kobolds';
-import { addArea } from '../src/game/areas';
+import { addArea, fills, setExploreTarget } from '../src/game/areas';
 import { normalize } from '../src/game/save';
 import { newGame, rng, type GameState } from '../src/game/state';
 
@@ -36,6 +36,7 @@ function run(s: GameState, hours: number) {
 describe('dangerous work', () => {
   it('loses about one scout for every 4 hours of scouting each', () => {
     const s = game();
+    s.explore.target = 'wood';
     s.crews.scout = { n: 100 };
     expect(lossesPerHour(s, 'scout')).toBeCloseTo(25);
     const { died, lines } = run(s, 5);
@@ -54,12 +55,33 @@ describe('dangerous work', () => {
     s.research.done.push('monster-tracking');
     addArea(s, 'bear-caves');
     s.crews.hunter = { n: 10 };
-    expect(lossesPerHour(s, 'hunter')).toBeCloseTo(0.25);
+    // one in 40 working hours for each hunter actually out on the grounds
+    expect(exposed(s, 'hunter')).toBeGreaterThan(0);
+    expect(lossesPerHour(s, 'hunter')).toBeCloseTo((exposed(s, 'hunter') / 40) * dangerMult(s, 'hunter'));
     addArea(s, 'rubble-cave');
     s.crews.miner = { n: 10 };
     expect(lossesPerHour(s, 'miner')).toBe(0);
     addArea(s, 'deep-vein');
     expect(lossesPerHour(s, 'miner')).toBeGreaterThan(0);
+  });
+
+  it('only the kobolds out working are at risk: idle scouts and hunters waiting their turn are safe', () => {
+    const s = game();
+    s.crews.scout = { n: 100 };
+    setExploreTarget(s, null);
+    expect(lossesPerHour(s, 'scout')).toBe(0);
+    s.stage = 3;
+    s.research.done.push('monster-tracking');
+    addArea(s, 'bear-caves');
+    s.crews.hunter = { n: 10 };
+    const few = lossesPerHour(s, 'hunter');
+    // ten times the hunters, but the grounds only take so much: the extra ones wait at home
+    s.crews.hunter = { n: 1000 };
+    const f = fills(s, 'monsters');
+    const working = f.fills.reduce((a, x) => a + x.used, 0) / f.raw;
+    expect(working).toBeLessThan(1);
+    expect(lossesPerHour(s, 'hunter')).toBeLessThan(few * 100);
+    expect(exposed(s, 'hunter')).toBeCloseTo(1000 * working);
   });
 
   it('research and better tools make it safer', () => {
@@ -77,6 +99,7 @@ describe('dangerous work', () => {
     s.idle = 1;
     const k = nameKobold(s, 'idle', 'the Bold', 'Was bold.', T0, rng(s))!;
     k.job = 'scout';
+    s.explore.target = 'wood';
     s.crews.scout = { n: 0 };
     const { died, lines } = run(s, 40);
     expect(died.scout ?? 0).toBe(0);

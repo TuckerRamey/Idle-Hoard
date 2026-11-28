@@ -3,7 +3,7 @@
 
 import { huntHint } from '../game/hunting';
 import { gathered, yardFull } from '../game/areas';
-import { idleNote, lossesPerHour } from '../game/losses';
+import { exposed as exposedCount, idleNote, lossesPerHour } from '../game/losses';
 import { shamanHint } from '../game/magic';
 import { toolTag } from '../game/forge';
 import { DIG, DRAGON_STAGES, GEMS, IDLE, JOBS, RESOURCES, ROOMS, type ResourceId } from '../game/data';
@@ -388,7 +388,10 @@ export class Hud {
         setText(row.rate, withTag(workers(s, def.id) > 0 ? `${formatNumber(total * 3600)} mana an hour (${formatNumber(each * 3600)} each)` : `${formatNumber(each * 3600)} mana an hour each`));
       } else setText(row.rate, withTag(workers(s, def.id) > 0 ? `${formatNumber(total)} ${what} / s (${formatNumber(each)} each)` : `${formatNumber(each)} ${what} / s each`));
       const danger = lossesPerHour(s, def.id);
-      const risk = danger > 0 ? ` Dangerous work: about one lost every ${formatDuration(3600 / danger)} at this pace. Research and better tools make it safer.` : '';
+      const out = exposedCount(s, def.id);
+      const all = workers(s, def.id);
+      const who = out < all - 0.5 ? ` Only the ${formatNumber(Math.round(out))} out working are at risk.` : '';
+      const risk = danger > 0 ? ` Dangerous work: about one lost every ${formatDuration(3600 / danger)} at this pace.${who} Research and better tools make it safer.` : '';
       const note = (((def.id === 'hunter' ? huntHint(s) : def.id === 'shaman' ? shamanHint(s) : null) ?? '') + risk).trim() || null;
       setText(row.hint, hints[def.id] ?? note ?? '');
       row.hint.classList.toggle('info', !hints[def.id] && !!note && !note.startsWith('Out of'));
