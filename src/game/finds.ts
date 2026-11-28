@@ -122,11 +122,11 @@ function findFor(state: GameState, job: string, rarity: Rarity, rand: () => numb
     if (!TOOL_NAMES[job]) return null;
     const tier = bestTier(state)?.id ?? 'steel';
     const best = TIERS.findIndex((x) => x.id === tier) >= TIERS.findIndex((x) => x.id === 'steel') ? tier : 'steel';
-    addTool(state, job, best);
+    addTool(state, best);
     const rec = state.oddities['dwarf-tools'];
     if (rec) rec.count++;
     else state.oddities['dwarf-tools'] = { count: 1, firstAt: t };
-    return { text: `{kobold} found a set of dwarf-made ${TOOL_NAMES[job]} in a sealed niche, still sharp. The crew has one more ${best} tool.` };
+    return { text: `{kobold} found a set of dwarf-made ${TOOL_NAMES[job]} in a sealed niche, still sharp. They went on the rack: one more ${best} tool.` };
   }
   // very rare
   if (rand() < 0.5) return gem(state, 'very rare', rand, t);
