@@ -4,8 +4,7 @@
 
 import { DRAGON_STAGES, type ResourceId } from './data';
 import { artAppeal } from './art';
-import { PIP_FAVOR } from './chief';
-import { capacity, hoardValue, production, resourceOpen, roomVolume, store, workers } from './economy';
+import { capacity, hoardValue, jobDef, jobOpen, production, resourceOpen, roomVolume, store, workers } from './economy';
 import { fullName, GIFTS, lieutenants, nameKobold, findNamed, addHistory, type NamedKobold } from './kobolds';
 import { opened, researchEffect } from './research';
 import type { GameState } from './state';
@@ -145,32 +144,110 @@ export function grantRequest(state: GameState, t: number, rand: () => number): s
     if (state.res[r.resource] < r.amount) return null;
     state.res[r.resource] -= r.amount;
     state.dragon.request = null;
-    state.dragon.granted++;
-    state.dragon.favor++;
-    return 'The dragon got what it wanted and purred so loudly the coins rattled.' + favorPip(state);
+    return 'The dragon got what it wanted and purred so loudly the coins rattled.' + pleased(state, t, rand);
   }
+  const gift = pick(GIFTS, rand);
+  const story = `Spoke with the dragon and came back with ${gift.name}.`;
   let k: NamedKobold | null | undefined = r.namedId !== null ? findNamed(state, r.namedId) : null;
-  if (!k) {
-    k = nameKobold(state, r.job, 'Dragon-touched', 'Summoned by the dragon, and lived to tell of it.', t, rand);
-    if (!k) k = nameKobold(state, 'idle', 'Dragon-touched', 'Summoned by the dragon, and lived to tell of it.', t, rand);
+  if (k) addHistory(k, t, story);
+  else {
+    // someone from the crowd: the audience is their first story
+    k = nameKobold(state, r.job, 'Dragon-touched', story, t, rand) ?? nameKobold(state, 'idle', 'Dragon-touched', story, t, rand);
   }
   if (!k) return null;
-  const gift = pick(GIFTS, rand);
   k.gifts.push(gift.id);
-  addHistory(k, t, `Spoke with the dragon and came back with ${gift.name}.`);
   state.dragon.request = null;
-  state.dragon.granted++;
-  state.dragon.favor++;
-  return `${fullName(k)} went to speak with the dragon and came back with ${gift.name}, looking very pleased with themselves.` + favorPip(state);
+  return `${fullName(k)} went to speak with the dragon and came back with ${gift.name}, looking very pleased with themselves.` + pleased(state, t, rand);
 }
 
-/** Every PIP_FAVOR requests granted, the Chief earns a pip of your choice. */
-function favorPip(state: GameState): string {
-  const earned = Math.floor(state.dragon.favor / PIP_FAVOR);
-  if (earned <= state.chiefMarks.favor) return '';
-  state.chiefMarks.favor = earned;
-  state.chiefMarks.pending++;
-  return ` The dragon has taken a shine to ${state.chief?.name ?? 'the Chief'}, who can grow in one way of your choosing.`;
+// ---------- favor and scales ----------
+
+export const FAVOR = {
+  /** Most favors it can owe you at once. */
+  max: 3,
+  /** How long its help lasts. */
+  seconds: 3600,
+  /** How much faster the job works meanwhile. */
+  mult: 2,
+  /** Chance it leaves a shed scale when a request is granted. */
+  scaleChance: 0.3,
+};
+
+/** What its help is called for each job. */
+export function favorName(job: string): string {
+  if (job === 'blacksmith') return 'Dragon breath on the forge';
+  if (job === 'digger') return 'It claws out the rooms';
+  if (job === 'researcher') return 'It mutters secrets to the researchers';
+  if (job === 'herder') return 'It rounds up the herd';
+  const def = jobDef(job);
+  return def ? `It helps the ${def.name.toLowerCase()}s` : job;
+}
+
+/** A granted request: it owes you a favor, and sometimes leaves a scale. */
+function pleased(state: GameState, t: number, rand: () => number): string {
+  const d = state.dragon;
+  d.granted++;
+  d.favor++;
+  let line = '';
+  if (d.boons < FAVOR.max) {
+    d.boons++;
+    line += ' It owes you a favor.';
+  }
+  if (rand() < FAVOR.scaleChance) {
+    const rec = state.oddities['shed-scales'];
+    if (rec) rec.count++;
+    else state.oddities['shed-scales'] = { count: 1, firstAt: t };
+    line += ' It left a shed scale behind, for the shelf.';
+  }
+  return line;
+}
+
+/** Jobs its help can go to right now. */
+export function favorJobs(state: GameState): string[] {
+  return JOBS.filter((j) => jobOpen(state, j) && workers(state, j.id) > 0).map((j) => j.id);
+}
+
+/** Spend a favor: a job works twice as fast for an hour. Returns the chronicle line, or null. */
+export function useFavor(state: GameState, job: string): string | null {
+  const d = state.dragon;
+  if (d.boons < 1 || !favorJobs(state).includes(job)) return null;
+  d.boons--;
+  const cur = d.boosts.find((b) => b.job === job);
+  if (cur) cur.until += FAVOR.seconds;
+  else d.boosts.push({ job, until: d.clock + FAVOR.seconds });
+  return `The dragon is helping: ${favorName(job).toLowerCase()} for the next hour.`;
+}
+
+/** Seconds of help a job has left. */
+export function boostLeft(state: GameState, job: string): number {
+  const b = state.dragon.boosts.find((x) => x.job === job);
+  return b ? Math.max(0, b.until - state.dragon.clock) : 0;
+}
+
+// ---------- stories ----------
+
+export const STORY = {
+  /** While content, it tells a named kobold a story about this often. */
+  everyHours: 6,
+};
+
+export const STORIES = [
+  'the time it was an egg and could hear everything',
+  'a knight it once met, who turned out to be three goblins in a coat',
+  'how to tell real gold from the painted kind by licking it',
+  'the mountain it was hatched under, which may or may not exist',
+  'why you should never trust a talking sword',
+  'the first coin it ever loved',
+  'how dragons count, which takes a very long time',
+];
+
+/** Now and then, while content, it tells one of the named kobolds a story. */
+function tellStory(state: GameState, dt: number, t: number, rand: () => number): string | null {
+  if (!state.named.length || rand() >= dt / (STORY.everyHours * 3600)) return null;
+  const k = pick(state.named, rand);
+  const about = pick(STORIES, rand);
+  addHistory(k, t, `The dragon told them a story about ${about}.`);
+  return `The dragon told ${fullName(k)} a story about ${about}. They haven't stopped talking about it.`;
 }
 
 export function dismissRequest(state: GameState): string | null {
@@ -231,6 +308,8 @@ export const REFINE = {
   silverPerGold: 5,
   /** Stage from which it makes gold. */
   goldStage: 2,
+  /** Each evolution after hatching multiplies its refining by this. */
+  stageMult: 2,
 };
 
 /** How big the dragon can grow right now: part of its lair, up to its stage's limit. */
@@ -246,7 +325,8 @@ export function thriving(state: GameState): boolean {
 /** Copper and silver eaten per second at full pace. */
 export function refineRates(state: GameState): { copper: number; silver: number } {
   if (!thriving(state)) return { copper: 0, silver: 0 };
-  const size = state.dragon.size;
+  // a bigger dragon eats more, and each evolution doubles how fast it works
+  const size = state.dragon.size * Math.pow(REFINE.stageMult, Math.max(0, state.stage - 1));
   return {
     copper: size * REFINE.copperPerPace,
     silver: state.stage >= REFINE.goldStage ? size * REFINE.silverPerPace : 0,
@@ -359,11 +439,19 @@ export function dragonStep(state: GameState, dt: number, t: number, rand: () => 
   if (d.hungry && !wasHungry && opened(state, 'crab-wrangling')) lines.push('The dragon is hungry and has stopped growing. More herders would help.');
   if (!d.hungry && wasHungry && d.content > 0) lines.push('The dragon has eaten its fill and settled down happily.');
 
-  // growing into the lair, and refining the hoard
+  // growing into the lair, refining the hoard, and stories
   if (thriving(state)) {
     const cap = sizeCap(state);
     if (d.size < cap) d.size = Math.min(cap, d.size + (SIZE.growPerHour * dt) / 3600);
     refine(state, dt);
+    const story = tellStory(state, dt, t, rand);
+    if (story) lines.push(story);
+  }
+
+  // its help wears off
+  if (d.boosts.length) {
+    for (const b of d.boosts) if (d.clock >= b.until) lines.push(`The dragon has stopped helping: ${favorName(b.job).toLowerCase()} is over.`);
+    d.boosts = d.boosts.filter((b) => d.clock < b.until);
   }
 
   // cravings: a day's hint, then the change
@@ -410,7 +498,7 @@ export function dragonAppeal(state: GameState): number {
 }
 
 export function dragonJobMult(state: GameState, job: string): number {
-  let m = 1;
+  let m = boostLeft(state, job) > 0 ? FAVOR.mult : 1;
   for (const tr of state.dragon.traits) if (DRAGON_TRAITS[tr]?.job === job) m *= DRAGON_TRAITS[tr].mult ?? 1;
   return m;
 }

@@ -20,6 +20,9 @@ export const ODDITIES: OddityDef[] = [
   { id: 'tiny-sword', name: 'A sword one kobold tall', description: 'Pulled from a stone. Nobody knows who left it there.', stacks: false, incomeMult: 1.01 },
   { id: 'first-scale', name: "The dragon's first scale", description: 'Shed in its sleep and polished daily.', stacks: false },
   { id: 'mystery-coin', name: 'A coin nobody has seen before', description: 'It came out of a research explosion. One side shows a dragon, the other a kobold. The kobold is winking.', stacks: false },
+  { id: 'shed-scales', name: 'Shed dragon scales', description: '{n} of them, each the size of a shield. The dragon leaves them for kobolds it likes. Nobody knows what they are for yet.', stacks: true },
+  { id: 'old-bones', name: 'Very old bones', description: '{n} of them, dug out of the walls. They belonged to something enormous. It is definitely gone.', stacks: true },
+  { id: 'colony-gifts', name: 'Gifts from the colonies', description: '{n} carvings of the dragon, sent by the colonies. Each one is smaller than the real thing, and more serious.', stacks: true },
   { id: 'shed-skins', name: 'Shed dragon skins', description: '{n} of them, each bigger than the last. Kept rolled up in the lair like rugs.', stacks: true },
 ];
 

@@ -10,8 +10,10 @@ import {
   assign,
   beds,
   crew,
+  assignDig,
   digBlocked,
   digRate,
+  diggersIn,
   flows,
   herdersFit,
   hoardValue,
@@ -28,7 +30,7 @@ import {
   roomCapacity,
   roomVolume,
   roomOpen,
-  setDigging,
+  scavengerDig,
   setRecipe,
   storeGoods,
   supportsFor,
@@ -44,7 +46,7 @@ import { formatDuration, formatNumber } from './format';
 export type HudEvent =
   | { kind: 'assign'; job: string; moved: number }
   | { kind: 'newcomers'; job: string }
-  | { kind: 'dig'; room: string | null }
+  | { kind: 'dig'; room: string; moved: number }
   | { kind: 'herd'; animal: string }
   | { kind: 'recipe'; id: string };
 
@@ -109,7 +111,11 @@ export class Hud {
   private jobRows = new Map<string, JobRow>();
   private idleCount!: HTMLElement;
   private newcomerSelect!: HTMLSelectElement;
-  private roomRows = new Map<string, { li: HTMLLIElement; size: HTMLElement; holds: HTMLElement; dig: HTMLElement; btn: HTMLButtonElement }>();
+  private roomRows = new Map<
+    string,
+    { li: HTMLLIElement; size: HTMLElement; count: HTMLElement; holds: HTMLElement; dig: HTMLElement; down: HTMLButtonElement; up: HTMLButtonElement }
+  >();
+  private digStatus = $('#dig-status');
   private groupHeads = new Map<string, HTMLElement>();
 
   constructor(
@@ -199,6 +205,13 @@ export class Hud {
     if (moved !== 0) this.onChange({ kind: 'assign', job, moved });
   }
 
+  private moveDig(room: string, dir: 1 | -1) {
+    const s = this.getState();
+    const k = this.step === Infinity ? (dir > 0 ? s.idle : diggersIn(s, room)) : this.step;
+    const moved = assignDig(s, room, dir * k);
+    if (moved !== 0) this.onChange({ kind: 'dig', room, moved });
+  }
+
   private buildRooms() {
     const list = $('#rooms');
     const groups = { living: 'Living', work: 'Work', stores: 'Stores' } as const;
@@ -210,17 +223,23 @@ export class Hud {
       this.groupHeads.set(g, head);
       for (const def of ROOMS.filter((r) => r.group === g)) {
         const li = row(
-          `<div class="row-main"><b></b> <span class="count size"></span><div class="desc"></div><div class="sub holds"></div><div class="desc dig"></div></div><button type="button"></button>`,
+          `<div class="row-main"><b></b> <span class="count size"></span> <span class="vet diggers"></span><div class="desc"></div><div class="sub holds"></div><div class="desc dig"></div></div><div class="job-buttons"><button type="button" class="small down">−</button><button type="button" class="small up">+</button></div>`,
         );
         li.querySelector('b')!.textContent = def.name;
         li.querySelector('.desc')!.textContent = def.description;
-        const btn = li.querySelector('button')!;
-        btn.addEventListener('click', () => {
-          const s = this.getState();
-          const next = s.digging === def.id ? null : def.id;
-          if (setDigging(s, next)) this.onChange({ kind: 'dig', room: next });
+        const down = li.querySelector<HTMLButtonElement>('.down')!;
+        const up = li.querySelector<HTMLButtonElement>('.up')!;
+        down.addEventListener('click', () => this.moveDig(def.id, -1));
+        up.addEventListener('click', () => this.moveDig(def.id, 1));
+        this.roomRows.set(def.id, {
+          li,
+          size: li.querySelector('.size')!,
+          count: li.querySelector('.diggers')!,
+          holds: li.querySelector('.holds')!,
+          dig: li.querySelector('.dig')!,
+          down,
+          up,
         });
-        this.roomRows.set(def.id, { li, size: li.querySelector('.size')!, holds: li.querySelector('.holds')!, dig: li.querySelector('.dig')!, btn });
         list.append(li);
       }
     }
@@ -285,13 +304,13 @@ export class Hud {
     } else setText(this.popText, `All ${bedCount} beds are taken. Dig the den bigger to make room for more. Appeal ${a}.`);
 
     setText(this.idleCount, `×${s.idle}`);
-    const open = JOBS.filter((j) => jobOpen(s, j));
+    const open = JOBS.filter((j) => jobOpen(s, j) && j.id !== 'digger');
     syncOptions(this.newcomerSelect, [[IDLE, 'Idle (wait for orders)'], ...open.map((j) => [j.id, j.name] as [string, string])], s.newcomerJob);
 
     const hints = jobHints(s);
     for (const def of JOBS) {
       const row = this.jobRows.get(def.id)!;
-      setHidden(row.li, !jobOpen(s, def));
+      setHidden(row.li, !jobOpen(s, def) || def.id === 'digger');
       if (row.li.hidden) continue;
       const c = crew(s, def.id);
       const stars = namedInJob(s, def.id);
@@ -322,9 +341,18 @@ export class Hud {
   }
 
   private updateRooms(s: GameState) {
-    const paces = digRate(s) / DIG.workPerPace;
-    const blocked = digBlocked(s);
     const f = flows(s);
+    const digger = JOBS.find((j) => j.id === 'digger')!;
+    const dc = crew(s, 'digger');
+    const dn = namedInJob(s, 'digger');
+    const vb = Math.round(veteranBonus(dc.exp) * 100);
+    const vl = veteranLabel(dc.exp);
+    let status = `Put diggers on any rooms with − and +; each room grows with its own diggers. ${formatNumber(perKobold(s, digger))} digging / s each.`;
+    if (dc.n + dn > 0)
+      status = `${dc.n} digger${dc.n === 1 ? '' : 's'}${dn ? ` + ${dn} named` : ''}, ${vl === 'new crew' ? 'a new crew' : `${vl} +${vb}%`}. ${formatNumber(perKobold(s, digger))} digging / s each.`;
+    if (dn > 0 && dc.n === 0) status += ' Named diggers help whichever rooms have diggers, so put some on a room.';
+    setText(this.digStatus, status);
+    const scav = scavengerDig(s);
     const shown = new Set<string>();
     for (const def of ROOMS) {
       const row = this.roomRows.get(def.id)!;
@@ -345,7 +373,18 @@ export class Hud {
       }
       setText(row.holds, holds);
 
-      const digging = s.digging === def.id;
+      const n = diggersIn(s, def.id);
+      setText(row.count, n > 0 ? `×${n} digging` : '');
+      setDisabled(row.down, n < 1);
+      setDisabled(row.up, s.idle < 1);
+      const label = this.step === Infinity ? 'all' : String(this.step);
+      row.down.title = `Send ${label} of its diggers back to idle`;
+      row.up.title = `Put ${label} idle kobold${this.step === 1 ? '' : 's'} to digging the ${def.name.toLowerCase()}`;
+      row.down.setAttribute('aria-label', `${def.name}: ${row.down.title}`);
+      row.up.setAttribute('aria-label', `${def.name}: ${row.up.title}`);
+      const paces = digRate(s, def.id) / DIG.workPerPace;
+      const digging = n > 0 || paces > 0;
+      const blocked = digging ? digBlocked(s, def.id) : null;
       const supports = supportsFor(vol, s);
       const uses = supports.length ? ` Uses ${supports.map((x) => `${formatNumber(x.perPace)} ${resName(x.resource)}`).join(' and ')} per cubic pace to hold the ceiling up.` : '';
       const nextTier = DIG.supports.find((x) => x.fromPaces > vol);
@@ -355,11 +394,10 @@ export class Hud {
         if (blocked === 'full') dig = `As big as it can be dug for now.`;
         else if (blocked) dig = `Stalled: out of ${resName(blocked)}.${resourceOpen(s, blocked) ? '' : ' It has to be researched first.'}${uses}`;
         else if (paces <= 0) dig = `Waiting for diggers.${uses}${later}`;
-        else dig = `Growing by about ${formatNumber(paces * 3600)} cubic paces an hour.${uses}${later}`;
+        else dig = `Growing by about ${formatNumber(paces * 3600)} cubic paces an hour${def.id === 'hoard' && scav > 0 ? ', with the scavengers helping while it is full' : ''}.${uses}${later}`;
       }
       setText(row.dig, dig);
       row.dig.classList.toggle('warn', digging && !!blocked);
-      setText(row.btn, digging ? 'Stop digging' : 'Dig here');
     }
     for (const [g, head] of this.groupHeads) setHidden(head, !shown.has(g));
   }

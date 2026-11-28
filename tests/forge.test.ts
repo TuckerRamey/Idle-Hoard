@@ -27,7 +27,6 @@ const chief: Chief = { name: 'Snik', cunning: 0, voice: 0, nerve: 0, quirk: 'non
 function game(...learned: string[]): GameState {
   const s = newGame(T0);
   s.chief = { ...chief };
-  s.digging = null;
   s.newcomerJob = 'idle';
   s.seed = 12345;
   s.research.done.push('ore-sniffing', 'smithing', ...learned);

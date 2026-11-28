@@ -15,6 +15,11 @@
       </section>
 
       <section class="panel">
+        <section id="away" class="away" hidden aria-live="polite">
+          <b id="away-title">While you were away</b>
+          <ul id="away-list"></ul>
+          <button type="button" id="away-close" class="small">Got it</button>
+        </section>
         <header class="totals">
           <div><span id="copper" class="big">0</span> <span class="unit">copper</span></div>
           <div id="rate" class="rate">0 / s</div>
@@ -24,10 +29,16 @@
           <div class="growth-head"><b id="stage-name">Egg</b></div>
           <div id="stage-bar" class="bar"><div></div></div>
           <div id="stage-text" class="desc"></div>
+          <div id="goal" class="goal" hidden></div>
           <div id="dragon" class="dragon" hidden>
             <div id="dragon-mood" class="desc"></div>
             <div id="dragon-craving" class="desc"></div>
             <div id="dragon-size" class="desc"></div>
+            <div id="dragon-favor" class="favor" hidden>
+              <span id="favor-text" class="desc"></span>
+              <div class="favor-row"><select id="favor-job" aria-label="What the dragon should help with"></select><button type="button" id="favor-use" class="small">Ask for help</button></div>
+            </div>
+            <div id="dragon-boosts" class="desc"></div>
             <div id="dragon-request" class="request" hidden>
               <p id="request-text"></p>
               <div class="buttons"><button type="button" id="request-grant" class="primary">Give it</button><button type="button" id="request-dismiss">Not now</button></div>
@@ -67,6 +78,7 @@
         </details>
 
         <h2>Rooms</h2>
+        <p id="dig-status" class="desc"></p>
         <ul id="rooms" class="list"></ul>
 
         <div id="research-section" hidden>
@@ -99,6 +111,12 @@
           <ul id="art" class="list"></ul>
         </div>
 
+        <div id="colonies-section" hidden>
+          <h2>Colonies</h2>
+          <p id="colonies-status" class="desc"></p>
+          <ul id="colonies" class="list"></ul>
+        </div>
+
         <details id="oddities-section" class="oddities" hidden>
           <summary>Oddities shelf · <span id="oddities-count">0</span></summary>
           <ul id="oddities" class="list"></ul>
@@ -107,6 +125,7 @@
         <details class="settings">
           <summary>Settings and save</summary>
           <button id="motion"></button>
+          <button id="goal-toggle"></button>
           <p class="desc">The game saves itself every minute and when you close it. Export a copy to move it or keep it safe.</p>
           <div class="buttons">
             <button id="export">Copy save</button>

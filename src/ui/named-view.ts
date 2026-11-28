@@ -15,9 +15,10 @@ import {
   standDown,
   type NamedKobold,
 } from '../game/kobolds';
-import type { GameState } from '../game/state';
+import { colonyBlocked, coloniesOpen, foundColony } from '../game/colonies';
+import { rng, type GameState } from '../game/state';
 import { timeAgo } from './chronicle';
-import { $, setDisabled, setText } from './dom';
+import { $, confirmTap, setDisabled, setText } from './dom';
 import { syncOptions } from './hud';
 
 const jobName = (id: string) => (id === IDLE ? 'Idle' : id === ARTISAN ? 'Artisan' : (JOBS.find((j) => j.id === id)?.name ?? id));
@@ -30,7 +31,7 @@ export class NamedView {
 
   constructor(
     private getState: () => GameState,
-    private onChange: (k: NamedKobold, what: 'job' | 'lieutenant' | 'stand-down' | 'artisan') => void,
+    private onChange: (k: NamedKobold, what: 'job' | 'lieutenant' | 'stand-down' | 'artisan' | 'colony', line?: string) => void,
   ) {}
 
   update(now: number) {
@@ -39,8 +40,8 @@ export class NamedView {
     if (!s.named.length) return;
     setText(this.summary, `${s.named.length} named · ${lieutenants(s).length} of ${lieutenantSlots(s)} lieutenants`);
     const key =
-      s.named.map((k) => `${k.id}:${k.job}:${k.lieutenant}:${k.history.length}:${k.gifts.length}:${k.traits.length}`).join('|') +
-      `|${lieutenantSlots(s)}|${Math.floor(now / 60000)}|${JOBS.filter((j) => jobOpen(s, j)).length}|${artOpen(s)}`;
+      s.named.map((k) => `${k.id}:${k.job}:${k.lieutenant}:${k.history.length}:${k.gifts.length}:${k.traits.length}:${k.talents?.length ?? 0}:${k.epithet ?? ''}`).join('|') +
+      `|${lieutenantSlots(s)}|${Math.floor(now / 60000)}|${JOBS.filter((j) => jobOpen(s, j)).length}|${artOpen(s)}|${coloniesOpen(s)}|${s.named.map((k) => colonyBlocked(s, k) ?? '').join()}`;
     if (key === this.key) return;
     this.key = key;
     const open = this.list.querySelectorAll('details[open]');
@@ -51,14 +52,19 @@ export class NamedView {
   private card(s: GameState, k: NamedKobold, now: number, isOpen: boolean): HTMLLIElement {
     const li = document.createElement('li');
     li.className = 'named';
-    li.innerHTML = `<details><summary><b></b> <span class="desc job"></span></summary><div class="named-body"><div class="desc likes"></div><div class="desc traits"></div><div class="named-controls"><label class="desc">Job <select></select></label><button type="button" class="lt"></button><button type="button" class="art"></button></div><div class="desc lt-note"></div><ul class="history"></ul></div></details>`;
+    li.innerHTML = `<details><summary><b></b> <span class="desc job"></span></summary><div class="named-body"><div class="desc likes"></div><div class="desc traits"></div><div class="named-controls"><label class="desc">Job <select></select></label><button type="button" class="lt"></button><button type="button" class="art"></button><button type="button" class="colony-btn"></button></div><div class="desc lt-note"></div><ul class="history"></ul></div></details>`;
     const det = li.querySelector('details')!;
     det.dataset.id = String(k.id);
     det.open = isOpen;
     li.querySelector('b')!.textContent = `${k.lieutenant ? '★ ' : ''}${fullName(k)}`;
     li.querySelector('.job')!.textContent = jobName(k.job);
     li.querySelector('.likes')!.textContent = `Loves ${jobName(k.loves).toLowerCase()}, hates ${jobName(k.hates).toLowerCase()}.`;
-    const extras = [...k.traits, ...k.gifts.map((g) => `Gift: ${giftDef(g)?.name ?? g}`)];
+    const extras = [
+      ...(k.epithet ? [`The kobold who ${k.epithet}`] : []),
+      ...(k.talents ?? []).map((t) => `${t.name} (${jobName(t.job).toLowerCase()} +${Math.round((t.mult - 1) * 100)}%)`),
+      ...k.traits,
+      ...k.gifts.map((g) => `Gift: ${giftDef(g)?.name ?? g}`),
+    ];
     li.querySelector('.traits')!.textContent = extras.join(' · ');
     const sel = li.querySelector('select')!;
     syncOptions(sel, [[IDLE, 'Idle'], ...JOBS.filter((j) => jobOpen(s, j)).map((j) => [j.id, j.name] as [string, string]), ...(k.job === ARTISAN ? [[ARTISAN, 'Artisan'] as [string, string]] : [])], k.job);
@@ -95,6 +101,18 @@ export class NamedView {
       if (makeArtisan(this.getState(), k.id, Date.now())) this.onChange(k, 'artisan');
     });
     if (k.job === ARTISAN) btn.hidden = true;
+    const col = li.querySelector<HTMLButtonElement>('.colony-btn')!;
+    const why = colonyBlocked(s, k);
+    col.hidden = !coloniesOpen(s);
+    col.textContent = 'Found a colony';
+    setDisabled(col, !!why);
+    col.title = why ?? 'Leave with a few kobolds to found a colony that sends tribute to the hoard. For good.';
+    col.addEventListener('click', () => {
+      if (!confirmTap(col, 'Tap again: they leave for good')) return;
+      const st = this.getState();
+      const line = foundColony(st, k.id, Date.now(), rng(st));
+      if (line) this.onChange(k, 'colony', line);
+    });
     const hist = li.querySelector('.history')!;
     for (const h of [...k.history].reverse()) {
       const item = document.createElement('li');

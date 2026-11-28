@@ -27,7 +27,22 @@ export interface NamedKobold {
   lieutenant: boolean;
   /** Seconds of work on their current piece, while an artisan. */
   artWork?: number;
+  /** Knacks for a job, found by working it or left by a research mishap. */
+  talents?: Talent[];
+  /** Earned once they work like nobody else: "digs like a dragon". */
+  epithet?: string;
 }
+
+export interface Talent {
+  job: string;
+  /** How much better they are at that job. */
+  mult: number;
+  /** What it's called on their card: "Tunnel-sense". */
+  name: string;
+}
+
+/** A named kobold whose bonus at their job reaches this gets an epithet. */
+export const EPITHET_MULT = 3;
 
 /** Experiences a named kobold needs before they can be made a lieutenant. */
 export const LIEUTENANT_EXPERIENCES = 4;
@@ -76,7 +91,23 @@ export function namedIn(state: GameState, job: string): NamedKobold[] {
 export function personalMult(k: NamedKobold): number {
   let m = k.job === k.loves ? LOVE_MULT : k.job === k.hates ? HATE_MULT : 1;
   for (const g of k.gifts) m *= giftDef(g)?.mult ?? 1;
+  for (const t of k.talents ?? []) if (t.job === k.job) m *= t.mult;
   return m;
+}
+
+/** Give a kobold a talent, unless they already have one by that name. */
+export function addTalent(k: NamedKobold, talent: Talent): boolean {
+  k.talents ??= [];
+  if (k.talents.some((t) => t.name === talent.name)) return false;
+  k.talents.push(talent);
+  return true;
+}
+
+/** Take one crowd digger off whichever room has the most, when one leaves the crew. */
+export function takeDigger(state: GameState) {
+  let best: string | null = null;
+  for (const [room, n] of Object.entries(state.dig)) if (n > 0 && (best === null || n > state.dig[best])) best = room;
+  if (best) state.dig[best] -= 1;
 }
 
 /** How much the named kobolds in a job lift its crew. */
@@ -163,6 +194,7 @@ export function nameKobold(
     const c = state.crews[job];
     if (!c || c.n < 1) return null;
     c.n -= 1;
+    if (job === 'digger') takeDigger(state);
   }
   const jobs = JOBS.map((j) => j.id);
   const loves = job !== IDLE && rand() < 0.5 ? job : pick(jobs, rand);

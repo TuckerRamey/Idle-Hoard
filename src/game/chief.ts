@@ -52,6 +52,8 @@ export const OLD_QUIRKS: Record<string, string> = {
 
 export const KOBOLD_NAMES = [
   'Snik', 'Grisk', 'Vesk', 'Tazz', 'Mipp', 'Krag', 'Yizz', 'Durn', 'Skrit', 'Pell', 'Rakka', 'Zib', 'Ossa', 'Fenk', 'Quill', 'Brakk',
+  'Nub', 'Grizzle', 'Tik', 'Wix', 'Morra', 'Sleck', 'Bix', 'Hask', 'Jorra', 'Kipp', 'Lirk', 'Nesh', 'Prog', 'Rusk', 'Shiv', 'Tuck',
+  'Varra', 'Wendle', 'Yeek', 'Zorra', 'Drib', 'Gnash', 'Ittle', 'Krik', 'Mog', 'Plink', 'Scree', 'Torg', 'Umber', 'Vix',
 ];
 
 /** Roll a Chief: stats always total STAT_POINTS (min 1 each) plus one quirk. */
@@ -71,9 +73,7 @@ export function quirkOf(chief: Chief | null): QuirkDef | undefined {
 
 /** The most pips a stat can have. */
 export const MAX_PIPS = 6;
-/** The Chief gains a pip of your choice every this many dragon requests granted. */
-export const PIP_FAVOR = 10;
-/** ...and a pip of Cunning every this many kinds of oddity found. */
+/** The Chief gains a pip of Cunning every this many kinds of oddity found. */
 export const PIP_ODDITIES = 5;
 
 export function statName(id: StatId): string {

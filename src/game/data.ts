@@ -21,9 +21,9 @@ export interface ResourceDef {
 }
 
 export const RESOURCES: ResourceDef[] = [
-  { id: 'copper', name: 'Copper', store: 'hoard', perPace: 200, value: 1 },
-  { id: 'silver', name: 'Silver', store: 'hoard', perPace: 400, value: 10, minStage: 1 },
-  { id: 'gold', name: 'Gold', store: 'hoard', perPace: 800, value: 100, minStage: 2 },
+  { id: 'copper', name: 'Copper', store: 'hoard', perPace: 1000, value: 1 },
+  { id: 'silver', name: 'Silver', store: 'hoard', perPace: 2000, value: 10, minStage: 1 },
+  { id: 'gold', name: 'Gold', store: 'hoard', perPace: 4000, value: 100, minStage: 2 },
   { id: 'wood', name: 'Mushroom wood', store: 'woodpile', perPace: 40 },
   { id: 'stone', name: 'Stone', store: 'stoneyard', perPace: 50 },
   { id: 'ore', name: 'Iron ore', store: 'metals', perPace: 40, requires: 'ore-sniffing' },
@@ -376,6 +376,6 @@ export const CONFIG = {
   chiefRate: 1,
   /** The longest absence that earns offline progress, in seconds. */
   offlineCapSeconds: 24 * 60 * 60,
-  /** Absences longer than this show a "while you were away" note. */
-  awayNoticeSeconds: 60,
+  /** Absences longer than this show a "while you were away" card. */
+  awayNoticeSeconds: 5 * 60,
 };

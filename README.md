@@ -2,7 +2,7 @@
 
 A quiet idle game about a dragon's hoard, made to sit open on a side screen.
 
-An ambitious kobold finds a dragon egg in the dark and tries to hatch it by burying it in copper. Kobolds wander in, you put them to work, dig the cave's rooms bigger, and the egg hatches into a wyrmling that refines the hoard into silver and gold as it grows. Precious metals are only ever hoarded, never spent. There's no clicking needed beyond moving kobolds, choosing what to dig and making the odd choice for the Chief.
+An ambitious kobold finds a dragon egg in the dark and tries to hatch it by burying it in copper. Kobolds wander in, you put them to work, dig the cave's rooms bigger, and the egg hatches into a wyrmling that refines the hoard into silver and gold as it grows. Precious metals are only ever hoarded, never spent. There's no clicking needed beyond moving kobolds and making the odd choice. A line under the dragon suggests what to aim for next (it can be turned off in Settings), and coming back after a while shows a short card of what happened.
 
 ## Play it
 
@@ -32,7 +32,7 @@ npm run build      # production build into dist/
 Things worth checking by hand when reviewing a change:
 
 1. Start a new game (Settings and save > Start over). Name a Chief, and they should start hauling copper to the egg. Kobolds arrive until the den's beds are full.
-2. Move kobolds with − and +, with the 1 / 5 / 20 / All switch. Put some on digging and check the room's bar fills, and that a room past size 2 stalls without wood (the woodcutter row should say so).
+2. Move kobolds with − and +, with the 1 / 5 / 20 / All switch. Put some diggers on two rooms with their own − and + and check both grow, and that a room past size 2 stalls without wood (the woodcutter row should say so).
 3. Close the tab, wait a few minutes, reopen. A "while you were away" note should credit the time.
 4. Switch to another tab and back. Nothing should run while hidden (with `?debug`, the draw count stays still).
 5. Settings > Copy save, Start over, paste it back and Load pasted save. Progress should return.
@@ -61,9 +61,9 @@ Players can export a save as text (or a file) from **Settings and save** and imp
 
 ## The Chief
 
-A new game starts by naming the Chief, the kobold who found the egg. Their stats (Cunning, Voice, Nerve) always add up to the same total and come with one quirk, so a reroll changes direction, not strength. The Chief hauls copper alone until the egg hatches, then stands by the hoard giving orders. There's no skill tree: the Chief grows through what happens to them, up to 6 pips in a stat. Each evolution of the dragon and every 10 requests granted earn a pip of your choice, every 5 kinds of oddity found makes the Chief more cunning, and a few rare happenings teach a fitting stat once. Stats and quirks are data in `src/game/chief.ts`.
+A new game starts by naming the Chief, the kobold who found the egg. Their stats (Cunning, Voice, Nerve) always add up to the same total and come with one quirk, so a reroll changes direction, not strength. The Chief hauls copper alone until the egg hatches, then stands by the hoard giving orders. There's no skill tree: the Chief grows through what happens to them, up to 6 pips in a stat. Each evolution of the dragon earns a pip of your choice, every 5 kinds of oddity found makes the Chief more cunning, and a few rare happenings teach a fitting stat once. Stats and quirks are data in `src/game/chief.ts`.
 
-The chronicle under the cave scene is a short story log. Silly happenings (`src/game/happenings.ts`) turn up about every 10 minutes while the game is open, and once after a long absence. Kobolds always come out of them fine, and some bring a little copper.
+The chronicle under the cave scene is a short story log. It only records things that happen, not what you just did. Silly happenings (`src/game/happenings.ts`) turn up about every 10 minutes with 10 kobolds, more often in a bigger warren (never more than every 3 minutes), and a few after a long absence. Kobolds always come out of them fine, and some bring a little copper.
 
 ## Kobolds, jobs and rooms
 
@@ -71,7 +71,7 @@ Nobody is hired. Kobolds wander in on their own, drawn by the hoard's **appeal**
 
 Jobs are assignments, not a ladder. Newcomers go to the job picked under Idle (Scavenger by default). The − and + buttons move kobolds between Idle and any job, 1, 5, 20 or all at a time. A crew gets better the longer it works together (up to +30%), and newcomers water that down, so big reshuffles cost a little.
 
-Rooms are measured in cubic paces, and digging adds volume at the same rate for every room (`DIG` in `src/game/data.ts`). Each good has its own store: copper, silver and gold share the hoard room (better metals take less space for their worth), wood in the woodpile, stone in the stone yard, meat in the larder, and iron ore, bars and steel sharing the metal store evenly. A new game knows copper, wood and stone; research uncovers the rest. When a store is full, the extra is lost until it's dug bigger. Diggers dig one room at a time, picked with **Dig here**, and the rooms list is grouped into living rooms, work rooms and stores. Small rooms need no supports; from 150 cubic paces a room needs wood, from 500 stone too, and from 1,500 iron bars, a little for every pace dug. Rooms stop at 4,000 paces until deep delving is researched. A dig with no supplies stalls, and the job rows say what's short and roughly how many kobolds would fix it.
+Rooms are measured in cubic paces, and digging adds volume at the same rate for every room (`DIG` in `src/game/data.ts`). Each good has its own store: copper, silver and gold share the hoard room (better metals take less space for their worth), wood in the woodpile, stone in the stone yard, meat in the larder, and iron ore, bars and steel sharing the metal store evenly. A new game knows copper, wood and stone; research uncovers the rest. When a store is full, the extra is lost until it's dug bigger, except the hoard room: when it fills, the scavengers dig it bigger themselves until there's room again. Diggers are put to work from the rooms list, with − and + on each room, so several rooms can be dug at once, each at its own diggers' pace; the list is grouped into living rooms, work rooms and stores. Digging now and then turns something up (`src/game/events.ts`): a stash of copper or ore, old bones, a forgotten side cave, or a lost kobold who moves in. Small rooms need no supports; from 150 cubic paces a room needs wood, from 500 stone too, and from 1,500 iron bars, a little for every pace dug. Rooms stop at 4,000 paces until deep delving is researched. A dig with no supplies stalls, and the job rows say what's short and roughly how many kobolds would fix it.
 
 ## The forge
 
@@ -85,13 +85,15 @@ Artistry research lets an experienced named kobold (four experiences) put down t
 
 Research is the one unlock track (`src/game/research.ts`). Researchers work on one project at a time; finishing one moves on to the cheapest next. Projects open iron and miners, the pasture and herders, goats and beetles, the alchemist, and a few straight bonuses. Research goes wrong more often than it should: harmless explosions that sometimes leave an oddity, extra research or a bit of free digging.
 
-A crowd kobold gets a name when something memorable happens to them: a research mishap, many of the happenings, or being summoned by the dragon (`src/game/kobolds.ts`). Named kobolds wear a hat in the cave, love one job and hate another, collect traits, gifts and a history, and lift the crew they join. After four experiences one can be made a lieutenant (one slot plus one per dragon stage), which lifts their crew by 15%. Nothing is ever lost for not checking in.
+A crowd kobold gets a name when something memorable happens to them: a research mishap, many of the happenings, a find while digging, finding a knack for their job, or being summoned by the dragon (`src/game/kobolds.ts`). A **talent** (a knack found on the job, or a lasting quirk from a research mishap) makes them better at one job, and bonuses stack: a kobold three times as good as the crowd at their job earns an epithet, like the kobold who digs like a dragon. Named kobolds wear a hat in the cave, love one job and hate another, collect traits, gifts and a history, and lift the crew they join. After four experiences one can be made a lieutenant (one slot plus one per dragon stage), which lifts their crew by 15%. Nothing is ever lost for not checking in.
+
+Once the dragon hatches, a named kobold with four experiences can leave with five kobolds to found a **colony** (`src/game/colonies.ts`). Colonies run themselves: they grow slowly, send tribute to the hoard, and keep a short history of their own, shown in the Colonies panel. The founder's story carries on there.
 
 ## The dragon
 
-After hatching, the dragon eats meat from the pasture (`src/game/dragon.ts`). Fed, it gives +10% to everything; fed what it craves, +25%. Cravings change every two days, hinted about a day ahead, and switching the herd takes half an hour to settle. Every few hours it asks for something, or asks to speak with a kobold, who comes back with a gift. Ignored requests just fade.
+After hatching, the dragon eats meat from the pasture (`src/game/dragon.ts`). Fed, it gives +10% to everything; fed what it craves, +25%. Cravings change every two days, hinted about a day ahead, and switching the herd takes half an hour to settle. Every few hours it asks for something, or asks to speak with a kobold, who comes back with a gift. Ignored requests just fade. A granted request makes it owe you a **favor** (up to 3): ask, and it helps one job work twice as fast for an hour, such as dragon breath on the forge or clawing out the rooms. Sometimes it leaves a shed scale for the shelf too. Now and then, while content, it tells one of the named kobolds a story, which counts as an experience.
 
-The egg hatches once the hoard is worth enough, which copper alone can reach. After that the dragon has a **size**, separate from its stage: it grows into its lair while fed, up to a limit for each stage. While fed and content it eats copper and sheds silver, and once it's a young dragon it eats silver and sheds gold, faster the bigger it is. Each piece is worth more than what went in, so this is how the hoard really grows.
+The egg hatches once the hoard is worth enough, which copper alone can reach. After that the dragon has a **size**, separate from its stage: it grows into its lair while fed, up to a limit for each stage. While fed and content it eats copper and sheds silver, and once it's a young dragon it eats silver and sheds gold, faster the bigger it is, and twice as fast again with each evolution. Each piece is worth more than what went in, so this is how the hoard really grows.
 
 It evolves by molting: each stage needs a bigger lair, a hoard worth so much, some granted requests, time spent fed and, for the second molt, art in the hoard room. The shed skin goes on the oddities shelf and the dragon gets a trait from what it ate most. The alchemist turns plentiful things into scarce ones at a steep loss, for patching a shortfall.
 
@@ -110,7 +112,7 @@ All game content is data in `src/game/data.ts`:
 - `ROOMS` and `DIG` – what each room holds and how it grows, how much work each size takes, and which supports big digs use.
 - `DRAGON_STAGES` – egg, wyrmling, young, adult: the hoard worth to hatch, the sprite, and the message shown. Molting conditions, diet and requests are in `src/game/dragon.ts`.
 - `RECIPES` – what the alchemist can make, and at what loss.
-- `HOARD_SIZE_THRESHOLDS` – how much copper held makes the coin pile picture grow.
+- `HOARD_SIZE_THRESHOLDS` – how much the hoard is worth for the coin pile picture to grow. Silver and gold coins show on it once they're a real part of the hoard.
 - `ATTRACTION` – how much appeal the hoard's worth, the dragon's size and oddities add, and how appeal turns into arrival time.
 - `CREW` – the crew experience bonus.
 
@@ -151,11 +153,11 @@ Not built yet, but the code is set up so neither needs a rewrite:
 
 ```
 src/
-  game/       data.ts (content), chief.ts (stats, quirks), research.ts, kobolds.ts (named kobolds), forge.ts, art.ts,
+  game/       data.ts (content), chief.ts (stats, quirks), research.ts, kobolds.ts (named kobolds), forge.ts, art.ts, events.ts (digging finds, talents, epithets), colonies.ts, goals.ts,
               dragon.ts (diet, requests, size, refining, molting), happenings.ts, oddities.ts,
               state.ts, economy.ts (production, rooms, digging, crews, arrivals), save.ts (versioned saves)
   render/     manifest.ts (sprite sheets), scene.ts (what to draw), renderer.ts (canvas + scheduling)
-  ui/         hud.ts (stores, kobolds, rooms), art-view.ts, dragon-view.ts, research-view.ts, forge-view.ts, named-view.ts, chief-panel.ts, chronicle.ts, oddities-view.ts, format.ts
+  ui/         hud.ts (stores, kobolds, rooms), art-view.ts, colonies-view.ts, dragon-view.ts, research-view.ts, forge-view.ts, named-view.ts, chief-panel.ts, chronicle.ts, oddities-view.ts, format.ts
   assets/art/ sprite sheets
 scripts/      gen-placeholder-art.mjs
 tests/        vitest unit tests
