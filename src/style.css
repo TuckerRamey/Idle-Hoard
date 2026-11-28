@@ -1,3 +1,4 @@
+[hidden] { display: none !important; }
 :root {
   --bg: #120d17;
   --panel: #1c1524;
@@ -14,7 +15,7 @@ body { font: 14px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif; }
 
 .layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 12px; max-width: 1200px; margin: 0 auto; }
 @media (min-width: 860px) {
-  .layout { grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); align-items: start; }
+  .layout { grid-template-columns: minmax(0, 1.8fr) minmax(300px, 1fr); align-items: start; }
 }
 
 #scene {
@@ -142,3 +143,17 @@ select { max-width: 100%; font: inherit; color: var(--text); background: var(--b
 .favor-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .favor-row select { max-width: 100%; }
 .colony summary { cursor: pointer; }
+
+/* tabs */
+.tabs { display: flex; gap: 0; margin: 14px -12px 0; padding: 0 12px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; position: sticky; top: 0; background: var(--panel); z-index: 2; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs[hidden] { display: none; }
+.tab { flex: none; position: relative; background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 9px 6px 7px; color: var(--muted); font: inherit; font-size: 13.5px; cursor: pointer; }
+.tab:hover { color: var(--text); }
+.tab.on { color: var(--text); border-bottom-color: var(--accent); }
+.tab[hidden] { display: none; }
+.tab .dot { display: none; position: absolute; top: 6px; right: 2px; width: 6px; height: 6px; border-radius: 50%; background: var(--copper); }
+.tab.news .dot { display: block; }
+.tab-panel.off { display: none; }
+.tab-panel { padding-top: 4px; }
+.named .mods { margin-top: 2px; }

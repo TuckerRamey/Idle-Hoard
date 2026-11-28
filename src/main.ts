@@ -19,6 +19,7 @@ import { ResearchView } from './ui/research-view';
 import { ForgeView } from './ui/forge-view';
 import { ArtView } from './ui/art-view';
 import { NamedView } from './ui/named-view';
+import { TabsView } from './ui/tabs';
 import { researchDef } from './game/research';
 
 const TICK_MS = 1000;
@@ -83,6 +84,7 @@ const awayList = document.querySelector('#away-list') as HTMLElement;
 document.querySelector('#away-close')!.addEventListener('click', () => (awayEl.hidden = true));
 const chronicle = new ChronicleView(getState);
 const oddities = new OdditiesView(getState);
+const tabs = new TabsView(getState);
 const renderer = new Renderer(document.querySelector('#scene') as HTMLCanvasElement, getState);
 
 function updatePanels() {
@@ -103,6 +105,7 @@ function refresh() {
   chiefPanel.update();
   chronicle.update(Date.now());
   oddities.update(Date.now());
+  tabs.update();
   renderer.invalidate();
 }
 
@@ -221,6 +224,7 @@ function tickOnce() {
   chiefPanel.update();
   chronicle.update(Date.now());
   oddities.update(Date.now());
+  tabs.update();
 }
 
 function resume() {

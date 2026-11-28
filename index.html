@@ -64,9 +64,8 @@
           </div>
         </div></form>
 
-        <h2>Stores</h2>
-        <ul id="resources" class="list"></ul>
-
+        <nav id="tabs" class="tabs" role="tablist" aria-label="Warren" hidden></nav>
+        <div class="tab-panel" data-tab="kobolds">
         <h2>Kobolds · <span id="pop-count">0 kobolds</span></h2>
         <p id="pop-text" class="desc"></p>
         <div class="step-row"><span class="desc">Move</span> <div id="step" class="step" role="group" aria-label="How many to move at once"></div></div>
@@ -76,24 +75,32 @@
           <summary>Named kobolds · <span id="named-summary"></span></summary>
           <ul id="named" class="list"></ul>
         </details>
-
-        <h2>Rooms</h2>
+        </div>
+        <div class="tab-panel" data-tab="rooms">
         <p id="dig-status" class="desc"></p>
         <ul id="rooms" class="list"></ul>
-
+        </div>
+        <div class="tab-panel" data-tab="stores">
+        <ul id="resources" class="list"></ul>
+        </div>
+        <div class="tab-panel" data-tab="research">
         <div id="research-section" hidden>
-          <h2>Research</h2>
           <p id="research-status" class="desc"></p>
           <ul id="research" class="list"></ul>
         </div>
-
+        </div>
+        <div class="tab-panel" data-tab="forge">
         <div id="forge-section" hidden>
-          <h2>Forge</h2>
           <p id="forge-status" class="desc"></p>
           <ul id="forge-slots" class="list"></ul>
         </div>
-
-
+        <div id="art-section" hidden>
+          <h2>Art in the hoard room</h2>
+          <p id="art-status" class="desc"></p>
+          <ul id="art" class="list"></ul>
+        </div>
+        </div>
+        <div class="tab-panel" data-tab="warren">
         <section id="chief-card" class="chief-card" hidden>
           <h2 id="chief-title">Chief</h2>
           <p id="chief-quirk" class="desc"></p>
@@ -103,25 +110,15 @@
             <div id="chief-grow-buttons" class="grow-buttons"></div>
           </div>
         </section>
-
-
-        <div id="art-section" hidden>
-          <h2>Art in the hoard room</h2>
-          <p id="art-status" class="desc"></p>
-          <ul id="art" class="list"></ul>
-        </div>
-
         <div id="colonies-section" hidden>
           <h2>Colonies</h2>
           <p id="colonies-status" class="desc"></p>
           <ul id="colonies" class="list"></ul>
         </div>
-
         <details id="oddities-section" class="oddities" hidden>
           <summary>Oddities shelf · <span id="oddities-count">0</span></summary>
           <ul id="oddities" class="list"></ul>
         </details>
-
         <details class="settings">
           <summary>Settings and save</summary>
           <button id="motion"></button>
@@ -139,6 +136,7 @@
           <p id="save-status" class="desc" aria-live="polite"></p>
           <button id="reset" class="danger">Start over</button>
         </details>
+        </div>
         <p id="debug" class="desc" hidden></p>
       </section>
     </main>

@@ -58,6 +58,13 @@ export function costText(cost: Partial<Record<ResourceId, number>>): string {
     .join(', ');
 }
 
+/** The job list, under headings. Digging is done from the Rooms tab. */
+export const JOB_GROUPS: { name: string; jobs: string[] }[] = [
+  { name: 'Gathering', jobs: ['scavenger', 'woodcutter', 'quarrier', 'miner'] },
+  { name: 'Making', jobs: ['alchemist', 'blacksmith'] },
+  { name: 'Learning and care', jobs: ['researcher', 'herder'] },
+];
+
 export function row(html: string): HTMLLIElement {
   const li = document.createElement('li');
   li.innerHTML = html;
@@ -107,6 +114,8 @@ export class Hud {
   private step = 1;
   private resRows = new Map<ResourceId, { li: HTMLLIElement; amount: HTMLElement; rate: HTMLElement; note: HTMLElement }>();
   private jobRows = new Map<string, JobRow>();
+  private groupHeads = new Map<string, HTMLElement>();
+  private jobHeads = new Map<string, HTMLElement>();
   private idleCount!: HTMLElement;
   private newcomerSelect!: HTMLSelectElement;
   private roomRows = new Map<
@@ -114,7 +123,6 @@ export class Hud {
     { li: HTMLLIElement; size: HTMLElement; count: HTMLElement; holds: HTMLElement; dig: HTMLElement; down: HTMLButtonElement; up: HTMLButtonElement }
   >();
   private digStatus = $('#dig-status');
-  private groupHeads = new Map<string, HTMLElement>();
 
   constructor(
     private getState: () => GameState,
@@ -163,7 +171,20 @@ export class Hud {
     });
     list.append(idle);
 
-    for (const def of JOBS) {
+    for (const g of JOB_GROUPS) {
+      const head = document.createElement('li');
+      head.className = 'room-group';
+      head.textContent = g.name;
+      this.jobHeads.set(g.name, head);
+      list.append(head);
+      for (const id of g.jobs) this.buildJob(list, JOBS.find((j) => j.id === id)!);
+    }
+    // anything not in a group goes at the end
+    for (const def of JOBS) if (!JOB_GROUPS.some((g) => g.jobs.includes(def.id))) this.buildJob(list, def);
+  }
+
+  private buildJob(list: HTMLElement, def: (typeof JOBS)[number]) {
+    {
       const li = row(
         `<div class="row-main"><b></b> <span class="count"></span><div class="desc"></div><div class="sub"></div><div class="desc tools"></div><div class="hint"></div></div><div class="job-buttons"><button type="button" class="small down">−</button><button type="button" class="small up">+</button></div>`,
       );
@@ -332,6 +353,8 @@ export class Hud {
         row.extra.title = `The pasture fits ${fit} herders`;
       } else if (row.extra) syncOptions(row.extra, recipesOpen(s).map((x) => [x.id, `${x.name}, ${formatNumber(recipeRatio(s, x))} to 1`]), s.recipe);
     }
+    // a heading shows once any job under it is open
+    for (const g of JOB_GROUPS) setHidden(this.jobHeads.get(g.name)!, g.jobs.every((id) => this.jobRows.get(id)?.li.hidden ?? true));
   }
 
   private updateRooms(s: GameState) {
