@@ -217,6 +217,44 @@ export function nameKobold(
   return k;
 }
 
+/** How many named kobolds the warren keeps: about one in ten, and at least a few. */
+export const NAMED = { per: 10, min: 3 };
+
+export function namedCap(state: GameState): number {
+  let pop = state.idle + state.named.length;
+  for (const c of Object.values(state.crews)) pop += c.n;
+  return Math.max(NAMED.min, Math.floor(pop / NAMED.per));
+}
+
+/** Is there room for someone new to get a name? */
+export function canName(state: GameState): boolean {
+  return state.named.length < namedCap(state);
+}
+
+/** A named kobold to credit with something that happened at `job`: one who works it if there is one, else anyone. */
+export function creditNamed(state: GameState, job: string, rand: () => number): NamedKobold | null {
+  const same = namedIn(state, job);
+  const pool = same.length ? same : state.named;
+  return pool.length ? pool[Math.floor(rand() * pool.length) % pool.length] : null;
+}
+
+/**
+ * Someone memorable at `job`: a crowd kobold gets a name if the warren has
+ * room for one more, otherwise an existing named kobold (same job first)
+ * gets the experience. `fresh` says which. The caller writes the history.
+ */
+export function nameOrCredit(state: GameState, job: string, title: string, t: number, rand: () => number): { k: NamedKobold; fresh: boolean } | null {
+  if (canName(state)) {
+    const k = nameKobold(state, job, title, '', t, rand);
+    if (k) {
+      k.history = [];
+      return { k, fresh: true };
+    }
+  }
+  const k = creditNamed(state, job, rand);
+  return k ? { k, fresh: false } : null;
+}
+
 export function fullName(k: NamedKobold): string {
   return k.title ? `${k.name} ${k.title}` : k.name;
 }

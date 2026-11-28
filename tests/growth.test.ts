@@ -248,7 +248,7 @@ describe('named kobolds', () => {
     s.crews = { scavenger: { n: 20 }, woodcutter: { n: 20 }, quarrier: { n: 20 } };
     const rand = rng(s);
     for (let i = 0; i < 200; i++) happen(s, T0 + i, rand);
-    expect(s.named.length).toBeGreaterThan(3);
+    expect(s.named.length).toBe(6); // one in ten of 60
     expect(s.named.some((k) => k.history.length > 1)).toBe(true);
     expect(population(s)).toBe(60);
   });

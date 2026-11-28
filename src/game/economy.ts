@@ -21,7 +21,7 @@ import {
 } from './data';
 import { dragonAppeal, dragonJobMult, dragonStep, eatRate, moodMult } from './dragon';
 import { forgeMakes, forgeStep, forgeUse, toolMults } from './forge';
-import { addHistory, addTalent, crewLift, fullName, nameKobold, namedIn, personalMult, takeDigger } from './kobolds';
+import { addHistory, addTalent, crewLift, fullName, nameOrCredit, namedIn, personalMult, takeDigger } from './kobolds';
 import { digFinds, epithetStep, talentStep } from './events';
 import { colonyStep } from './colonies';
 import { ODDITIES } from './oddities';
@@ -626,16 +626,21 @@ function research(state: GameState, dt: number, t: number, rand: () => number, r
   const named = namedIn(state, 'researcher');
   let k = named.length && rand() < (researchEffect(state, 'mishapNamedChance')?.chance ?? 0.35) ? named[Math.floor(rand() * named.length) % named.length] : null;
   let text: string;
-  if (k) {
+  let fresh = false;
+  if (!k) {
+    const got = nameOrCredit(state, 'researcher', m.title, t, rand);
+    if (!got) return;
+    k = got.k;
+    fresh = got.fresh;
+  }
+  if (fresh) {
+    addHistory(k, t, m.text.replaceAll('{kobold}', 'They'));
+    text = `${m.text.replaceAll('{kobold}', 'A researcher')} From now on they are ${fullName(k)}.`;
+  } else {
     text = m.text.replaceAll('{kobold}', fullName(k));
     addHistory(k, t, m.text.replaceAll('{kobold}', k.name));
-    if (!k.traits.includes(m.trait)) k.traits.push(m.trait);
-  } else {
-    k = nameKobold(state, 'researcher', m.title, m.text.replaceAll('{kobold}', 'They'), t, rand);
-    if (!k) return;
-    k.traits.push(m.trait);
-    text = `${m.text.replaceAll('{kobold}', 'A researcher')} From now on they are ${fullName(k)}.`;
   }
+  if (!k.traits.includes(m.trait)) k.traits.push(m.trait);
   if (m.talent && addTalent(k, m.talent)) text += ` It left them better at ${jobDef(m.talent.job)?.name.toLowerCase() ?? m.talent.job} work for good.`;
   const e = m.effect;
   if (e?.kind === 'research') {

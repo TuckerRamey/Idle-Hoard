@@ -5,7 +5,7 @@
 import { DRAGON_STAGES, type ResourceId } from './data';
 import { artAppeal } from './art';
 import { capacity, hoardValue, jobDef, jobOpen, production, resourceOpen, roomVolume, store, workers } from './economy';
-import { fullName, GIFTS, lieutenants, nameKobold, findNamed, addHistory, type NamedKobold } from './kobolds';
+import { fullName, GIFTS, lieutenants, canName, nameOrCredit, findNamed, addHistory, type NamedKobold } from './kobolds';
 import { opened, researchEffect } from './research';
 import type { GameState } from './state';
 import { JOBS } from './data';
@@ -118,7 +118,7 @@ function makeRequest(state: GameState, rand: () => number): DragonRequest | null
   const until = state.dragon.clock + REQUEST.lastsSeconds;
   if (rand() < REQUEST.audienceChance) {
     // someone named, or someone from the crowd who'll get a name
-    if (state.named.length && rand() < 0.5) {
+    if (state.named.length && (!canName(state) || rand() < 0.5)) {
       const k = pick(state.named, rand);
       return { kind: 'audience', namedId: k.id, job: k.job, name: fullName(k), until };
     }
@@ -152,7 +152,9 @@ export function grantRequest(state: GameState, t: number, rand: () => number): s
   if (k) addHistory(k, t, story);
   else {
     // someone from the crowd: the audience is their first story
-    k = nameKobold(state, r.job, 'Dragon-touched', story, t, rand) ?? nameKobold(state, 'idle', 'Dragon-touched', story, t, rand);
+    const got = nameOrCredit(state, r.job, 'Dragon-touched', t, rand) ?? nameOrCredit(state, 'idle', 'Dragon-touched', t, rand);
+    k = got?.k;
+    if (k) addHistory(k, t, story);
   }
   if (!k) return null;
   k.gifts.push(gift.id);
