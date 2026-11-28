@@ -7,6 +7,7 @@
 import type { ResourceId } from './data';
 import { capacity, jobDef, jobOpen, jobOutput, resourceDef, resourceOpen, roomCapacity, roomDef, roomOpen, workers } from './economy';
 import { namedIn } from './kobolds';
+import { finishCommission, nextUpgrade, piece, tidyCommissions, toolMult } from './gear';
 import { opened, researchEffects } from './research';
 import type { GameState } from './state';
 import { JOBS } from './data';
@@ -76,7 +77,7 @@ export interface ToolStock {
 }
 
 export interface ForgeSlot {
-  /** 'auto' (tools), 'smelt', 'steel', or null for an empty slot. */
+  /** 'auto' (tools), 'commissions' (named kobolds' gear, else tools), 'smelt', 'steel', or null for an empty slot. */
   order: string | null;
   progress: number;
 }
@@ -110,7 +111,7 @@ export interface OrderOption {
 
 export function orderOptions(state: GameState): OrderOption[] {
   if (!forgeOpen(state)) return [];
-  const out: OrderOption[] = [{ id: 'auto', name: 'Tools' }];
+  const out: OrderOption[] = [{ id: 'auto', name: 'Tools' }, { id: 'commissions', name: 'Commissions' }];
   for (const m of MATERIALS) if (opened(state, m.requires)) out.push({ id: m.id, name: m.name });
   return out;
 }
@@ -183,14 +184,15 @@ function allocKey(state: GameState): string {
   let k = `${state.toolFirst}|${state.research.done.length}|${state.explore.found.length}|${state.named.length}|`;
   for (const t of TIERS) k += `${state.rack[t.id]?.n ?? 0},`;
   for (const [job, c] of Object.entries(state.crews)) k += `${job}:${c.n},`;
-  for (const n of state.named) k += n.job + ',';
+  for (const n of state.named) k += `${n.job}${n.gear?.tool ? '+' : ''}${(n.restLeft ?? 0) > 0 ? 'r' : ''},`;
   return k;
 }
 
 function allocate(state: GameState): Allocation {
   const need = new Map<string, number>();
   for (const job of toolJobs(state)) {
-    const n = workers(state, job);
+    // named kobolds with a tool of their own don't take one from the rack
+    const n = workers(state, job) - namedIn(state, job).filter((k) => piece(k, 'tool')).length;
     if (n > 0) need.set(job, n);
   }
   const out: Allocation = {};
@@ -248,20 +250,25 @@ export function spareTools(state: GameState, alloc = toolAllocation(state)): Par
  * who get the best tools first) and the average for the crowd crew.
  */
 export function toolMults(state: GameState, job: string): { named: number[]; crew: number } {
-  // tools best first: named kobolds take from the front, the crew shares the rest
+  // tools best first: named kobolds take from the front (unless they have their own), the crew shares the rest
   const inUse = toolsInUse(state, job);
-  const nNamed = namedIn(state, job).length;
+  const namedK = namedIn(state, job);
   const named: number[] = [];
   let ti = 0;
   let left = inUse[0]?.n ?? 0;
-  for (let i = 0; i < nNamed; i++) {
+  for (const k of namedK) {
+    const own = toolMult(k);
+    if (own !== null) {
+      named.push(own);
+      continue;
+    }
     while (left <= 0 && ti < inUse.length - 1) left = inUse[++ti].n;
     if (left > 0) {
       named.push(tierMult(inUse[ti].tier));
       left--;
     } else named.push(1);
   }
-  const crewN = workers(state, job) - nNamed;
+  const crewN = workers(state, job) - namedK.length;
   if (crewN <= 0) return { named, crew: 1 };
   let sum = 0;
   let given = 0;
@@ -345,8 +352,26 @@ interface Unit {
 }
 
 /** What a slot's order makes next, or null if there is nothing to do. */
-export function unitFor(state: GameState, order: string | null): Unit | null {
+export function unitFor(state: GameState, order: string | null, lines?: string[], t = 0, rand: () => number = Math.random): Unit | null {
   if (!order) return null;
+  if (order === 'commissions') {
+    // the first commission in the queue, or tools while there's none
+    const c = state.forge.commissions[0];
+    const k = c && state.named.find((x) => x.id === c.kobold);
+    const p = k && piece(k, c.slot);
+    const up = p && nextUpgrade(state, p);
+    if (!c || !k || !p || !up) return unitFor(state, 'auto');
+    return {
+      work: up.work,
+      cost: up.cost as Partial<Record<ResourceId, number>>,
+      label: `${k.name}'s ${c.slot}`,
+      make: () => {
+        const line = finishCommission(state, t, rand);
+        if (line) lines?.push(line);
+        return true;
+      },
+    };
+  }
   const mat = MATERIALS.find((m) => m.id === order);
   if (mat) {
     if (!opened(state, mat.requires) || !resourceOpen(state, mat.makes)) return null;
@@ -400,12 +425,13 @@ function busySlots(state: GameState): ForgeSlot[] {
 const TOOL_USE_SECONDS = 1800;
 
 /** Let `dt` seconds of forge work happen. Returns how many of each thing was made. */
-export function forgeStep(state: GameState, dt: number): Record<string, number> {
+export function forgeStep(state: GameState, dt: number, lines?: string[], t = 0, rand: () => number = Math.random): Record<string, number> {
   const made: Record<string, number> = {};
   syncSlots(state);
+  tidyCommissions(state);
   wearTools(state, dt);
   const toolPaid: Partial<Record<ResourceId, number>> = {};
-  work(state, dt, made, toolPaid);
+  work(state, dt, made, toolPaid, lines, t, rand);
   // smooth what tool orders actually used, so the stores don't flicker as tools come and go
   const k = 1 - Math.exp(-dt / TOOL_USE_SECONDS);
   const use = (state.forge.toolUse ??= {});
@@ -417,7 +443,7 @@ export function forgeStep(state: GameState, dt: number): Record<string, number> 
   return made;
 }
 
-function work(state: GameState, dt: number, made: Record<string, number>, toolPaid: Partial<Record<ResourceId, number>>) {
+function work(state: GameState, dt: number, made: Record<string, number>, toolPaid: Partial<Record<ResourceId, number>>, lines?: string[], t = 0, rand: () => number = Math.random) {
   const busy = busySlots(state);
   const rate = forgeRate(state);
   if (!busy.length || rate <= 0) return;
@@ -426,7 +452,7 @@ function work(state: GameState, dt: number, made: Record<string, number>, toolPa
     const isTool = !MATERIALS.some((m) => m.id === slot.order);
     slot.progress += share;
     for (let guard = 0; guard < 100; guard++) {
-      const unit = unitFor(state, slot.order);
+      const unit = unitFor(state, slot.order, lines, t, rand);
       if (!unit) {
         slot.progress = 0;
         break;

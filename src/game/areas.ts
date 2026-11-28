@@ -9,6 +9,7 @@ import type { ResourceId } from './data';
 import { capacity, jobDef, jobOpen, jobOutput, resourceOpen, store, workers } from './economy';
 import { WORK_FINDS } from './finds';
 import { addHistory, fullName, namedIn } from './kobolds';
+import { givePiece, piece } from './gear';
 import { opened, researchEffects } from './research';
 import type { GameState } from './state';
 
@@ -328,6 +329,9 @@ export function exploreStep(state: GameState, dt: number, t: number, rand: () =>
       ex.names[a.id] = `${k.name}'s ${a.name.replace(/^The /, '').replace(/^([A-Z])(?=[a-z])/, (c) => c.toLowerCase())}`;
       line += ` They're calling it ${ex.names[a.id]}, after ${fullName(k)}, who was first in.`;
     } else line += ` ${fullName(k)} was first in.`;
+    // first in sometimes means coming back with something
+    if (!piece(k, 'trinket') && rand() < 0.25)
+      givePiece(k, 'trinket', { tier: 'stone', marks: 1, look: 'keepsake stone', origin: `brought back from ${a.name.replace(/^The /, 'the ')}` }, `Brought back a stone from ${a.name.replace(/^The /, 'the ')} as a keepsake, and has carried it since.`, t);
   }
   lines.push(line);
   return lines;

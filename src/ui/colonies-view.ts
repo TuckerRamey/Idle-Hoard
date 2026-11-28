@@ -3,6 +3,7 @@
 
 import { COLONY, coloniesOpen, tributeRate } from '../game/colonies';
 import { fullName } from '../game/kobolds';
+import { KNACKS, TRAIT_NAMES, traitWord, type FounderTrait } from '../game/founders';
 import type { GameState } from '../game/state';
 import { timeAgo } from './chronicle';
 import { $, setText } from './dom';
@@ -42,7 +43,12 @@ export class ColoniesView {
         const r = tributeRate(s, c);
         const perHour = (r.copper + r.silver * 10) * 3600;
         li.querySelector('summary .desc')!.textContent = `${Math.floor(c.pop)} kobolds · tribute ${formatNumber(perHour)} copper per hour, ${formatNumber(Math.floor(c.sent))} sent so far`;
-        li.querySelector('.lead')!.textContent = `Led by ${fullName(c.leader)}. Founded ${timeAgo(now - c.founded)}; ${formatNumber(c.sent)} copper's worth sent so far.`;
+        const f = c.founder;
+        const traits = f
+          ? ` ${(Object.keys(TRAIT_NAMES) as FounderTrait[]).map((t) => `${TRAIT_NAMES[t]}: ${traitWord(f[t])}`).join(', ')}${f.knack ? `. ${KNACKS[f.knack].name}: ${KNACKS[f.knack].text}` : ''}.`
+          : '';
+        const heir = c.heirlooms ? ` They took ${c.heirlooms} named piece${c.heirlooms === 1 ? '' : 's'} of gear along, which the colony is proud of.` : '';
+        li.querySelector('.lead')!.textContent = `Led by ${fullName(c.leader)}. Founded ${timeAgo(now - c.founded)}; ${formatNumber(c.sent)} copper's worth sent so far.${traits}${heir}`;
         const hist = li.querySelector('.history')!;
         for (const h of [...c.history].reverse()) {
           const item = document.createElement('li');

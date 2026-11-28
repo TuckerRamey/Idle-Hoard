@@ -3,6 +3,7 @@
 // dragon asking for them). From then on they collect experiences, have a job
 // they love and one they hate, and can become lieutenants. Nobody is ever lost.
 
+import { trinketLift, type GearPiece } from './gear';
 import { KOBOLD_NAMES } from './chief';
 import { IDLE, JOBS, ROOMS } from './data';
 import { researchEffect, researchEffects } from './research';
@@ -35,6 +36,8 @@ export interface NamedKobold {
   room?: string;
   /** Seconds left resting by the hoard after being hurt on dangerous work. They don't work meanwhile. */
   restLeft?: number;
+  /** Personal gear: a tool, armor and a trinket, each found in their story and upgraded at the forge. */
+  gear?: Partial<Record<'tool' | 'armor' | 'trinket', GearPiece>>;
 }
 
 export interface Talent {
@@ -128,7 +131,7 @@ export function takeDigger(state: GameState) {
 export function crewLift(state: GameState, job: string): number {
   let b = 0;
   const named = researchEffect(state, 'namedLift')?.bonus ?? NAMED_CREW_BONUS;
-  for (const k of namedIn(state, job)) b += k.lieutenant ? LIEUTENANT_CREW_BONUS : named;
+  for (const k of namedIn(state, job)) b += (k.lieutenant ? LIEUTENANT_CREW_BONUS : named) + trinketLift(k);
   return 1 + b;
 }
 

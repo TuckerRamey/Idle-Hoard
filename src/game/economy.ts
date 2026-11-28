@@ -4,6 +4,7 @@
 import { PIP_ODDITIES, quirkOf, raiseStat } from './chief';
 import { artStep } from './art';
 import { lossStep } from './losses';
+import { gearStep } from './gear';
 import { areaExtrasStep, capHint, exploreStep, gathered, kindKnown, yardFull } from './areas';
 import { findStep } from './finds';
 import { huntStep } from './hunting';
@@ -668,7 +669,7 @@ function step(state: GameState, dt: number, at: number, rand: () => number, r: T
     }
     alchemy(state, alchemyRate(state) * dt);
     for (const [room, rate] of Object.entries(digRates(state))) dig(state, room, rate * dt, r, rand, at);
-    forgeStep(state, dt);
+    forgeStep(state, dt, r.events, at, rand);
     research(state, dt, at, rand, r);
     const before = state.stage;
     r.events.push(...dragonStep(state, dt, at, rand));
@@ -689,6 +690,7 @@ function step(state: GameState, dt: number, at: number, rand: () => number, r: T
     for (const [job, n] of Object.entries(loss.died)) r.died[job] = (r.died[job] ?? 0) + n;
     r.wandered += loss.wandered;
     r.events.push(...areaExtrasStep(state, dt, at, rand));
+    r.events.push(...gearStep(state, dt, at, rand));
     const s = stageFor(hoardValue(state));
     if (s > state.stage) state.stage = s;
     if (state.stage > before) r.newStage = state.stage;

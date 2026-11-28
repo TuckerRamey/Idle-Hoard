@@ -51,7 +51,7 @@ describe('the forge', () => {
 
   it('has a short anvil list: tools, bars and steel', () => {
     const s = game('ironworking', 'steelmaking');
-    expect(orderOptions(s).map((o) => o.name)).toEqual(['Tools', 'Smelt iron bars', 'Make steel']);
+    expect(orderOptions(s).map((o) => o.name)).toEqual(['Tools', 'Commissions', 'Smelt iron bars', 'Make steel']);
   });
 
   it('smelts ore and wood into bars', () => {

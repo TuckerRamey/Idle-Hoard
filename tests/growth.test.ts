@@ -332,8 +332,12 @@ describe('the dragon', () => {
     s.dragon.request = { kind: 'audience', namedId: null, job: 'miner', name: 'one of the miners', until: 1e9 };
     expect(grantRequest(s, T0, rng(s))).toMatch(/came back with/);
     expect(s.named).toHaveLength(1);
-    expect(s.named[0].gifts).toHaveLength(1);
-    expect(personalMult(s.named[0])).toBeGreaterThan(1);
+    // a gift that makes them better at everything, or now and then one of its scales to wear
+    const k = s.named[0];
+    expect(k.gifts.length + (k.gear?.armor ? 1 : 0)).toBe(1);
+    if (k.gifts.length) expect(personalMult(k)).toBeGreaterThan(1);
+    else expect(k.gear!.armor!.name).toBe('Dragonscale');
+    expect(k.history).toHaveLength(1);
   });
 
   it('unanswered requests fade with no harm done', () => {

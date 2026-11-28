@@ -2,6 +2,7 @@ import type { Chief } from './chief';
 import type { DragonRequest } from './dragon';
 import type { ArtPiece } from './art';
 import type { ForgeSlot, ToolStock } from './forge';
+import type { Commission } from './gear';
 import type { NamedKobold } from './kobolds';
 import type { Colony } from './colonies';
 import { ROOMS, type ResourceId } from './data';
@@ -82,7 +83,7 @@ export interface GameState {
   colonies: Colony[];
   nextColonyId: number;
   /** The forge's order slots, and what tool orders have been using lately (per second, smoothed). */
-  forge: { slots: ForgeSlot[]; toolUse: Partial<Record<ResourceId, number>> };
+  forge: { slots: ForgeSlot[]; toolUse: Partial<Record<ResourceId, number>>; commissions: Commission[] };
   /** The tool rack every job takes from, by tier: in use and spare alike. */
   rack: Partial<Record<'stone' | 'iron' | 'steel' | 'mithril' | 'adamant', ToolStock>>;
   /** The job first in line for tools, or null to share them out evenly. */
@@ -265,7 +266,7 @@ export function newGame(now: number): GameState {
     chiefMarks: { oddities: 0, events: [], pending: 0 },
     colonies: [],
     nextColonyId: 1,
-    forge: { slots: [], toolUse: {} },
+    forge: { slots: [], toolUse: {}, commissions: [] },
     rack: {},
     toolFirst: null,
     gems: {},

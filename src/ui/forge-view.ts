@@ -5,6 +5,8 @@
 import { bestTier, forgeOpen, forgeRate, orderOptions, rackCount, setOrder, setToolFirst, slotBlocked, smithsFit, spareTools, syncSlots, TIERS, toolAllocation, toolJobs, toolLine, unitFor } from '../game/forge';
 import { jobDef, workers } from '../game/economy';
 import type { GameState } from '../game/state';
+import type { ResourceId } from '../game/data';
+import { cancelCommission, nextUpgrade, piece, pieceLook } from '../game/gear';
 import { $, setText } from './dom';
 import { formatDuration, formatNumber } from './format';
 import { costText, row, syncOptions } from './hud';
@@ -17,6 +19,10 @@ export class ForgeView {
   private status = $('#forge-status');
   private rows: { select: HTMLSelectElement; bar: HTMLElement; sub: HTMLElement }[] = [];
   private toolsStatus = $('#tools-status');
+  private comSection = $('#commissions-section');
+  private comStatus = $('#commissions-status');
+  private comList = $('#commissions');
+  private comKey = '';
   private toolsList = $('#tools-table');
   private toolRows = new Map<string, { li: HTMLLIElement; line: HTMLElement; star: HTMLButtonElement }>();
 
@@ -77,6 +83,33 @@ export class ForgeView {
       r.sub.classList.toggle('warn', !!blocked);
     });
     this.updateTools(s);
+    this.updateCommissions(s);
+  }
+
+  /** The queue of named kobolds' gear, shown only while something is waiting. */
+  private updateCommissions(s: GameState) {
+    const q = s.forge.commissions;
+    this.comSection.hidden = q.length === 0;
+    if (!q.length) return;
+    const working = s.forge.slots.some((x) => x.order === 'commissions');
+    setText(this.comStatus, working ? 'Worked from the top by any anvil set to Commissions.' : 'Set an anvil to Commissions to work on these.');
+    const key = JSON.stringify(q);
+    if (key === this.comKey) return;
+    this.comKey = key;
+    this.comList.replaceChildren(
+      ...q.map((c, i) => {
+        const k = s.named.find((x) => x.id === c.kobold);
+        const p = k && piece(k, c.slot);
+        const up = p && nextUpgrade(s, p);
+        const li = row(`<div class="row-main"><b></b><div class="sub"></div></div><button type="button" class="small" aria-label="Cancel">✕</button>`);
+        li.querySelector('b')!.textContent = k && p ? `${k.name}'s ${pieceLook(k, c.slot, p)}` : 'Gone';
+        li.querySelector('.sub')!.textContent = up ? `${up.label[0].toUpperCase()}${up.label.slice(1)}: ${costText(up.cost as Partial<Record<ResourceId, number>>)}, ${formatNumber(up.work)} forge work.` : '';
+        li.querySelector('button')!.addEventListener('click', () => {
+          if (cancelCommission(this.getState(), i)) this.onChange(-1, null);
+        });
+        return li;
+      }),
+    );
   }
 
   private updateTools(s: GameState) {

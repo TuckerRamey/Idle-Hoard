@@ -8,6 +8,7 @@ import { fills } from './areas';
 import { crew, workers } from './economy';
 import { toolMults } from './forge';
 import { addHistory, fullName, namedIn } from './kobolds';
+import { armorProtect, luckyHat } from './gear';
 import { researchMult } from './research';
 import type { GameState } from './state';
 
@@ -105,7 +106,19 @@ export function lossStep(state: GameState, dt: number, t: number, rand: () => nu
       if (total <= 0) break;
       if (named.length && rand() < named.length / total) {
         const k = pick(named, rand);
-        k.restLeft = LOSSES.restSeconds;
+        // good armor turns some blows aside; a kobold with no trinket might be saved by their hat
+        const guard = armorProtect(k);
+        if (guard > 0 && rand() < guard) {
+          addHistory(k, t, `Walked away from a bad fall while ${job === 'scout' ? 'scouting' : job === 'hunter' ? 'hunting' : 'mining deep'}, thanks to their armor.`);
+          lines.push(`${fullName(k)} should have been badly hurt, but their armor took it.`);
+          continue;
+        }
+        const hat = luckyHat(k, t, rand);
+        if (hat) {
+          lines.push(hat);
+          continue;
+        }
+        k.restLeft = LOSSES.restSeconds * (1 - guard);
         addHistory(k, t, `${HURTS[job].replace(/^./, (ch) => ch.toUpperCase())}, and spent a few hours by the hoard getting better.`);
         lines.push(`${fullName(k)} ${HURTS[job]}. They're resting by the hoard for a few hours.`);
         continue;

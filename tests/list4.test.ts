@@ -1,6 +1,7 @@
 // List 4: diggers per room, a full hoard, the dragon's favor and stories,
 // more happening, talents, epithets, colonies, the next-goal line.
 import { describe, expect, it } from 'vitest';
+import { founder } from '../src/game/founders';
 import type { Chief } from '../src/game/chief';
 import { COLONY, colonyBlocked, colonyStep, foundColony, tributeRate } from '../src/game/colonies';
 import { boostLeft, FAVOR, grantRequest, refineRates, useFavor } from '../src/game/dragon';
@@ -303,18 +304,20 @@ describe('colonies', () => {
   it('a founder leaves with a few kobolds, and the colony sends tribute and writes its history', () => {
     const { s, id } = ready();
     const pop = s.crews.miner.n + s.idle;
+    // how many go with them depends on the founder's Pull
+    const settlers = Math.max(2, COLONY.settlers + founder(s.named.find((x) => x.id === id)!).pull);
     const line = foundColony(s, id, T0, rng(s))!;
     expect(line).toMatch(/to found/);
     expect(s.named).toHaveLength(0);
-    expect(s.crews.miner.n + s.idle).toBe(pop - COLONY.settlers);
+    expect(s.crews.miner.n + s.idle).toBe(pop - settlers);
     const c = s.colonies[0];
     expect(c.leader.name).toBeTruthy();
-    expect(c.pop).toBe(COLONY.settlers + 1);
+    expect(c.pop).toBe(settlers + 1);
     s.res.copper = 0;
     for (let i = 0; i < 24 * 6; i++) colonyStep(s, 600, T0 + i * 600_000, rng(s));
     expect(s.res.copper).toBeGreaterThan(0);
     expect(c.sent).toBeGreaterThan(0);
-    expect(c.pop).toBeGreaterThan(COLONY.settlers + 1);
+    expect(c.pop).toBeGreaterThan(settlers + 1);
     expect(c.history.length).toBeGreaterThan(1);
     expect(tributeRate(s, c).copper).toBeGreaterThan(0);
   });
