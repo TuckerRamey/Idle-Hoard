@@ -18,6 +18,7 @@ import {
   storeGoods,
   stageFor,
   tick,
+  workPerPace,
   veteranBonus,
 } from '../src/game/economy';
 import { newGame, type GameState } from '../src/game/state';
@@ -164,8 +165,8 @@ describe('digging rooms', () => {
     s.crews.digger = { n: 1, exp: 0 };
     s.dig = { den: s.crews.digger?.n ?? 0 };
     const before = beds(s);
-    tick(s, 100);
-    expect(s.rooms.den.volume).toBeGreaterThanOrEqual(room('den').start + 100 / DIG.workPerPace);
+    tick(s, 1000);
+    expect(s.rooms.den.volume).toBeGreaterThan(room('den').start + 1000 / workPerPace(room('den').start + 200));
     expect(beds(s)).toBeGreaterThan(before);
   });
 
@@ -177,7 +178,7 @@ describe('digging rooms', () => {
     s.dig = { den: s.crews.digger?.n ?? 0 };
     s.res.wood = 10;
     tick(s, 4);
-    expect(s.res.wood).toBeCloseTo(10 - (4 / DIG.workPerPace) * wood.perPace, 5);
+    expect(s.res.wood).toBeCloseTo(10 - (4 / workPerPace(wood.fromPaces)) * wood.perPace, 3);
     tick(s, 1000);
     expect(s.res.wood).toBe(0);
     expect(digBlocked(s, 'den')).toBe('wood');

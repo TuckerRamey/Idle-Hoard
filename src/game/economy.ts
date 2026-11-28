@@ -337,6 +337,11 @@ export function digBlocked(state: GameState, roomId: string): ResourceId | 'full
   return null;
 }
 
+/** Dig work for one more cubic pace of a room this big: the bigger the room, the slower it grows. */
+export function workPerPace(volume: number): number {
+  return DIG.workPerPace * (1 + volume / DIG.growPaces);
+}
+
 /** Round volumes worth a line in the chronicle. */
 export function volumeMilestone(v: number): number {
   const steps = [1, 1.5, 2, 2.5, 4, 5, 6, 8];
@@ -375,7 +380,7 @@ export function flows(state: GameState): Record<ResourceId, Flow> {
     if (!top[res] || n > top[res].n) top[res] = { by, n };
   };
   for (const [room, rate] of Object.entries(digRates(state))) {
-    const paces = rate / DIG.workPerPace;
+    const paces = rate / workPerPace(roomVolume(state, room));
     // a dig stalled for one support uses none of the others either
     const blocked = digBlocked(state, room);
     if (paces > 0 && blocked !== 'full')
@@ -601,13 +606,15 @@ function alchemy(state: GameState, input: number) {
 
 function dig(state: GameState, roomId: string, work: number, r: TickResult, rand: () => number, t: number) {
   // supports change at set volumes, so dig up to each one in turn
-  for (let guard = 0; guard < 20 && work > 1e-9; guard++) {
+  for (let guard = 0; guard < 100 && work > 1e-9; guard++) {
     const def = roomDef(roomId);
     if (!def) return;
     const room = (state.rooms[def.id] ??= { volume: def.start });
     const max = maxVolume(state);
     const next = DIG.supports.find((x) => x.fromPaces > room.volume + 1e-9)?.fromPaces ?? Infinity;
-    const want = Math.min(work / DIG.workPerPace, Math.min(next, max) - room.volume);
+    // dig in small steps, so the work per pace keeps up as the room grows
+    const wpp = workPerPace(room.volume);
+    const want = Math.min(work / wpp, Math.min(next, max) - room.volume, 25);
     let paces = want;
     const sup = supportsFor(room.volume, state);
     for (const x of sup) paces = Math.min(paces, state.res[x.resource] / x.perPace);
@@ -615,7 +622,7 @@ function dig(state: GameState, roomId: string, work: number, r: TickResult, rand
     for (const x of sup) state.res[x.resource] = Math.max(0, state.res[x.resource] - paces * x.perPace);
     const before = room.volume;
     room.volume += paces;
-    work -= paces * DIG.workPerPace;
+    work -= paces * wpp;
     const mark = volumeMilestone(before);
     if (room.volume >= mark - 1e-6) r.dug.push({ room: def.id, volume: mark });
     const found = digFinds(state, def, paces, rand, t);

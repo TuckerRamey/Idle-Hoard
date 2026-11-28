@@ -75,10 +75,12 @@ describe('diggers per room', () => {
     const r = digRates(s);
     expect(r.den).toBeCloseTo(r.hoard * 2);
     expect(r.den + r.hoard).toBeCloseTo(jobOutput(s, jobDef('digger')!));
+    // same size rooms, so a pace costs the same work in each
+    s.rooms.den.volume = s.rooms.hoard.volume = 100;
     const den = s.rooms.den.volume;
     const hoard = s.rooms.hoard.volume;
     tick(s, 20);
-    expect(s.rooms.den.volume - den).toBeCloseTo((s.rooms.hoard.volume - hoard) * 2, 3);
+    expect(s.rooms.den.volume - den).toBeCloseTo((s.rooms.hoard.volume - hoard) * 2, 1);
   });
 
   it('the job list cannot add diggers without a room, and taking them off empties the busiest room', () => {

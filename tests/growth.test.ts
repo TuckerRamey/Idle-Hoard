@@ -64,9 +64,11 @@ describe('rooms measured in volume', () => {
     s.crews.digger = { n: 1, exp: 0 };
     s.dig = { den: s.crews.digger?.n ?? 0 };
     s.res.wood = 100;
-    tick(s, 40); // 20 paces: 10 free, 10 with wood
-    expect(s.rooms.den.volume).toBeCloseTo(160);
-    expect(s.res.wood).toBeCloseTo(90);
+    tick(s, 300);
+    const wood = DIG.supports.find((x) => x.resource === 'wood')!;
+    expect(s.rooms.den.volume).toBeGreaterThan(wood.fromPaces);
+    // only the paces past the threshold paid for wood
+    expect(s.res.wood).toBeCloseTo(100 - (s.rooms.den.volume - wood.fromPaces) * wood.perPace, 3);
   });
 });
 

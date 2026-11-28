@@ -37,6 +37,7 @@ import {
   veteranBonus,
   veteranLabel,
   recipeRatio,
+  workPerPace,
   workers,
 } from '../game/economy';
 import type { GameState } from '../game/state';
@@ -382,7 +383,7 @@ export class Hud {
       row.up.title = `Put ${label} idle kobold${this.step === 1 ? '' : 's'} to digging the ${def.name.toLowerCase()}`;
       row.down.setAttribute('aria-label', `${def.name}: ${row.down.title}`);
       row.up.setAttribute('aria-label', `${def.name}: ${row.up.title}`);
-      const paces = digRate(s, def.id) / DIG.workPerPace;
+      const paces = digRate(s, def.id) / workPerPace(vol);
       const digging = n > 0 || paces > 0;
       const blocked = digging ? digBlocked(s, def.id) : null;
       const supports = supportsFor(vol, s);
