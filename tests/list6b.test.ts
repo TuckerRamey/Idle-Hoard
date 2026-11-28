@@ -62,8 +62,7 @@ describe('hunting', () => {
     expect(canResearch(s, def)).toBe(true);
     expect(jobOpen(s, jobDef('hunter')!)).toBe(false);
     s.research.done.push('monster-tracking');
-    expect(jobOpen(s, jobDef('hunter')!)).toBe(false); // the scouts still have to find a hunting ground
-    addArea(s, 'bear-caves');
+    // hunters can start at once: with no ground found yet, they go looking for one
     expect(jobOpen(s, jobDef('hunter')!)).toBe(true);
   });
 

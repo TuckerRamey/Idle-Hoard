@@ -33,7 +33,7 @@ export interface AreaDef {
   extras?: { amber?: number; mana?: number; mithril?: number; adamant?: number; weapon?: number };
   /** Rare finds are this much likelier for the miners while they work it. */
   luck?: number;
-  /** Dragon stage before scouts can find it. */
+  /** Dragon stage before it can be found. */
   minStage?: number;
   /** Only past a deep room. */
   deep?: boolean;
@@ -55,7 +55,7 @@ export const AREAS: AreaDef[] = [
   { id: 'iron-seam', kind: 'stone', name: 'Iron seam', cap: 8, mix: { stone: 0.5, ore: 0.5 }, foundText: 'The scouts found an iron seam. It smells exactly like the lab.' },
   { id: 'gem-pocket', kind: 'stone', name: 'Gem pocket', cap: 4, mix: { stone: 1 }, luck: 3, minStage: 1, foundText: 'The scouts found a gem pocket. Small, but it glitters.' },
   { id: 'silver-lode', kind: 'stone', name: 'Silver lode', cap: 6, mix: { stone: 0.5, ore: 0.3, silver: 0.2 }, minStage: 2, foundText: 'The scouts found a silver lode. The dragon pretended not to be interested.' },
-  { id: 'deep-vein', kind: 'stone', name: 'The deep vein', cap: 15, mix: { ore: 0.6, stone: 0.4 }, extras: { mithril: 1 / 3000 }, minStage: 3, deep: true, foundText: 'Down past the deepest room, the scouts found the deep vein. Something in it rings like a bell.' },
+  { id: 'deep-vein', kind: 'stone', name: 'The deep vein', cap: 15, mix: { ore: 0.6, stone: 0.4 }, extras: { mithril: 1 / 3000 }, minStage: 3, deep: true, foundText: 'Down past the deepest room, the miners found the deep vein. Something in it rings like a bell.' },
   { id: 'adamant-shelf', kind: 'stone', name: 'Adamant shelf', cap: 6, mix: { ore: 1 }, extras: { adamant: 1 / 20000 }, minStage: 4, deep: true, foundText: 'The scouts found a shelf of black rock that blunted every pick they had. Adamant.' },
   // copper
   { id: 'near-tunnels', kind: 'copper', name: 'The near tunnels', cap: 15, mix: { copper: 1 }, foundText: '' },
@@ -68,7 +68,7 @@ export const AREAS: AreaDef[] = [
   { id: 'glow-pools', kind: 'monsters', name: 'The glow pools', cap: 2, monsters: ['glow-eel'], killWork: 1_500, minStage: 1, foundText: 'The scouts found pools lit from below by glow-eels. Hunters can go after them now.' },
   { id: 'deep-warrens', kind: 'monsters', name: 'The deep warrens', cap: 3, monsters: ['cave-bear', 'salamander', 'glow-eel'], killWork: 2_400, meatMult: 1.5, minStage: 2, foundText: 'The scouts found the deep warrens, where everything grows bigger.' },
   { id: 'basilisk-maze', kind: 'monsters', name: "The basilisk's maze", cap: 1, monsters: ['basilisk'], killWork: 6_000, minStage: 3, deep: true, foundText: "The scouts found a maze full of very lifelike statues. They came back walking backwards. It's a basilisk's." },
-  { id: 'wyvern-cliffs', kind: 'monsters', name: 'The wyvern cliffs', cap: 1, monsters: ['wyvern'], killWork: 10_000, minStage: 4, foundText: 'The scouts found cliffs where wyverns nest. One of them chased the scouts all the way home.' },
+  { id: 'wyvern-cliffs', kind: 'monsters', name: 'The wyvern cliffs', cap: 1, monsters: ['wyvern'], killWork: 10_000, minStage: 4, foundText: 'The scouts found cliffs where wyverns nest. One of them chased the hunters all the way home.' },
   { id: 'elder-deeps', kind: 'monsters', name: 'The elder deeps', cap: 1, monsters: ['elder'], killWork: 20_000, minStage: 5, deep: true, foundText: 'The scouts found the elder deeps. Something old and nameless moved down there. The dragon wants it.' },
 ];
 
@@ -90,11 +90,9 @@ export const EXPLORE = {
   growth: 2.5,
   /** Each area found of a kind is this many times bigger than its listed size for every one found before it. */
   sizeGrowth: 2,
-  /** Meat eaten per exploring point, once there's a larder. */
-  meatPerPoint: 0.1,
-  /** Scouts without provisions explore at this pace. */
-  hungryPace: 0.5,
-  /** Chance a find is named after a named scout who found it. */
+  /** Exploring points a second from each kobold with no room to work, out looking for more. */
+  perSearcher: 0.1,
+  /** Chance a find is named after a named kobold who found it. */
   nameChance: 0.5,
 };
 
@@ -129,7 +127,7 @@ function deepRoom(state: GameState): boolean {
   return Object.values(state.rooms).some((r) => r.volume >= WORK_FINDS.deepPaces);
 }
 
-/** Can scouts turn this one up now? */
+/** Can searchers turn this one up now? */
 export function findable(state: GameState, a: AreaDef): boolean {
   if (state.explore.found.includes(a.id)) return false;
   if (state.stage < (a.minStage ?? 0)) return false;
@@ -138,15 +136,12 @@ export function findable(state: GameState, a: AreaDef): boolean {
   return true;
 }
 
-/** Kinds the scouts can look for now. */
+/** Kinds whose job is open, so kobolds can look for more of them. */
 export function exploreKinds(state: GameState): AreaKind[] {
-  return KINDS.filter((k) => k.id !== 'monsters' || opened(state, 'monster-tracking')).map((k) => k.id);
-}
-
-export function setExploreTarget(state: GameState, kind: AreaKind | null): boolean {
-  if (kind !== null && !exploreKinds(state).includes(kind)) return false;
-  state.explore.target = kind;
-  return true;
+  return KINDS.filter((k) => {
+    const def = jobDef(k.job);
+    return !!def && jobOpen(state, def);
+  }).map((k) => k.id);
 }
 
 /** Exploring points for the next find of a kind. */
@@ -155,15 +150,15 @@ export function findCost(state: GameState, kind: AreaKind): number {
   return EXPLORE.firstCost[kind] * EXPLORE.growth ** n;
 }
 
-/** Why scouts looking for this kind will find nothing, or null. */
+/** Why kobolds looking for more of this kind will find nothing, or null. */
 export function exploreBlocked(state: GameState, kind: AreaKind): string | null {
   if (AREAS.some((a) => a.kind === kind && findable(state, a))) return null;
   const left = AREAS.filter((a) => a.kind === kind && !state.explore.found.includes(a.id));
   const what = kind === 'monsters' ? 'hunting grounds' : kind === 'wood' ? 'woodland' : `${kind} areas`;
   if (!left.length) return `Every one of the ${what} has been found.`;
-  if (kind === 'monsters' && !opened(state, 'monster-tracking')) return 'The scouts need monster tracking to know what to look for.';
+  if (kind === 'monsters' && !opened(state, 'monster-tracking')) return 'The hunters need monster tracking to know what to look for.';
   if (left.some((a) => a.deep && !deepRoom(state) && state.stage >= (a.minStage ?? 0))) return `The next ${what} lie deeper. Dig a room past ${WORK_FINDS.deepPaces.toLocaleString('en-US')} paces.`;
-  return `The scouts won't go further for ${what} until the dragon is bigger.`;
+  return `Nobody will go further for ${what} until the dragon is bigger.`;
 }
 
 // ---------- the mix ----------
@@ -276,7 +271,8 @@ export function capHint(state: GameState, kind: AreaKind): string | null {
   const job = jobDef(k.job)!;
   const each = f.raw / Math.max(1, workers(state, k.job));
   const idle = Math.floor(f.spare / Math.max(1e-9, each));
-  const more = `${idle > 0 ? ` About ${idle} of the ${job.name.toLowerCase()}s have nothing to do.` : ''} Explore for more ${what}.`;
+  const blocked = exploreBlocked(state, kind);
+  const more = idle > 0 ? (blocked ? ` About ${idle} of the ${job.name.toLowerCase()}s have nothing to do: ${blocked.charAt(0).toLowerCase()}${blocked.slice(1)}` : ` About ${idle} of the ${job.name.toLowerCase()}s are out looking for more ${what}.`) : '';
   if (kind === 'monsters') return `Every hunting ground is hunted as much as it can be (${formatCap(f.fills.reduce((a, x) => a + (x.area ? areaCap(state, x.area) : 0), 0))} kills an hour).${more}`;
   const one = f.fills.length === 1 && f.fills[0].area;
   const unit = k.base === 'copper' ? 'copper' : k.base === 'wood' ? 'wood' : 'stone';
@@ -288,16 +284,22 @@ const formatCap = (n: number) => Math.round(n).toLocaleString('en-US');
 
 // ---------- exploring ----------
 
-/** Exploring points a second, with or without provisions. */
-export function exploreRate(state: GameState): number {
-  const def = jobDef('scout');
+/** Kobolds of a kind's job with no room to work: they go looking for more. */
+export function searchers(state: GameState, kind: AreaKind): number {
+  const def = jobDef(kindDef(kind).job);
   if (!def || !jobOpen(state, def)) return 0;
-  const r = jobOutput(state, def);
-  if (resourceOpen(state, 'meat') && state.res.meat < 1) return r * EXPLORE.hungryPace;
-  return r;
+  const f = fills(state, kind);
+  if (f.raw <= 0 || f.spare <= 1e-9) return 0;
+  return (workers(state, def.id) * f.spare) / f.raw;
 }
 
-/** The area the scouts turn up next, or null. Ore sniffing makes sure the next stone find has iron in it. */
+/** Exploring points a second for a kind: from its searchers, while there's anything left to find. */
+export function exploreRate(state: GameState, kind: AreaKind): number {
+  if (exploreBlocked(state, kind)) return 0;
+  return searchers(state, kind) * EXPLORE.perSearcher;
+}
+
+/** The area turned up next, or null. Ore sniffing makes sure the next stone find has iron in it. */
 function draw(state: GameState, kind: AreaKind, rand: () => number): AreaDef | null {
   const first = AREAS.find((a) => a.kind === kind);
   if (first && findable(state, first)) return first; // the first of each kind is always the plain one
@@ -318,36 +320,37 @@ export function addArea(state: GameState, id: string): string | null {
   return a.foundText;
 }
 
-/** Let `dt` seconds of scouting pass. Returns chronicle lines. */
+/** Let `dt` seconds of looking around pass, for every kind with kobolds out of room. Returns chronicle lines. */
 export function exploreStep(state: GameState, dt: number, t: number, rand: () => number): string[] {
-  const kind = state.explore.target;
-  if (!kind || exploreBlocked(state, kind)) return [];
-  const rate = exploreRate(state);
-  if (rate <= 0) return [];
-  const pts = rate * dt;
-  if (resourceOpen(state, 'meat') && state.res.meat >= 1) state.res.meat = Math.max(0, state.res.meat - pts * EXPLORE.meatPerPoint);
-  const ex = state.explore;
-  ex.points[kind] = (ex.points[kind] ?? 0) + pts;
   const lines: string[] = [];
-  const cost = findCost(state, kind);
-  if (ex.points[kind]! < cost) return lines;
-  const a = draw(state, kind, rand);
-  if (!a) return lines;
-  ex.points[kind]! -= cost;
-  let line = addArea(state, a.id)!;
-  const named = namedIn(state, 'scout');
-  if (named.length) {
-    const k = named[Math.floor(rand() * named.length) % named.length];
-    addHistory(k, t, `Was first into ${a.name.replace(/^The /, 'the ').replace(/^([A-Z])(?=[a-z])/, (c) => c.toLowerCase())}.`);
-    if (rand() < EXPLORE.nameChance && a.id !== AREAS.find((x) => x.kind === a.kind)?.id) {
-      ex.names[a.id] = `${k.name}'s ${a.name.replace(/^The /, '').replace(/^([A-Z])(?=[a-z])/, (c) => c.toLowerCase())}`;
-      line += ` They're calling it ${ex.names[a.id]}, after ${fullName(k)}, who was first in.`;
-    } else line += ` ${fullName(k)} was first in.`;
-    // first in sometimes means coming back with something
-    if (!piece(k, 'trinket') && rand() < 0.25)
-      givePiece(k, 'trinket', { tier: 'stone', marks: 1, look: 'keepsake stone', origin: `brought back from ${a.name.replace(/^The /, 'the ')}` }, `Brought back a stone from ${a.name.replace(/^The /, 'the ')} as a keepsake, and has carried it since.`, t);
+  const ex = state.explore;
+  for (const k of KINDS) {
+    const kind = k.id;
+    const rate = exploreRate(state, kind);
+    if (rate <= 0) continue;
+    ex.points[kind] = (ex.points[kind] ?? 0) + rate * dt;
+    const cost = findCost(state, kind);
+    if (ex.points[kind]! < cost) continue;
+    const a = draw(state, kind, rand);
+    if (!a) continue;
+    ex.points[kind]! -= cost;
+    const job = jobDef(k.job)!.name.toLowerCase();
+    let line = addArea(state, a.id)!.replace(/^The scouts/, `The ${job}s`) || `The ${job}s found ${a.name.replace(/^The /, 'the ')}.`;
+    // a named kobold on that job gets the credit
+    const named = namedIn(state, k.job);
+    if (named.length) {
+      const who = named[Math.floor(rand() * named.length) % named.length];
+      addHistory(who, t, `Was first into ${a.name.replace(/^The /, 'the ').replace(/^([A-Z])(?=[a-z])/, (c) => c.toLowerCase())}.`);
+      if (rand() < EXPLORE.nameChance && a.id !== AREAS.find((x) => x.kind === a.kind)?.id) {
+        ex.names[a.id] = `${who.name}'s ${a.name.replace(/^The /, '').replace(/^([A-Z])(?=[a-z])/, (c) => c.toLowerCase())}`;
+        line += ` They're calling it ${ex.names[a.id]}, after ${fullName(who)}, who was first in.`;
+      } else line += ` ${fullName(who)} was first in.`;
+      // first in sometimes means coming back with something
+      if (!piece(who, 'trinket') && rand() < 0.25)
+        givePiece(who, 'trinket', { tier: 'stone', marks: 1, look: 'keepsake stone', origin: `brought back from ${a.name.replace(/^The /, 'the ')}` }, `Brought back a stone from ${a.name.replace(/^The /, 'the ')} as a keepsake, and has carried it since.`, t);
+    }
+    lines.push(line);
   }
-  lines.push(line);
   return lines;
 }
 

@@ -98,7 +98,7 @@ export interface GameState {
   magic: MagicState;
   /** Kobolds lost on dangerous work and wandered off, and the clocks toward the next. */
   losses: LossState;
-  /** Exploring: what the scouts look for, their points toward the next find of each kind, and the areas found. */
+  /** Exploring: (target is no longer used) points toward the next find of each kind, and the areas found. */
   explore: ExploreState;
   /** For the game's own dice (mishaps, requests), so runs replay the same in tests. */
   seed: number;
@@ -109,7 +109,7 @@ export interface ExploreState {
   points: Partial<Record<'wood' | 'stone' | 'copper' | 'monsters', number>>;
   /** Area ids, in the order found. */
   found: string[];
-  /** Areas named after the scout who found them. */
+  /** Areas named after the kobold who found them. */
   names: Record<string, string>;
   /** Old saves only: extra room per kind, so nothing they made before drops ("the old workings"). */
   bonus: Partial<Record<'wood' | 'stone' | 'copper' | 'monsters', number>>;

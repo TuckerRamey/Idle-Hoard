@@ -357,6 +357,25 @@ function normalizeProgress(raw: any, current: any): Record<string, number> {
 }
 
 /**
+ * There are no scouts any more: gatherers with no room to work look for more
+ * places themselves. Old saves send their scouts (crowd and named) back to idle.
+ * Works on a copy.
+ */
+function retireScouts(raw: Record<string, any>): Record<string, any> {
+  if (!JSON.stringify(raw).includes('"scout"')) return raw;
+  const r = JSON.parse(JSON.stringify(raw));
+  if (r.crews?.scout) {
+    r.idle = Math.floor(num(r.idle, 0)) + Math.floor(num(r.crews.scout?.n, 0));
+    delete r.crews.scout;
+  }
+  if (r.newcomerJob === 'scout') r.newcomerJob = 'idle';
+  if (Array.isArray(r.named)) for (const k of r.named) if (k && k.job === 'scout') k.job = 'idle';
+  if (r.toolFirst === 'scout') r.toolFirst = null;
+  if (Array.isArray(r.dragon?.boosts)) r.dragon.boosts = r.dragon.boosts.filter((b: any) => b?.job !== 'scout');
+  return r;
+}
+
+/**
  * Quarriers and miners became one Miner job. Old saves move quarriers (crews,
  * named kobolds, talents, tools, orders) over to miners. Works on a copy.
  */
@@ -400,7 +419,7 @@ function mergeQuarriers(raw: Record<string, any>): Record<string, any> {
 export function normalize(raw: unknown, now: number): GameState {
   const base = newGame(now);
   if (!raw || typeof raw !== 'object') throw new SaveError('Save has no game state');
-  const r = mergeQuarriers(raw as Record<string, any>);
+  const r = retireScouts(mergeQuarriers(raw as Record<string, any>));
   const res = { ...base.res };
   for (const d of RESOURCES) res[d.id] = num(r.res?.[d.id], 0);
   const crews = normalizeCrews(r.crews);

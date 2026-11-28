@@ -5,7 +5,7 @@ import { PIP_ODDITIES, quirkOf, raiseStat } from './chief';
 import { artStep } from './art';
 import { lossStep } from './losses';
 import { gearStep } from './gear';
-import { areaExtrasStep, capHint, exploreStep, gathered, kindKnown, yardFull } from './areas';
+import { areaExtrasStep, capHint, exploreStep, gathered, yardFull } from './areas';
 import { findStep } from './finds';
 import { huntStep } from './hunting';
 import { MAGIC, magicStep } from './magic';
@@ -45,9 +45,9 @@ export const emptyRes = () => ({ copper: 0, silver: 0, gold: 0, wood: 0, stone: 
 
 // ---------- what's open ----------
 
-/** A job is open once its research is done and, for jobs that work areas, once the scouts have found one. */
+/** A job is open once its research is done. Gatherers with no area yet go looking for one. */
 export function jobOpen(state: GameState, def: JobDef): boolean {
-  return opened(state, def.requires) && (!def.area || kindKnown(state, def.area));
+  return opened(state, def.requires);
 }
 
 export function resourceOpen(state: GameState, res: ResourceId): boolean {
@@ -225,7 +225,7 @@ function makeProduction(state: GameState): Record<ResourceId, number> {
   for (const def of JOBS) {
     if (!def.produces || !resourceOpen(state, def.produces.resource)) continue;
     if (def.area) {
-      // gatherers work the areas the scouts found, each up to its most
+      // gatherers work the areas found, each up to its most
       for (const [r, n] of Object.entries(gathered(state, def.area))) p[r as ResourceId] += n ?? 0;
     } else p[def.produces.resource] += jobOutput(state, def);
   }
@@ -590,7 +590,7 @@ export function arrive(state: GameState, seconds: number): number {
   if (n > 0) {
     state.idle += n;
     const job = jobDef(state.newcomerJob);
-    if (state.newcomerJob !== IDLE && state.newcomerJob !== 'scout' && job && jobOpen(state, job)) assign(state, state.newcomerJob, n);
+    if (state.newcomerJob !== IDLE && job && jobOpen(state, job)) assign(state, state.newcomerJob, n);
   }
   return n;
 }
@@ -641,7 +641,7 @@ export interface TickResult {
   /** Crowd kobolds lost on dangerous work, by job, and idle ones who wandered off. */
   died: Record<string, number>;
   wandered: number;
-  /** Areas the scouts found. */
+  /** Areas found by kobolds with no room to work. */
   explored: string[];
 }
 

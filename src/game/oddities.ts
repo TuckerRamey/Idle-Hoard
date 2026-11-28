@@ -31,7 +31,7 @@ export const ODDITIES: OddityDef[] = [
   { id: 'town-bell', name: 'A town bell', description: 'The dragon carried it home from a raid. Somebody rings it whenever it wakes up.', stacks: false, incomeMult: 1.01 },
   { id: 'wizard-hat', name: "A wizard's hat", description: 'Still a little bit magic. It changes colour when the Chief lies.', stacks: false, incomeMult: 1.02 },
   { id: 'battlefield-weapons', name: 'Battlefield weapons', description: '{n} swords, axes and one very surprised-looking mace, dug out of the old battlefield. Still sharp.', stacks: true },
-  { id: 'memorial-wall', name: 'The memorial wall', description: '{n} scratches on the wall by the den, one for every kobold lost scouting, hunting or deep in the mines. Nobody walks past without touching it.', stacks: true },
+  { id: 'memorial-wall', name: 'The memorial wall', description: '{n} scratches on the wall by the den, one for every kobold lost hunting or deep in the mines. Nobody walks past without touching it.', stacks: true },
   { id: 'heirlooms', name: 'Heirlooms', description: '{n} named tools, coats and charms, hung on the wall by kobolds who put them down for good. Each one has a story, and someone who will tell it.', stacks: true },
   { id: 'shed-skins', name: 'Shed dragon skins', description: '{n} of them, each bigger than the last. Kept rolled up beside the hoard like rugs.', stacks: true },
 ];

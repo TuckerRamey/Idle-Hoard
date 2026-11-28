@@ -67,7 +67,6 @@ export function costText(cost: Partial<Record<ResourceId, number>>): string {
 export const JOB_GROUPS: { name: string; jobs: string[] }[] = [
   { name: 'Gathering', jobs: ['scavenger', 'woodcutter', 'miner'] },
   { name: 'Animals', jobs: ['herder', 'hunter'] },
-  { name: 'Exploring', jobs: ['scout'] },
 ];
 /** Jobs assigned from their own tab: researchers on Research, blacksmiths and the alchemist on Forge. */
 export const JOB_ELSEWHERE: Record<string, string> = { researcher: '#research-jobs', shaman: '#research-jobs', blacksmith: '#forge-jobs', alchemist: '#forge-jobs' };
@@ -360,8 +359,7 @@ export class Hud {
     setText(this.idleNote, note ?? '');
     this.idleNote.classList.toggle('info', !(note ?? '').startsWith('They have'));
     for (const el of document.querySelectorAll<HTMLElement>('.idle-note')) setText(el, `${s.idle} idle`);
-    // scouts are only ever sent on purpose
-    const open = JOBS.filter((j) => jobOpen(s, j) && j.id !== 'digger' && j.id !== 'scout');
+    const open = JOBS.filter((j) => jobOpen(s, j) && j.id !== 'digger');
     syncOptions(this.newcomerSelect, [[IDLE, 'Idle (wait for orders)'], ...open.map((j) => [j.id, j.name] as [string, string])], s.newcomerJob);
 
     const hints = jobHints(s);

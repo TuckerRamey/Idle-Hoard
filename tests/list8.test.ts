@@ -22,6 +22,7 @@ import {
 } from '../src/game/gear';
 import { addHistory, nameKobold, type NamedKobold } from '../src/game/kobolds';
 import { lossStep } from '../src/game/losses';
+import { addArea } from '../src/game/areas';
 import { normalize } from '../src/game/save';
 import { newGame, rng, type GameState } from '../src/game/state';
 
@@ -89,8 +90,8 @@ describe('personal gear', () => {
     expect(toolAllocation(s).miner!.stone).toBe(3);
     expect(pieceText(k, 'tool', k.gear!.tool!)).toBe('steel pick ✦✦✦');
     // it follows them to another job
-    k.job = 'scout';
-    expect(pieceText(k, 'tool', k.gear!.tool!)).toBe('steel lantern ✦✦✦');
+    k.job = 'hunter';
+    expect(pieceText(k, 'tool', k.gear!.tool!)).toBe('steel spear ✦✦✦');
   });
 
   it('is upgraded at the forge from the commissions queue: marks, then the next tier, and a masterwork gets a name', () => {
@@ -138,7 +139,10 @@ describe('personal gear', () => {
 
   it('armor turns blows aside, and a lucky hat saves a kobold with no trinket', () => {
     const s = game();
-    const k = named(s, 'scout');
+    s.stage = 1;
+    s.research.done.push('monster-tracking');
+    addArea(s, 'bear-caves');
+    const k = named(s, 'hunter');
     expect(armorProtect(k)).toBe(0);
     let hat = 0;
     for (let i = 0; i < 50 && !hat; i++) if (luckyHat(k, T0, rng(s))) hat++;
@@ -147,8 +151,8 @@ describe('personal gear', () => {
     expect(trinketLuck(k)).toBeGreaterThan(1);
     givePiece(k, 'armor', { tier: 'adamant', marks: 3, origin: 'test' }, 'Armored.', T0);
     expect(armorProtect(k)).toBeCloseTo(0.75);
-    // a big scout team, with the named scout now very well armored: hurts are rare
-    s.crews.scout = { n: 0 };
+    // the named hunter now very well armored: hurts are rare
+    s.crews.hunter = { n: 0 };
     const rand = rng(s);
     let hurt = 0;
     for (let i = 0; i < 200; i++) {

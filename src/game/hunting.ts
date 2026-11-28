@@ -1,4 +1,4 @@
-// Hunting: hunters work the hunting grounds the scouts have found (see
+// Hunting: hunters work the hunting grounds found so far (see
 // areas.ts), best first, each up to so many kills an hour, and bring back meat. The dragon eats it a bite at a time, and each kind trains one of its
 // stats. Hunt enough of one kind and the researchers work out how to keep it
 // in the pasture, where it gives a steadier, weaker meat. Pure functions over

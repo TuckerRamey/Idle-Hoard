@@ -2,10 +2,10 @@
 // named kobolds are only hurt, and idle kobolds with nothing to do wander off.
 import { describe, expect, it } from 'vitest';
 import type { Chief } from '../src/game/chief';
-import { arrive, beds, tick, workers } from '../src/game/economy';
+import { tick, workers } from '../src/game/economy';
 import { dangerMult, exposed, LOSSES, lossesPerHour, lossStep } from '../src/game/losses';
 import { nameKobold } from '../src/game/kobolds';
-import { addArea, fills, setExploreTarget } from '../src/game/areas';
+import { addArea, fills } from '../src/game/areas';
 import { normalize } from '../src/game/save';
 import { newGame, rng, type GameState } from '../src/game/state';
 
@@ -18,6 +18,16 @@ function game(): GameState {
   s.newcomerJob = 'idle';
   s.seed = 31337;
   s.explore.target = null;
+  return s;
+}
+
+/** A game with every hunting ground found, so a crew of hundreds is all out on the hunt. */
+function huntingGame(): GameState {
+  const s = game();
+  s.stage = 5;
+  s.research.done.push('monster-tracking');
+  s.rooms.den.volume = 2000; // a deep room, for the deep grounds
+  for (const id of ['bear-caves', 'ember-pits', 'glow-pools', 'deep-warrens', 'basilisk-maze', 'wyvern-cliffs', 'elder-deeps']) addArea(s, id);
   return s;
 }
 
@@ -34,19 +44,19 @@ function run(s: GameState, hours: number) {
 }
 
 describe('dangerous work', () => {
-  it('loses about one scout for every 4 hours of scouting each', () => {
-    const s = game();
-    s.explore.target = 'wood';
-    s.crews.scout = { n: 100 };
-    expect(lossesPerHour(s, 'scout')).toBeCloseTo(25);
-    const { died, lines } = run(s, 5);
-    // fewer scouts as they're lost, so well under 125: about 100 × (1 − e^−1.25) ≈ 71
-    expect(died.scout).toBeGreaterThan(55);
-    expect(died.scout).toBeLessThan(85);
-    expect(s.crews.scout.n).toBe(100 - died.scout);
-    expect(s.oddities['memorial-wall'].count).toBe(died.scout);
-    expect(s.losses.died).toBe(died.scout);
-    expect(lines[0]).toMatch(/scout/i);
+  it('loses about one hunter for every 40 hours out on the hunt', () => {
+    const s = huntingGame();
+    s.crews.hunter = { n: 100 };
+    expect(exposed(s, 'hunter')).toBeCloseTo(100);
+    expect(lossesPerHour(s, 'hunter')).toBeCloseTo(2.5);
+    const { died, lines } = run(s, 10);
+    // fewer hunters as they're lost: about 100 × (1 − e^−0.25) ≈ 22
+    expect(died.hunter).toBeGreaterThan(12);
+    expect(died.hunter).toBeLessThan(32);
+    expect(s.crews.hunter.n).toBe(100 - died.hunter);
+    expect(s.oddities['memorial-wall'].count).toBe(died.hunter);
+    expect(s.losses.died).toBe(died.hunter);
+    expect(lines[0]).toMatch(/hunt|kill|ledge/i);
   });
 
   it('hunters are lost far less often, and miners only in the deep workings', () => {
@@ -65,17 +75,14 @@ describe('dangerous work', () => {
     expect(lossesPerHour(s, 'miner')).toBeGreaterThan(0);
   });
 
-  it('only the kobolds out working are at risk: idle scouts and hunters waiting their turn are safe', () => {
+  it('only the kobolds out working are at risk: hunters with no room on the grounds are safe', () => {
     const s = game();
-    s.crews.scout = { n: 100 };
-    setExploreTarget(s, null);
-    expect(lossesPerHour(s, 'scout')).toBe(0);
     s.stage = 3;
     s.research.done.push('monster-tracking');
     addArea(s, 'bear-caves');
     s.crews.hunter = { n: 10 };
     const few = lossesPerHour(s, 'hunter');
-    // ten times the hunters, but the grounds only take so much: the extra ones wait at home
+    // a hundred times the hunters, but the grounds only take so much: the extra ones go looking for more, safely
     s.crews.hunter = { n: 1000 };
     const f = fills(s, 'monsters');
     const working = f.fills.reduce((a, x) => a + x.used, 0) / f.raw;
@@ -86,33 +93,32 @@ describe('dangerous work', () => {
 
   it('research and better tools make it safer', () => {
     const s = game();
-    s.crews.scout = { n: 10 };
-    const bare = dangerMult(s, 'scout');
+    s.crews.miner = { n: 10 };
+    const bare = dangerMult(s, 'miner');
     s.research.done.push('ropes-and-lanterns');
-    expect(dangerMult(s, 'scout')).toBeCloseTo(bare * 0.5);
+    expect(dangerMult(s, 'miner')).toBeCloseTo(bare * 0.5);
     s.rack = { steel: { n: 10, wear: 0 } };
-    expect(dangerMult(s, 'scout')).toBeCloseTo((bare * 0.5) / 1.5);
+    expect(dangerMult(s, 'miner')).toBeCloseTo((bare * 0.5) / 1.5);
   });
 
   it('named kobolds are only hurt, and rest by the hoard for a few hours', () => {
-    const s = game();
+    const s = huntingGame();
     s.idle = 1;
     const k = nameKobold(s, 'idle', 'the Bold', 'Was bold.', T0, rng(s))!;
-    k.job = 'scout';
-    s.explore.target = 'wood';
-    s.crews.scout = { n: 0 };
-    const { died, lines } = run(s, 40);
-    expect(died.scout ?? 0).toBe(0);
+    k.job = 'hunter';
+    s.crews.hunter = { n: 0 };
+    const { died, lines } = run(s, 400);
+    expect(died.hunter ?? 0).toBe(0);
     expect(s.named).toHaveLength(1);
     expect(lines.some((l) => l.includes('resting by the hoard'))).toBe(true);
-    expect(k.history.some((h) => h.text.startsWith('Was badly hurt'))).toBe(true);
+    expect(k.history.some((h) => h.text.startsWith('Was mauled'))).toBe(true);
     k.restLeft = LOSSES.restSeconds;
     s.losses.acc = {};
-    expect(workers(s, 'scout')).toBe(0);
-    // resting, they aren't out scouting, so nothing can happen to them meanwhile
+    expect(workers(s, 'hunter')).toBe(0);
+    // resting, they aren't out hunting, so nothing can happen to them meanwhile
     lossStep(s, LOSSES.restSeconds - 1, T0, rng(s));
     lossStep(s, 1, T0, rng(s));
-    expect(workers(s, 'scout')).toBe(1);
+    expect(workers(s, 'hunter')).toBe(1);
   });
 
   it('nobody is ever hurt in the lab', () => {
@@ -148,15 +154,19 @@ describe('idle kobolds', () => {
     expect(s.idle).toBe(5);
   });
 
-  it('newcomers are never sent scouting on their own', () => {
+  it("old saves' scouts come home: crowd and named go back to idle", () => {
     const s = game();
-    s.newcomerJob = 'scout';
-    s.arrivalProgress = 1e9;
-    const n = arrive(s, 1);
-    expect(n).toBeGreaterThan(0);
-    expect(n).toBeLessThanOrEqual(beds(s));
-    expect(s.crews.scout?.n ?? 0).toBe(0);
-    expect(s.idle).toBe(n);
+    s.idle = 3;
+    const k = nameKobold(s, 'idle', 'the Bold', 'Was bold.', T0, rng(s))!;
+    const raw = JSON.parse(JSON.stringify(s));
+    raw.crews.scout = { n: 7 };
+    raw.newcomerJob = 'scout';
+    raw.named[0].job = 'scout';
+    const back = normalize(raw, T0);
+    expect(back.crews.scout).toBeUndefined();
+    expect(back.idle).toBe(s.idle + 7);
+    expect(back.newcomerJob).toBe('idle');
+    expect(back.named.find((x) => x.id === k.id)!.job).toBe('idle');
   });
 });
 

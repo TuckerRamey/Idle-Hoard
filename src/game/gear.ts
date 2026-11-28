@@ -57,7 +57,6 @@ export const TOOL_LOOK: Record<string, string> = {
   herder: 'crook',
   hunter: 'spear',
   shaman: 'rattle',
-  scout: 'lantern',
   alchemist: 'tongs',
   blacksmith: 'hammer',
 };
@@ -215,7 +214,6 @@ function jobVerb(job: string): string {
     herder: 'herding',
     hunter: 'hunting',
     shaman: 'reading bones',
-    scout: 'scouting',
     alchemist: 'at the alchemy bench',
     blacksmith: 'at the forge',
   };

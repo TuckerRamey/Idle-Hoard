@@ -87,7 +87,7 @@ export interface JobDef {
   channels?: number;
   /** Exploring points each kobold puts in per second. */
   explores?: number;
-  /** Works areas of this kind, and only opens once the scouts have found one. */
+  /** Works areas of this kind. Those with no room in them go looking for more. */
   area?: 'wood' | 'stone' | 'copper' | 'monsters';
   /** Research that opens this job. */
   requires?: string;
@@ -139,21 +139,12 @@ export const JOBS: JobDef[] = [
   {
     id: 'miner',
     name: 'Miner',
-    description: 'Cuts stone out of the rock the scouts have found. Iron-bearing ground gives iron ore too, once the researchers can sniff it out.',
+    description: 'Cuts stone out of the rock the warren knows of. Iron-bearing ground gives iron ore too, once the researchers can sniff it out.',
     produces: { resource: 'stone', rate: 0.5 },
     area: 'stone',
     sprite: 'kobold-miner',
     motion: { kind: 'haul', lane: 2, speed: 11 },
     firstText: 'The first miner gets a pick nearly bigger than they are. They love it.',
-  },
-  {
-    id: 'scout',
-    name: 'Scout',
-    description: 'Goes off into the dark to find new places to work. Eats provisions from the larder, once there is one.',
-    explores: 0.1,
-    sprite: 'kobold-scout',
-    motion: { kind: 'haul', lane: 0, speed: 20 },
-    firstText: 'The first scout went off into the dark with a torch and a sandwich. They came back with neither, and a map.',
   },
   {
     id: 'herder',
@@ -168,7 +159,7 @@ export const JOBS: JobDef[] = [
   {
     id: 'hunter',
     name: 'Hunter',
-    description: 'Hunts monsters on the grounds the scouts have found, best ground first. Their meat makes the dragon stronger.',
+    description: 'Hunts monsters on the grounds the warren knows of, best ground first. Their meat makes the dragon stronger.',
     hunts: 0.1,
     requires: 'monster-tracking',
     area: 'monsters',
