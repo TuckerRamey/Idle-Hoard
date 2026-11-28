@@ -7,19 +7,20 @@ import { canPromote } from '../game/kobolds';
 import type { GameState } from '../game/state';
 import { $ } from './dom';
 
-export type TabId = 'kobolds' | 'rooms' | 'stores' | 'research' | 'forge' | 'chief' | 'colonies' | 'oddities' | 'settings';
+export type TabId = 'leaders' | 'colonies' | 'oddities' | 'kobolds' | 'rooms' | 'stores' | 'research' | 'forge' | 'settings';
 
-const TABS: { id: TabId; name: string }[] = [
-  { id: 'kobolds', name: 'Kobolds' },
-  { id: 'rooms', name: 'Rooms' },
-  { id: 'stores', name: 'Stores' },
-  { id: 'research', name: 'Research' },
-  { id: 'forge', name: 'Forge' },
-  { id: 'chief', name: 'Chief' },
-  { id: 'colonies', name: 'Colonies' },
-  { id: 'oddities', name: 'Oddities' },
+/** Two rows: the warren's leaders and wider world on top, the day-to-day work below. */
+const TABS: { id: TabId; name: string; row: 0 | 1 }[] = [
+  { id: 'leaders', name: 'Leadership', row: 0 },
+  { id: 'colonies', name: 'Colonies', row: 0 },
+  { id: 'oddities', name: 'Oddities', row: 0 },
+  { id: 'kobolds', name: 'Gathering', row: 1 },
+  { id: 'rooms', name: 'Rooms', row: 1 },
+  { id: 'stores', name: 'Stores', row: 1 },
+  { id: 'research', name: 'Research', row: 1 },
+  { id: 'forge', name: 'Forge', row: 1 },
   // opened from the gear by the copper, so it has no tab of its own
-  { id: 'settings', name: 'Settings' },
+  { id: 'settings', name: 'Settings', row: 1 },
 ];
 
 const STORE_KEY = 'idle-hoard-tab';
@@ -27,8 +28,6 @@ const STORE_KEY = 'idle-hoard-tab';
 /** Something worth a dot when it changes: new names, finished projects, a Chief who can grow... */
 function newsKey(s: GameState, tab: TabId): string {
   switch (tab) {
-    case 'kobolds':
-      return `${s.named.length}|${s.named.filter((k) => k.epithet).length}|${s.named.filter((k) => canPromote(s, k)).length}`;
     case 'research':
       return `${s.research.done.length}|${s.research.current ? '' : 'idle'}`;
     case 'forge':
@@ -37,8 +36,8 @@ function newsKey(s: GameState, tab: TabId): string {
       return `${s.colonies.length}|${s.colonies.reduce((a, c) => a + c.history.length, 0)}`;
     case 'oddities':
       return `${Object.keys(s.oddities).length}`;
-    case 'chief':
-      return document.querySelector('#chief-grow')?.hasAttribute('hidden') ? '' : 'grow';
+    case 'leaders':
+      return `${document.querySelector('#chief-grow')?.hasAttribute('hidden') ? '' : 'grow'}|${s.named.length}|${s.named.filter((k) => k.epithet).length}|${s.named.filter((k) => canPromote(s, k)).length}`;
     default:
       return '';
   }
@@ -80,7 +79,7 @@ export class TabsView {
       b.querySelector('.tab-name')!.textContent = t.name;
       b.addEventListener('click', () => this.choose(t.id));
       this.buttons.set(t.id, b);
-      this.nav.append(b);
+      this.nav.querySelectorAll('.tabs')[t.row].append(b);
     }
   }
 
@@ -106,6 +105,10 @@ export class TabsView {
   update() {
     const s = this.getState();
     this.nav.hidden = !s.chief;
+    // the top row only shows once one of its tabs has something
+    const top = this.nav.querySelectorAll<HTMLElement>('.tabs')[0];
+    const topShown = TABS.some((t) => t.row === 0 && hasContent(this.panels.get(t.id)!));
+    if (top.hidden !== !topShown) top.hidden = !topShown;
     const shown = TABS.filter((t) => hasContent(this.panels.get(t.id)!)).map((t) => t.id);
     // a remembered tab that isn't there yet falls back to the first one
     const active = shown.includes(this.active) ? this.active : (shown[0] ?? 'kobolds');

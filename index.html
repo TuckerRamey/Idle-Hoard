@@ -64,17 +64,16 @@
           </div>
         </div></form>
 
-        <nav id="tabs" class="tabs" role="tablist" aria-label="Warren" hidden></nav>
+        <div id="tabs" class="tab-rows" hidden>
+          <nav class="tabs top" role="tablist" aria-label="Leaders and the world"></nav>
+          <nav class="tabs" role="tablist" aria-label="Work"></nav>
+        </div>
         <div class="tab-panel" data-tab="kobolds">
         <h2>Kobolds · <span id="pop-count">0 kobolds</span></h2>
         <p id="pop-text" class="desc"></p>
         <div class="step-row"><span class="desc">Move</span> <div id="step" class="step" role="group" aria-label="How many to move at once"></div></div>
         <ul id="jobs" class="list"></ul>
 
-        <details id="named-section" class="named-section" open hidden>
-          <summary>Named kobolds · <span id="named-summary"></span></summary>
-          <ul id="named" class="list"></ul>
-        </details>
         </div>
         <div class="tab-panel" data-tab="rooms">
         <p id="dig-status" class="desc"></p>
@@ -109,7 +108,7 @@
           <ul id="art" class="list"></ul>
         </div>
         </div>
-        <div class="tab-panel" data-tab="chief">
+        <div class="tab-panel" data-tab="leaders">
         <section id="chief-card" class="chief-card" hidden>
           <h2 id="chief-title">Chief</h2>
           <p id="chief-quirk" class="desc"></p>
@@ -119,6 +118,10 @@
             <div id="chief-grow-buttons" class="grow-buttons"></div>
           </div>
         </section>
+        <details id="named-section" class="named-section" open hidden>
+          <summary>Named kobolds · <span id="named-summary"></span></summary>
+          <ul id="named" class="list"></ul>
+        </details>
         </div>
         <div class="tab-panel" data-tab="colonies">
         <div id="colonies-section" hidden>
