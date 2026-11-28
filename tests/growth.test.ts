@@ -250,7 +250,7 @@ describe('named kobolds', () => {
 
   it('happenings give crowd kobolds names and stories', () => {
     const s = game();
-    s.crews = { scavenger: { n: 20 }, woodcutter: { n: 20 }, quarrier: { n: 20 } };
+    s.crews = { scavenger: { n: 20 }, woodcutter: { n: 20 }, miner: { n: 20 } };
     const rand = rng(s);
     for (let i = 0; i < 200; i++) happen(s, T0 + i, rand);
     expect(s.named.length).toBe(6); // one in ten of 60
@@ -327,8 +327,8 @@ describe('the dragon', () => {
 
   it('an audience names a crowd kobold and gives them a gift', () => {
     const s = hatched();
-    s.crews.quarrier = { n: 3 };
-    s.dragon.request = { kind: 'audience', namedId: null, job: 'quarrier', name: 'one of the quarriers', until: 1e9 };
+    s.crews.miner = { n: 3 };
+    s.dragon.request = { kind: 'audience', namedId: null, job: 'miner', name: 'one of the miners', until: 1e9 };
     expect(grantRequest(s, T0, rng(s))).toMatch(/came back with/);
     expect(s.named).toHaveLength(1);
     expect(s.named[0].gifts).toHaveLength(1);
@@ -398,7 +398,7 @@ describe('a long absence with everything going', () => {
     s.crews = {
       scavenger: { n: 10 },
       woodcutter: { n: 6 },
-      quarrier: { n: 6 },
+      miner: { n: 6 },
       digger: { n: 4 },
       researcher: { n: 4 },
       herder: { n: 3 },

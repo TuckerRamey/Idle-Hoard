@@ -137,10 +137,6 @@ export const TALENTS: Record<string, [string, string][]> = {
     ['Mushroom-whisperer', 'found the giant mushrooms just fall over for them'],
     ['Steady-handed', 'felled a whole stalk without a single wobble'],
   ],
-  quarrier: [
-    ['Stone-reader', 'knew exactly where the stone would split'],
-    ['Rockjaw', 'could break a block just by glaring at it'],
-  ],
   digger: [
     ['Tunnel-sense', 'always knew which way the soft earth was'],
     ['Shovel-hands', 'dug faster with their claws than with the shovel'],
@@ -152,6 +148,8 @@ export const TALENTS: Record<string, [string, string][]> = {
   miner: [
     ['Seam-finder', 'followed an ore seam by ear'],
     ['Dark-eyed', 'turned out to see fine in the deepest tunnels'],
+    ['Stone-reader', 'knew exactly where the stone would split'],
+    ['Rockjaw', 'could break a block just by glaring at it'],
   ],
   herder: [
     ['Crab-charmer', 'had the whole herd following them about'],
@@ -172,7 +170,6 @@ export const TALENTS: Record<string, [string, string][]> = {
 export const EPITHETS: Record<string, string> = {
   scavenger: 'finds coins like a dragon',
   woodcutter: 'fells mushrooms like a dragon',
-  quarrier: 'breaks stone like a dragon',
   digger: 'digs like a dragon',
   researcher: 'thinks like a dragon',
   miner: 'mines like a dragon',

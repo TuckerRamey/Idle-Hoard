@@ -37,7 +37,6 @@ export const TIERS: TierDef[] = [
 export const TOOL_NAMES: Record<string, string> = {
   scavenger: 'sacks',
   woodcutter: 'axes',
-  quarrier: 'chisels',
   digger: 'shovels',
   miner: 'picks',
   researcher: 'goggles',

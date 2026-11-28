@@ -111,12 +111,12 @@ describe('the forge', () => {
 
   it('tools wear out with use, about once a week each, and unused ones do not', () => {
     const s = game();
-    s.crews.quarrier = { n: 2 };
-    s.tools.quarrier = { stone: { n: 4, wear: 0 } };
+    s.crews.miner = { n: 2 };
+    s.tools.miner = { stone: { n: 4, wear: 0 } };
     tick(s, FORGE.toolLifeSeconds / 2 + 10);
-    expect(s.tools.quarrier.stone!.n).toBe(3);
+    expect(s.tools.miner.stone!.n).toBe(3);
     tick(s, FORGE.toolLifeSeconds / 2);
-    expect(s.tools.quarrier.stone!.n).toBe(2);
+    expect(s.tools.miner.stone!.n).toBe(2);
   });
 
   it('the automatic order makes tools for whoever is shortest of the best kind', () => {
@@ -144,7 +144,7 @@ describe('the stores show forge use steadily', () => {
     const s = newGame(0);
     s.chief = { name: 'A', cunning: 1, voice: 1, nerve: 1, quirk: 'none' };
     s.research.done.push('ore-sniffing', 'smithing', 'second-anvil');
-    s.crews = { scavenger: { n: 6 }, quarrier: { n: 4 }, miner: { n: 4 }, woodcutter: { n: 4 }, blacksmith: { n: 3 } };
+    s.crews = { scavenger: { n: 6 }, miner: { n: 8 }, woodcutter: { n: 4 }, blacksmith: { n: 3 } };
     s.res.stone = 500;
     s.res.wood = 500;
     s.res.ore = 300;

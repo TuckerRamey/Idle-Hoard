@@ -42,15 +42,15 @@ describe('scene', () => {
 
   it('draws every job that has a crew', () => {
     const s = newGame(T0);
-    for (const id of ['scavenger', 'woodcutter', 'quarrier', 'digger']) s.crews[id] = { n: 2 };
+    for (const id of ['scavenger', 'woodcutter', 'miner', 'digger']) s.crews[id] = { n: 2 };
     const sprites = new Set(buildScene(s, T0).map((o) => o.sprite));
-    for (const sp of ['kobold-scavenger', 'kobold-woodcutter', 'kobold-quarrier', 'kobold-digger']) expect(sprites.has(sp)).toBe(true);
+    for (const sp of ['kobold-scavenger', 'kobold-woodcutter', 'kobold-miner', 'kobold-digger']) expect(sprites.has(sp)).toBe(true);
   });
 
   it('every sprite the scene uses is in the manifest', () => {
     const s = newGame(T0);
     s.chief = { name: 'Snik', cunning: 2, voice: 2, nerve: 2, quirk: 'packrat' };
-    for (const id of ['scavenger', 'woodcutter', 'quarrier', 'digger']) s.crews[id] = { n: 2 };
+    for (const id of ['scavenger', 'woodcutter', 'miner', 'digger']) s.crews[id] = { n: 2 };
     s.idle = 2;
     for (const stage of [0, 1, 2, 3]) {
       s.stage = stage;
