@@ -10,7 +10,7 @@ import { opened, researchEffects } from './research';
 import type { GameState } from './state';
 import { JOBS } from './data';
 
-export type ToolTier = 'stone' | 'iron' | 'steel';
+export type ToolTier = 'stone' | 'iron' | 'steel' | 'mithril' | 'adamant';
 
 export interface TierDef {
   id: ToolTier;
@@ -28,6 +28,9 @@ export const TIERS: TierDef[] = [
   { id: 'stone', name: 'Stone', mult: 1.1, work: 20, cost: { stone: 2, wood: 1 }, requires: 'smithing' },
   { id: 'iron', name: 'Iron', mult: 1.25, work: 40, cost: { bars: 2, wood: 1 }, requires: 'ironworking' },
   { id: 'steel', name: 'Steel', mult: 1.5, work: 80, cost: { steel: 2, wood: 1 }, requires: 'steelmaking' },
+  // only from finds: rare metals, worked once the researchers know how
+  { id: 'mithril', name: 'Mithril', mult: 1.8, work: 120, cost: { mithril: 1, steel: 1 }, requires: 'mithril-working' },
+  { id: 'adamant', name: 'Adamant', mult: 2.2, work: 200, cost: { adamant: 1, mithril: 1 }, requires: 'adamant-working' },
 ];
 
 /** Each job's own tool. Never shared. */
@@ -142,7 +145,7 @@ export function toolCount(state: GameState, job: string): number {
   return n;
 }
 
-function addTool(state: GameState, job: string, tier: ToolTier, n = 1) {
+export function addTool(state: GameState, job: string, tier: ToolTier, n = 1) {
   const byTier = (state.tools[job] ??= {});
   const s = (byTier[tier] ??= { n: 0, wear: 0 });
   s.n += n;

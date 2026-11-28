@@ -2,7 +2,7 @@
 // text that changed are written, so it costs next to nothing.
 
 import { toolSummary } from '../game/forge';
-import { DIG, DRAGON_STAGES, IDLE, JOBS, RESOURCES, ROOMS, type ResourceId } from '../game/data';
+import { DIG, DRAGON_STAGES, GEMS, IDLE, JOBS, RESOURCES, ROOMS, type ResourceId } from '../game/data';
 import { animalsOpen, setHerd, worthRate } from '../game/dragon';
 import {
   appeal,
@@ -146,7 +146,11 @@ export class Hud {
       this.resRows.set(r.id, { li, amount: li.querySelector('.amount')!, rate: li.querySelector('.res-rate')!, note: li.querySelector('.note')! });
       list.append(li);
     }
+    // gems: treasure, only ever found
+    this.gemRow = row(`<div class="row-main"><div class="res-line"><b>Gems</b><span class="amount"></span></div><div class="sub note"></div></div>`);
+    list.append(this.gemRow);
   }
+  private gemRow!: HTMLLIElement;
 
   private buildJobs() {
     // one "move how many" choice, shown on every tab that moves kobolds
@@ -279,6 +283,8 @@ export class Hud {
     // the hoard's worth, with what it's made of underneath once there's more than copper
     setText(this.copper, formatNumber(hoardValue(s)));
     const metals = RESOURCES.filter((r) => r.value && resourceOpen(s, r.id)).map((r) => `${formatNumber(s.res[r.id])} ${r.name.toLowerCase()}`);
+    const gemCount = Object.values(s.gems).reduce((a, n) => a + n, 0);
+    if (gemCount > 0) metals.push(`${formatNumber(gemCount)} gem${gemCount === 1 ? '' : 's'}`);
     setText(this.worthUnit, metals.length > 1 ? 'worth' : 'copper');
     setText(this.metals, metals.length > 1 ? metals.join(' · ') : '');
     setText(this.rate, `${formatNumber(worthRate(s))} / s`);
@@ -301,6 +307,13 @@ export class Hud {
   }
 
   private updateResources(s: GameState) {
+    const kinds = GEMS.filter((g) => (s.gems[g.id] ?? 0) > 0);
+    setHidden(this.gemRow, kinds.length === 0);
+    if (kinds.length) {
+      const worth = kinds.reduce((a, g) => a + g.value * s.gems[g.id], 0);
+      setText(this.gemRow.querySelector<HTMLElement>('.amount')!, `${formatNumber(worth)} worth`);
+      setText(this.gemRow.querySelector<HTMLElement>('.note')!, `${kinds.map((g) => `${s.gems[g.id]} ${g.name.toLowerCase()}`).join(', ')}. Kept on the hoard; they take no room.`);
+    }
     const f = flows(s);
     for (const r of RESOURCES) {
       const row = this.resRows.get(r.id)!;
@@ -311,7 +324,7 @@ export class Hud {
       const net = fl.in - fl.out;
       setText(row.rate, fl.in === 0 && fl.out === 0 ? '' : `${net >= 0 ? '+' : '−'}${formatNumber(Math.abs(net))} / s`);
       row.rate.classList.toggle('warn', net < 0);
-      const by = fl.usedBy === 'digging' ? 'Digging' : fl.usedBy === 'alchemy' ? 'The alchemist' : 'The dragon';
+      const by = fl.usedBy === 'digging' ? 'Digging' : fl.usedBy === 'alchemy' ? 'The alchemist' : fl.usedBy === 'forge' ? 'The forge' : 'The dragon';
       let note = '';
       if (fl.held >= fl.cap && fl.in > 0 && net >= 0) note = 'Full. Anything more is lost until the room is dug bigger.';
       else if (fl.out > 0 && net < 0)

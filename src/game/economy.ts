@@ -3,6 +3,7 @@
 
 import { PIP_ODDITIES, quirkOf, raiseStat } from './chief';
 import { artStep } from './art';
+import { findStep } from './finds';
 import {
   ATTRACTION,
   CONFIG,
@@ -11,6 +12,7 @@ import {
   HOARD_SIZE_THRESHOLDS,
   IDLE,
   JOBS,
+  GEMS,
   RECIPES,
   RESOURCES,
   ROOMS,
@@ -33,7 +35,7 @@ export const roomDef = (id: string) => ROOMS.find((r) => r.id === id);
 export const resourceDef = (id: ResourceId) => RESOURCES.find((r) => r.id === id)!;
 export const recipeDef = (id: string) => RECIPES.find((r) => r.id === id);
 
-export const emptyRes = () => ({ copper: 0, silver: 0, gold: 0, wood: 0, stone: 0, ore: 0, bars: 0, steel: 0, meat: 0 }) as Record<ResourceId, number>;
+export const emptyRes = () => ({ copper: 0, silver: 0, gold: 0, wood: 0, stone: 0, ore: 0, bars: 0, steel: 0, mithril: 0, adamant: 0, meat: 0 }) as Record<ResourceId, number>;
 
 // ---------- what's open ----------
 
@@ -43,6 +45,7 @@ export function jobOpen(state: GameState, def: JobDef): boolean {
 
 export function resourceOpen(state: GameState, res: ResourceId): boolean {
   const def = resourceDef(res);
+  if (def.foundOnly) return state.discovered.includes(res);
   return opened(state, def.requires) && state.stage >= (def.minStage ?? 0);
 }
 
@@ -448,10 +451,11 @@ export function jobHints(state: GameState): Record<string, string> {
 
 // ---------- kobolds coming to the hoard ----------
 
-/** The hoard's worth in copper: copper, silver and gold together. */
+/** The hoard's worth in copper: copper, silver, gold and gems together. */
 export function hoardValue(state: GameState): number {
   let v = 0;
   for (const r of RESOURCES) if (r.value) v += state.res[r.id] * r.value;
+  for (const g of GEMS) v += (state.gems[g.id] ?? 0) * g.value;
   return v;
 }
 
@@ -577,6 +581,7 @@ export function tick(state: GameState, seconds: number, t = state.lastTick): Tic
     r.events.push(...artStep(state, dt, at, rand));
     r.events.push(...oddityPips(state));
     r.events.push(...talentStep(state, dt, at, rand));
+    r.events.push(...findStep(state, dt, at, rand));
     r.events.push(...epithetStep(state, at));
     r.events.push(...colonyStep(state, dt, at, rand));
     const s = stageFor(hoardValue(state));

@@ -3,7 +3,7 @@
 // src/render/manifest.ts if it needs a new sprite).
 
 export type SpriteId = string;
-export type ResourceId = 'copper' | 'silver' | 'gold' | 'wood' | 'stone' | 'ore' | 'bars' | 'steel' | 'meat';
+export type ResourceId = 'copper' | 'silver' | 'gold' | 'wood' | 'stone' | 'ore' | 'bars' | 'steel' | 'mithril' | 'adamant' | 'meat';
 
 export interface ResourceDef {
   id: ResourceId;
@@ -18,6 +18,8 @@ export interface ResourceDef {
   requires?: string;
   /** Dragon stage that uncovers it (the dragon makes silver, then gold). */
   minStage?: number;
+  /** Only found, never made: it's known once the first one turns up. */
+  foundOnly?: boolean;
 }
 
 export const RESOURCES: ResourceDef[] = [
@@ -29,7 +31,29 @@ export const RESOURCES: ResourceDef[] = [
   { id: 'ore', name: 'Iron ore', store: 'metals', perPace: 40, requires: 'ore-sniffing' },
   { id: 'bars', name: 'Iron bars', store: 'metals', perPace: 80, requires: 'smithing' },
   { id: 'steel', name: 'Steel', store: 'metals', perPace: 80, requires: 'steelmaking' },
+  { id: 'mithril', name: 'Mithril', store: 'metals', perPace: 80, foundOnly: true },
+  { id: 'adamant', name: 'Adamant', store: 'metals', perPace: 80, foundOnly: true },
   { id: 'meat', name: 'Meat', store: 'larder', perPace: 30, requires: 'crab-wrangling' },
+];
+
+/** Gems: treasure on the hoard, only ever found. Each adds its worth to the hoard. */
+export interface GemDef {
+  id: string;
+  name: string;
+  /** Worth in copper. */
+  value: number;
+  rarity: 'common' | 'uncommon' | 'rare' | 'very rare';
+}
+
+export const GEMS: GemDef[] = [
+  { id: 'quartz', name: 'Quartz', value: 50, rarity: 'common' },
+  { id: 'amber', name: 'Amber', value: 80, rarity: 'common' },
+  { id: 'garnet', name: 'Garnet', value: 400, rarity: 'uncommon' },
+  { id: 'amethyst', name: 'Amethyst', value: 500, rarity: 'uncommon' },
+  { id: 'sapphire', name: 'Sapphire', value: 3_000, rarity: 'rare' },
+  { id: 'emerald', name: 'Emerald', value: 4_000, rarity: 'rare' },
+  { id: 'ruby', name: 'Ruby', value: 20_000, rarity: 'very rare' },
+  { id: 'star-diamond', name: 'Star diamond', value: 50_000, rarity: 'very rare' },
 ];
 
 /** How a job's kobolds move around the cave. Purely visual. */

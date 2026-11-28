@@ -158,7 +158,7 @@ function normalizeTools(v: unknown): GameState['tools'] {
   for (const [job, tiers] of Object.entries(v as Record<string, any>)) {
     if (!tiers || typeof tiers !== 'object') continue;
     out[job] = {};
-    for (const t of ['stone', 'iron', 'steel'] as const)
+    for (const t of ['stone', 'iron', 'steel', 'mithril', 'adamant'] as const)
       if (tiers[t]) out[job][t] = { n: Math.floor(num(tiers[t].n, 0)), wear: Math.min(1, num(tiers[t].wear, 0)) };
   }
   return out;
@@ -344,6 +344,8 @@ export function normalize(raw: unknown, now: number): GameState {
       ),
     },
     tools: normalizeTools(r.tools),
+    gems: Object.fromEntries(Object.entries(r.gems && typeof r.gems === 'object' ? r.gems : {}).filter(([, v]) => typeof v === 'number' && Number.isFinite(v) && v > 0)) as Record<string, number>,
+    discovered: strList(r.discovered),
     seed: Number.isInteger(r.seed) ? r.seed : base.seed,
   };
 }

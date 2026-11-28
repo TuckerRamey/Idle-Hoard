@@ -23,6 +23,9 @@ export const ODDITIES: OddityDef[] = [
   { id: 'shed-scales', name: 'Shed dragon scales', description: '{n} of them, each the size of a shield. The dragon leaves them for kobolds it likes. Nobody knows what they are for yet.', stacks: true },
   { id: 'old-bones', name: 'Very old bones', description: '{n} of them, dug out of the walls. They belonged to something enormous. It is definitely gone.', stacks: true },
   { id: 'colony-gifts', name: 'Gifts from the colonies', description: '{n} carvings of the dragon, sent by the colonies. Each one is smaller than the real thing, and more serious.', stacks: true },
+  { id: 'fossil', name: 'Fossils', description: '{n} stone shells and bones, from things that lived down here before anyone. One of them looks a bit like the Chief.', stacks: true },
+  { id: 'first-gems', name: 'First gems', description: 'The first of each kind of gem found, kept apart from the hoard: {n} so far. The dragon checks on them.', stacks: true },
+  { id: 'dwarf-tools', name: 'Dwarf-made tools', description: '{n} found in the walls, still sharp. Too good to wear out, so they hang on the wall.', stacks: true },
   { id: 'shed-skins', name: 'Shed dragon skins', description: '{n} of them, each bigger than the last. Kept rolled up beside the hoard like rugs.', stacks: true },
 ];
 

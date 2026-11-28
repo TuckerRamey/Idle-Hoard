@@ -172,6 +172,11 @@ describe('research', () => {
       };
       for (const q of r.requires) walk(q);
       learn(s, ...need);
+      // projects that need something found first open once it has been
+      for (const id of [...need, r.id]) {
+        const f = researchDef(id)!.found;
+        if (f) s.discovered.push(f);
+      }
       for (const res of Object.keys(r.resources ?? {})) expect(resourceOpen(s, res as ResourceId), `${r.id} uses ${res}`).toBe(true);
     }
   });
