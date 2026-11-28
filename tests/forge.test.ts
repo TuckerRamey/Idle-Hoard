@@ -1,7 +1,7 @@
 // The forge: smelting, order slots, tool tiers, wear, and who gets the best tools.
 import { describe, expect, it } from 'vitest';
 import type { Chief } from '../src/game/chief';
-import { jobDef, jobOutput, tick } from '../src/game/economy';
+import { flows, jobDef, jobOutput, tick } from '../src/game/economy';
 import {
   autoJob,
   bestTier,
@@ -136,5 +136,32 @@ describe('the forge', () => {
     const three = forgeRate(s);
     s.crews.blacksmith = { n: 30, exp: 0 };
     expect(forgeRate(s)).toBeCloseTo(three);
+  });
+});
+
+describe('the stores show forge use steadily', () => {
+  it("tool orders' use is smoothed, so it doesn't blink as kobolds arrive and tools are made", () => {
+    const s = newGame(0);
+    s.chief = { name: 'A', cunning: 1, voice: 1, nerve: 1, quirk: 'none' };
+    s.research.done.push('ore-sniffing', 'smithing', 'second-anvil');
+    s.crews = { scavenger: { n: 6, exp: 0 }, quarrier: { n: 4, exp: 0 }, miner: { n: 4, exp: 0 }, woodcutter: { n: 4, exp: 0 }, blacksmith: { n: 3, exp: 0 } };
+    s.res.stone = 500;
+    s.res.wood = 500;
+    s.res.ore = 300;
+    syncSlots(s);
+    setOrder(s, 0, 'smelt');
+    setOrder(s, 1, 'auto');
+    let prev: { stone: number; ore: number } | null = null;
+    for (let i = 0; i < 200; i++) {
+      tick(s, 30);
+      if (i % 20 === 0) s.crews.scavenger.n += 1; // a newcomer who needs a tool
+      const f = flows(s);
+      const now = { stone: f.stone.out, ore: f.ore.out };
+      if (prev && i > 5) {
+        expect(Math.abs(now.stone - prev.stone)).toBeLessThan(0.01);
+        expect(Math.abs(now.ore - prev.ore) / prev.ore).toBeLessThan(0.05);
+      }
+      prev = now;
+    }
   });
 });

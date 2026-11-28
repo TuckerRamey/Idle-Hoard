@@ -83,7 +83,8 @@ export interface GameState {
   colonies: Colony[];
   nextColonyId: number;
   /** The forge's order slots. */
-  forge: { slots: ForgeSlot[] };
+  /** The forge's order slots, and what tool orders have been using lately (per second, smoothed). */
+  forge: { slots: ForgeSlot[]; toolUse: Partial<Record<ResourceId, number>> };
   /** Tools each job holds, by tier. They stay with the job. */
   tools: Record<string, Partial<Record<'stone' | 'iron' | 'steel', ToolStock>>>;
   /** For the game's own dice (mishaps, requests), so runs replay the same in tests. */
@@ -175,7 +176,7 @@ export function newGame(now: number): GameState {
     chiefMarks: { oddities: 0, events: [], pending: 0 },
     colonies: [],
     nextColonyId: 1,
-    forge: { slots: [] },
+    forge: { slots: [], toolUse: {} },
     tools: {},
     seed: (now % 2_147_483_647) || 1,
   };
