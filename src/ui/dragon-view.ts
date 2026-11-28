@@ -2,7 +2,7 @@
 // craves, what it wants right now, and what its next molt needs.
 
 import { meatOnHand } from '../game/hunting';
-import { nextRaid, RAID, raidDef, raidTarget } from '../game/raids';
+import { nextRaid, RAID, raidDef, raidForecast, raidTarget } from '../game/raids';
 import { animalName, boostLeft, dragonStat, STATS, trainCap, dismissRequest, FAVOR, favorJobs, favorName, grantRequest, mood, moltNeeds, DIET, refineRates, sizeCap, SIZE, useFavor } from '../game/dragon';
 import { hoardValue, resourceDef, resourceOpen } from '../game/economy';
 import { rng, type GameState } from '../game/state';
@@ -95,7 +95,8 @@ export class DragonView {
       const target = raidTarget(s);
       const next = nextRaid(s);
       const when = d.nextRaidAt > d.clock ? ` in about ${formatDuration(d.nextRaidAt - d.clock)}` : ' once it’s fed and content';
-      raid = target ? `Next raid: a ${target.name}${when}.` : '';
+      raid = target ? `Next raid: a ${target.name}${when}${s.magic.blessed ? ', blessed' : ''}.` : '';
+      if (target && s.magic.vision > 0) raid += ` The bones say it will bring back ${raidForecast(s, target)}.`;
       if (next) raid += ` A ${next.def.name} needs ${next.needs.join(' and ')}.`;
     } else raid = 'Once it’s a young dragon, it will go raiding on its own.';
     setText(this.raidEl, raid.trim());

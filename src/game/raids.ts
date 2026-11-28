@@ -4,7 +4,8 @@
 // home. Pure functions over GameState; they return chronicle lines.
 
 import { GEMS, type ResourceId } from './data';
-import { dragonStat, thriving } from './dragon';
+import { dragonStat, thriving, type StatId } from './dragon';
+import { MAGIC } from './magic';
 import { assign, beds, jobDef, jobOpen, population, store } from './economy';
 import { addHistory, findNamed, fullName, lieutenants, type NamedKobold } from './kobolds';
 import type { GameState } from './state';
@@ -81,8 +82,13 @@ export const RAID = {
 
 export const raidDef = (id: string) => RAIDS.find((r) => r.id === id);
 
+/** A stat as it counts for the next raid: a shaman's blessing makes it count for more. */
+export function raidStat(state: GameState, id: StatId, blessed = state.magic.blessed): number {
+  return Math.floor(dragonStat(state, id) * (blessed ? MAGIC.blessMult : 1));
+}
+
 export function raidOpen(state: GameState, r: RaidDef): boolean {
-  return state.stage >= r.minStage && dragonStat(state, 'might') >= r.might && dragonStat(state, 'fire') >= (r.fire ?? 0);
+  return state.stage >= r.minStage && raidStat(state, 'might') >= r.might && raidStat(state, 'fire') >= (r.fire ?? 0);
 }
 
 /** The richest place it would raid now. */
@@ -100,12 +106,23 @@ export function nextRaid(state: GameState): { def: RaidDef; needs: string[] } | 
   const def = RAIDS[i + 1];
   if (!def) return null;
   const needs: string[] = [];
-  const might = dragonStat(state, 'might');
-  const fire = dragonStat(state, 'fire');
+  const might = raidStat(state, 'might');
+  const fire = raidStat(state, 'fire');
   if (state.stage < def.minStage) needs.push('a bigger dragon');
   if (might < def.might) needs.push(`Might ${def.might} (has ${might})`);
   if (def.fire && fire < def.fire) needs.push(`Fire ${def.fire} (has ${fire})`);
   return { def, needs };
+}
+
+/** What the bones say a raid will bring back: each loot range at today's Fire. */
+export function raidForecast(state: GameState, def: RaidDef): string {
+  const mult = 1 + raidStat(state, 'fire') * RAID.firePerPoint;
+  const parts = (Object.entries(def.loot) as [ResourceId, Range][]).map(
+    ([res, [a, b]]) => `${fmt(a * mult * 0.7)} to ${fmt(b * mult * 1.3)} ${res === 'ore' ? 'iron ore' : res}`,
+  );
+  if (def.gems) parts.push(def.gems.chance >= 1 ? `${def.gems.n === 1 ? 'a gem' : `${def.gems.n} gems`}` : 'maybe a gem');
+  if (def.adamantChance) parts.push('maybe adamant');
+  return parts.join(', ');
 }
 
 function roll([a, b]: Range, rand: () => number): number {
@@ -134,8 +151,8 @@ function addGem(state: GameState, rarity: 'uncommon' | 'rare' | 'very rare', ran
 const fmt = (n: number) => Math.floor(n).toLocaleString('en-US');
 
 /** Bring the loot home. Returns the lines. */
-function comeHome(state: GameState, def: RaidDef, rider: NamedKobold | null, t: number, rand: () => number): string[] {
-  const mult = (1 + dragonStat(state, 'fire') * RAID.firePerPoint) * (0.7 + rand() * 0.6);
+function comeHome(state: GameState, def: RaidDef, rider: NamedKobold | null, blessed: boolean, t: number, rand: () => number): string[] {
+  const mult = (1 + raidStat(state, 'fire', blessed) * RAID.firePerPoint) * (0.7 + rand() * 0.6);
   const got: string[] = [];
   let lost = false;
   for (const [res, range] of Object.entries(def.loot) as [ResourceId, Range][]) {
@@ -157,7 +174,7 @@ function comeHome(state: GameState, def: RaidDef, rider: NamedKobold | null, t: 
       got.push(`a ${addGem(state, rarity, rand, t)}`);
     }
   // kobolds who follow it home, as long as there are beds
-  const want = Math.round(roll(def.recruits, rand) * (1 + dragonStat(state, 'presence') * RAID.presencePerPoint));
+  const want = Math.round(roll(def.recruits, rand) * (1 + raidStat(state, 'presence', blessed) * RAID.presencePerPoint));
   const n = Math.max(0, Math.min(want, beds(state) - population(state)));
   if (n > 0) {
     state.idle += n;
@@ -191,9 +208,10 @@ export function raidStep(state: GameState, t: number, rand: () => number): strin
     if (d.clock < d.raid.until) return [];
     const def = raidDef(d.raid.target);
     const rider = d.raid.rider !== null ? (findNamed(state, d.raid.rider) ?? null) : null;
+    const blessed = d.raid.blessed === true;
     d.raid = null;
     d.nextRaidAt = d.clock + RAID.everySeconds * (0.75 + rand() * 0.5);
-    return def ? comeHome(state, def, rider, t, rand) : [];
+    return def ? comeHome(state, def, rider, blessed, t, rand) : [];
   }
   if (!d.nextRaidAt) {
     d.nextRaidAt = d.clock + RAID.firstSeconds;
@@ -203,9 +221,11 @@ export function raidStep(state: GameState, t: number, rand: () => number): strin
   const def = raidTarget(state);
   if (!def) return [];
   const rider = pickRider(state, rand);
-  d.raid = { target: def.id, until: d.clock + def.hours * 3600, rider: rider?.id ?? null };
+  const blessed = state.magic.blessed;
+  state.magic.blessed = false;
+  d.raid = { target: def.id, until: d.clock + def.hours * 3600, rider: rider?.id ?? null, ...(blessed ? { blessed } : {}) };
   const first = Object.values(d.raided).reduce((a, n) => a + n, 0) === 0;
   return [
-    `${first ? 'For the first time, the dragon' : 'The dragon'} stretched its wings and flew off to raid a ${def.name}${rider ? `, with ${fullName(rider)} clinging to its back` : ''}. It should be back in about ${def.hours} hours.`,
+    `${first ? 'For the first time, the dragon' : 'The dragon'} stretched its wings and flew off to raid a ${def.name}${blessed ? ', the shamans’ runes still glowing on its scales' : ''}${rider ? `, with ${fullName(rider)} clinging to its back` : ''}. It should be back in about ${def.hours} hours.`,
   ];
 }

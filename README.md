@@ -107,6 +107,8 @@ It has three **stats** (`dragonStat` in `dragon.ts`). Each stage gives a base, a
 
 From the young dragon on, it goes **raiding** by itself about twice a day (`src/game/raids.ts`), to the richest place its Might allows: a farmstead, a village, a town, a dwarf hold, a city, or a wizard's tower (which needs Fire too). It's gone a few hours, eats and asks for nothing meanwhile, and comes back with copper, silver, gold, gems, sometimes mithril or adamant, kobolds who followed it home (if there are beds), and now and then a lieutenant who rode along and is a Dragon-rider from then on.
 
+**Shamans** (`src/game/magic.ts`, opened by bone-reading, assigned from the Research tab) draw **mana** out of monster bones from the hunters and **dragon dust** ground from its shed scales and skins (dust is richer and used first). Mana, up to 200, is spent on **rituals** on the Leadership tab: *Bless the dragon* (its stats count 25% more for its next raid), *Stone-song* (digging twice as fast for an hour), *Read the bones* (for a day, the dragon card shows its next craving as soon as it's decided, and what the next raid should bring back) and *Lucky charm* (the next 3 finds are at least uncommon). From the elder dragon on, it now and then casts a spell of its own: blue fire for the shamans, copper breathed into gold, and at the ancient stage a call that draws kobolds in, or a gem it dreamed into being.
+
 There are five stages after the egg: wyrmling, young, adult, elder and ancient. Its tastes grow with it: later molts want silver, then gold, then several kinds of gem, and the last wants a ruby or a star diamond and a raid on a city.
 
 The coin pile in the cave shows the copper you hold right now, so it shrinks as the dragon refines it. While the dragon is away raiding, the pile sits unguarded.
@@ -165,10 +167,10 @@ Not built yet, but the code is set up so neither needs a rewrite:
 ```
 src/
   game/       data.ts (content), chief.ts (stats, quirks), research.ts, kobolds.ts (named kobolds), forge.ts, art.ts, events.ts (digging finds, talents, epithets), colonies.ts, goals.ts,
-              dragon.ts (diet, requests, stats, size, refining, molting), hunting.ts, raids.ts, finds.ts, happenings.ts, oddities.ts,
+              dragon.ts (diet, requests, stats, size, refining, molting), hunting.ts, raids.ts, magic.ts, finds.ts, happenings.ts, oddities.ts,
               state.ts, economy.ts (production, rooms, digging, crews, arrivals), save.ts (versioned saves)
   render/     manifest.ts (sprite sheets), scene.ts (what to draw), renderer.ts (canvas + scheduling)
-  ui/         tabs.ts, hud.ts (stores, kobolds, rooms), art-view.ts, colonies-view.ts, dragon-view.ts, research-view.ts, forge-view.ts, named-view.ts, chief-panel.ts, chronicle.ts, oddities-view.ts, format.ts
+  ui/         tabs.ts, hud.ts (stores, kobolds, rooms), art-view.ts, colonies-view.ts, dragon-view.ts, research-view.ts, forge-view.ts, named-view.ts, rituals-view.ts, chief-panel.ts, chronicle.ts, oddities-view.ts, format.ts
   assets/art/ sprite sheets
 scripts/      gen-placeholder-art.mjs
 tests/        vitest unit tests

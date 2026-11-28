@@ -47,6 +47,8 @@ export const DIET = {
 
 /** How far ahead cravings are hinted: a day, or longer with the dragon cookbook. */
 export function cravingHintSeconds(state: GameState): number {
+  // reading the bones shows what's coming as far as it can be seen
+  if (state.magic?.vision > 0) return DIET.cravingSeconds;
   return Math.min(DIET.cravingSeconds, researchEffect(state, 'cravingHint')?.seconds ?? DIET.hintSeconds);
 }
 

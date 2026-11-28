@@ -1,4 +1,5 @@
 import './style.css';
+import { RitualsView } from './ui/rituals-view';
 import type { Chief } from './game/chief';
 import { CONFIG, DRAGON_STAGES, JOBS, RESOURCES, ROOMS } from './game/data';
 import { advanceTo, beds, hoardValue, offlineCap, population, roomCapacity, stageFor, workers, type AdvanceResult } from './game/economy';
@@ -77,6 +78,11 @@ const chiefPanel = new ChiefPanel(
 );
 const artView = new ArtView(getState);
 const coloniesView = new ColoniesView(getState);
+const ritualsView = new RitualsView(getState, (line) => {
+  tell(line);
+  refresh();
+  save();
+});
 const goalEl = document.querySelector('#goal') as HTMLElement;
 const awayEl = document.querySelector('#away') as HTMLElement;
 const awayTitle = document.querySelector('#away-title') as HTMLElement;
@@ -96,6 +102,7 @@ function updatePanels() {
   artView.update(Date.now());
   namedView.update(Date.now());
   coloniesView.update(Date.now());
+  ritualsView.update();
   const goal = state.settings.goal ? nextGoal(state) : null;
   goalEl.hidden = !goal;
   if (goal && goalEl.textContent !== goal) goalEl.textContent = goal;

@@ -160,6 +160,10 @@ export const TALENTS: Record<string, [string, string][]> = {
     ['Fire-proof', 'turned out not to mind the heat of the forge at all'],
     ['True-hammer', 'never missed the anvil, not once'],
   ],
+  shaman: [
+    ['Bone-whisperer', 'heard a bear skull tell them where the good bones were'],
+    ['Smoke-eyed', 'saw something in the fire nobody else could, and it came true'],
+  ],
   hunter: [
     ['Tracker', 'followed a cave bear for a whole day by the smell of its breakfast'],
     ['Steady spear', 'brought down a monster with one throw'],
@@ -177,6 +181,7 @@ export const EPITHETS: Record<string, string> = {
   alchemist: 'brews like a dragon',
   blacksmith: 'breathes on the forge like a dragon',
   hunter: 'hunts like a dragon',
+  shaman: 'speaks to the bones like a dragon',
 };
 
 /** Let `dt` seconds of work happen: some kobolds find they have a knack for their job. */
