@@ -183,3 +183,5 @@ button.star[aria-pressed='true'], button.star[aria-pressed='true']:hover:not(:di
 .area-kind > summary { cursor: pointer; }
 .area-list { margin: 4px 0 0 14px; }
 .area-list li { padding: 6px 0; }
+.debug-tools { margin-top: 12px; }
+.speed-badge { font-size: 11px; font-weight: 700; color: #1c1524; background: var(--accent); border-radius: 4px; padding: 1px 5px; }

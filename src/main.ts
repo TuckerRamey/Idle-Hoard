@@ -298,8 +298,12 @@ function showAway(r: AdvanceResult, happened: number) {
 let tickTimer: number | undefined;
 let saveTimer: number | undefined;
 
+/** Debug speed: each real second credits this many game seconds. Not saved; a reload is back to 1×. */
+let speed = 1;
+
 function tickOnce() {
   if (catching) return;
+  if (speed > 1) state.lastTick -= (speed - 1) * TICK_MS;
   // a laptop that slept with the game showing skips visibilitychange, so a long gap here is caught up like a return
   if (Date.now() - state.lastTick > CATCH_UP_SLICE * 1000) {
     catchUp();
@@ -422,14 +426,52 @@ document.querySelector('#import-file')!.addEventListener('change', async (e) => 
   if (file) applyImport(await file.text());
 });
 
-const resetBtn = document.querySelector('#reset') as HTMLButtonElement;
-resetBtn.addEventListener('click', () => {
-  if (!confirmTap(resetBtn, 'Tap again to erase your hoard')) return;
+function startOver() {
   const motion = state.settings.motion;
   state = newGame(Date.now());
   state.settings.motion = motion;
   save();
   refresh();
+}
+const resetBtn = document.querySelector('#reset') as HTMLButtonElement;
+resetBtn.addEventListener('click', () => {
+  if (confirmTap(resetBtn, 'Tap again to erase your hoard')) startOver();
+});
+
+// ---------- debug tools (folded away in settings) ----------
+const debugStatus = document.querySelector('#debug-status') as HTMLElement;
+const speedBadge = document.querySelector('#speed-badge') as HTMLElement;
+const speedBtns = [...document.querySelectorAll<HTMLButtonElement>('#debug-speed button')];
+function showSpeed() {
+  for (const b of speedBtns) b.setAttribute('aria-pressed', String(Number(b.dataset.speed) === speed));
+  speedBadge.hidden = speed === 1;
+  speedBadge.textContent = `${speed}×`;
+}
+showSpeed();
+for (const b of speedBtns)
+  b.addEventListener('click', () => {
+    speed = Number(b.dataset.speed) || 1;
+    showSpeed();
+  });
+for (const b of document.querySelectorAll<HTMLButtonElement>('[data-skip]'))
+  b.addEventListener('click', async () => {
+    if (catching || !state.chief) return;
+    const secs = Math.min(Number(b.dataset.skip) || 0, offlineCap(state));
+    creditTime(false);
+    state.lastTick -= secs * 1000;
+    debugStatus.textContent = `Skipping ${formatDuration(secs)}…`;
+    await catchUp();
+    refresh();
+    save();
+    debugStatus.textContent = `Skipped ${formatDuration(secs)}.`;
+  });
+const debugReset = document.querySelector('#debug-reset') as HTMLButtonElement;
+debugReset.addEventListener('click', () => {
+  if (!confirmTap(debugReset, 'Tap again to reset everything')) return;
+  speed = 1;
+  showSpeed();
+  startOver();
+  debugStatus.textContent = 'Progress reset.';
 });
 
 // ---------- debug readout: add ?debug to the URL ----------
