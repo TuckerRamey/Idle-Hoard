@@ -37,8 +37,8 @@ export type ResearchEffect =
   | { kind: 'deepDigging' }
   /** How much a named (non-lieutenant) kobold lifts their crew. */
   | { kind: 'namedLift'; bonus: number }
-  /** This share of what miners cut comes out as iron ore. */
-  | { kind: 'oreShare'; share: number }
+  /** Every area's ore part is this much bigger. */
+  | { kind: 'oreBoost'; mult: number }
   /** Rare finds (uncommon and better) are this much likelier. */
   | { kind: 'findLuck'; mult: number }
   /** Mithril turns up among the miners' rare finds. */
@@ -68,11 +68,10 @@ export const RESEARCH: ResearchDef[] = [
   {
     id: 'ore-sniffing',
     name: 'Ore sniffing',
-    description: 'Opens iron ore and the metal store: a fifth of what the miners cut comes out as ore.',
+    description: 'Opens iron ore and the metal store. Miners take ore from iron-bearing ground, and the next stone the scouts find will have iron in it.',
     cost: 600,
     resources: { stone: 200 },
     requires: [],
-    effects: [{ kind: 'oreShare', share: 0.2 }],
     doneText: 'The researchers learned to sniff out iron. The lab smells of rust now.',
   },
   {
@@ -326,7 +325,7 @@ export const RESEARCH: ResearchDef[] = [
   {
     id: 'monster-tracking',
     name: 'Monster tracking',
-    description: 'Opens the hunter job: kobolds go after monsters in the deep caves. Their meat makes the dragon stronger.',
+    description: 'Scouts can look for monsters, and hunters can work the hunting grounds they find. Monster meat makes the dragon stronger.',
     cost: 5_000,
     resources: { meat: 100, wood: 200 },
     requires: ['crab-wrangling'],
@@ -376,21 +375,21 @@ export const RESEARCH: ResearchDef[] = [
   {
     id: 'seam-reading',
     name: 'Seam reading',
-    description: 'Miners learn to follow the iron seams: 35% of what they cut comes out as ore.',
+    description: 'Miners learn to follow the iron seams: every area gives half as much ore again.',
     cost: 6_000,
     resources: { stone: 400, ore: 100 },
     requires: ['ore-sniffing', 'smithing'],
-    effects: [{ kind: 'oreShare', share: 0.35 }],
+    effects: [{ kind: 'oreBoost', mult: 1.5 }],
     doneText: 'The researchers drew the iron seams on the wall in charcoal. The miners follow the lines with their tongues out.',
   },
   {
     id: 'deep-seams',
     name: 'Deep seams',
-    description: 'Half of what the miners cut comes out as ore, and mithril starts turning up among their rare finds.',
+    description: 'Every area gives twice as much ore, and mithril starts turning up among the miners\' rare finds.',
     cost: 30_000,
     resources: { ore: 600, bars: 100 },
     requires: ['seam-reading', 'deep-delving'],
-    effects: [{ kind: 'oreShare', share: 0.5 }, { kind: 'mithrilFinds' }],
+    effects: [{ kind: 'oreBoost', mult: 2 }, { kind: 'mithrilFinds' }],
     doneText: 'The miners have found the deep seams. Something down there rings like a bell when you hit it.',
   },
   {

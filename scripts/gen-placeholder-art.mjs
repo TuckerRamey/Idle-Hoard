@@ -321,6 +321,7 @@ kobold('kobold-alchemist.png', '#9a6ab8', '#5e3e74', '#5ad0a0');
 kobold('kobold-blacksmith.png', '#7a7a80', '#3e3e44', '#e0782a');
 kobold('kobold-shaman.png', '#b08a5a', '#6a4e2e', '#e8e0d0'); // bone necklace
 kobold('kobold-hunter.png', '#5e7a4a', '#3a4e2c', '#7a4a2a', false, 'meat'); // leather
+kobold('kobold-scout.png', '#c09a5a', '#7a5e34', '#3a6a8a', false, 'coins'); // travel cloak
 
 // ---------- hats for named kobolds: 12x12 frames, one row of 6 looks ----------
 // Drawn over a kobold's frame at the same spot, so they sit on the head.

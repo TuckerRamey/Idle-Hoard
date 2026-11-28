@@ -18,6 +18,7 @@ import { OdditiesView } from './ui/oddities-view';
 import { DragonView } from './ui/dragon-view';
 import { ResearchView } from './ui/research-view';
 import { ForgeView } from './ui/forge-view';
+import { ExploreView } from './ui/explore-view';
 import { ArtView } from './ui/art-view';
 import { NamedView } from './ui/named-view';
 import { TabsView } from './ui/tabs';
@@ -59,6 +60,10 @@ const dragonView = new DragonView(getState, (line) => {
   save();
 });
 const researchView = new ResearchView(getState, () => refresh());
+const exploreView = new ExploreView(getState, () => {
+  refresh();
+  save();
+});
 const forgeView = new ForgeView(getState, () => {
   refresh();
   save();
@@ -98,6 +103,7 @@ function updatePanels() {
   hud.update();
   dragonView.update();
   researchView.update();
+  exploreView.update();
   forgeView.update();
   artView.update(Date.now());
   namedView.update(Date.now());

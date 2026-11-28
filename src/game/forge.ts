@@ -46,6 +46,7 @@ export const TOOL_NAMES: Record<string, string> = {
   blacksmith: 'hammers',
   hunter: 'spears',
   shaman: 'rattles',
+  scout: 'lanterns',
 };
 
 export interface MaterialDef {
@@ -168,6 +169,25 @@ export type Allocation = Record<string, Partial<Record<ToolTier, number>>>;
  * in proportion to how many kobolds each job still has without one.
  */
 export function toolAllocation(state: GameState): Allocation {
+  // asked for many times a tick (every job's output), so remember the last answer while nothing it depends on has changed
+  const key = allocKey(state);
+  if (allocCache.state === state && allocCache.key === key) return allocCache.alloc;
+  const alloc = allocate(state);
+  allocCache = { state, key, alloc };
+  return alloc;
+}
+
+let allocCache: { state: GameState | null; key: string; alloc: Allocation } = { state: null, key: '', alloc: {} };
+
+function allocKey(state: GameState): string {
+  let k = `${state.toolFirst}|${state.research.done.length}|${state.explore.found.length}|${state.named.length}|`;
+  for (const t of TIERS) k += `${state.rack[t.id]?.n ?? 0},`;
+  for (const [job, c] of Object.entries(state.crews)) k += `${job}:${c.n},`;
+  for (const n of state.named) k += n.job + ',';
+  return k;
+}
+
+function allocate(state: GameState): Allocation {
   const need = new Map<string, number>();
   for (const job of toolJobs(state)) {
     const n = workers(state, job);
@@ -228,13 +248,34 @@ export function spareTools(state: GameState, alloc = toolAllocation(state)): Par
  * who get the best tools first) and the average for the crowd crew.
  */
 export function toolMults(state: GameState, job: string): { named: number[]; crew: number } {
-  const queue: number[] = [];
-  for (const u of toolsInUse(state, job)) for (let i = 0; i < u.n; i++) queue.push(tierMult(u.tier));
-  const named = namedIn(state, job).map((_, i) => queue[i] ?? 1);
-  const crewN = workers(state, job) - named.length;
+  // tools best first: named kobolds take from the front, the crew shares the rest
+  const inUse = toolsInUse(state, job);
+  const nNamed = namedIn(state, job).length;
+  const named: number[] = [];
+  let ti = 0;
+  let left = inUse[0]?.n ?? 0;
+  for (let i = 0; i < nNamed; i++) {
+    while (left <= 0 && ti < inUse.length - 1) left = inUse[++ti].n;
+    if (left > 0) {
+      named.push(tierMult(inUse[ti].tier));
+      left--;
+    } else named.push(1);
+  }
+  const crewN = workers(state, job) - nNamed;
   if (crewN <= 0) return { named, crew: 1 };
   let sum = 0;
-  for (let i = named.length; i < named.length + crewN; i++) sum += queue[i] ?? 1;
+  let given = 0;
+  if (left > 0) {
+    const n = Math.min(left, crewN);
+    sum += n * tierMult(inUse[ti].tier);
+    given += n;
+  }
+  for (let j = ti + 1; j < inUse.length && given < crewN; j++) {
+    const n = Math.min(inUse[j].n, crewN - given);
+    sum += n * tierMult(inUse[j].tier);
+    given += n;
+  }
+  sum += crewN - given;
   return { named, crew: sum / crewN };
 }
 
