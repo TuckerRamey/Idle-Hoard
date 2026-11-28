@@ -191,6 +191,7 @@ function normalizeNamed(v: unknown): NamedKobold[] {
           }
         : {}),
       ...(typeof k.epithet === 'string' ? { epithet: k.epithet } : {}),
+      ...(typeof k.room === 'string' ? { room: k.room } : {}),
     }));
 }
 

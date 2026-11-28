@@ -4,7 +4,7 @@
 // they love and one they hate, and can become lieutenants. Nobody is ever lost.
 
 import { KOBOLD_NAMES } from './chief';
-import { IDLE, JOBS } from './data';
+import { IDLE, JOBS, ROOMS } from './data';
 import { researchEffect, researchEffects } from './research';
 import type { GameState } from './state';
 
@@ -31,6 +31,8 @@ export interface NamedKobold {
   talents?: Talent[];
   /** Earned once they work like nobody else: "digs like a dragon". */
   epithet?: string;
+  /** For a named digger: the room they dig. */
+  room?: string;
 }
 
 export interface Talent {
@@ -162,6 +164,14 @@ export function standDown(state: GameState, id: number, t: number): boolean {
 export function addHistory(k: NamedKobold, t: number, text: string) {
   k.history.push({ t, text });
   if (k.history.length > HISTORY_MAX) k.history.splice(0, k.history.length - HISTORY_MAX);
+}
+
+/** Set the room a named digger digs. */
+export function setNamedRoom(state: GameState, id: number, room: string): boolean {
+  const k = findNamed(state, id);
+  if (!k || !ROOMS.some((r) => r.id === room) || k.room === room) return false;
+  k.room = room;
+  return true;
 }
 
 /** Move a named kobold to a job (or idle). Unknown jobs are refused. */

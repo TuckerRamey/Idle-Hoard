@@ -25,7 +25,7 @@ import {
 } from './data';
 import { dragonAppeal, dragonJobMult, dragonStep, eatRate, moodMult } from './dragon';
 import { forgeMakes, forgeStep, forgeUse, toolMults } from './forge';
-import { addHistory, addTalent, crewLift, fullName, nameOrCredit, namedIn, personalMult, takeDigger } from './kobolds';
+import { addHistory, addTalent, crewLift, fullName, nameOrCredit, namedIn, personalMult, takeDigger, type NamedKobold } from './kobolds';
 import { digFinds, epithetStep, talentStep } from './events';
 import { colonyStep } from './colonies';
 import { ODDITIES } from './oddities';
@@ -254,13 +254,38 @@ export function scavengerDig(state: GameState): number {
 }
 
 /** Dig work per second going into each room: its diggers' share of the crew, plus scavengers in a full hoard. */
+/** The room a named digger digs: the one picked on their card, or else the one with the most diggers, or the den. */
+export function namedDigRoom(state: GameState, k: NamedKobold): string {
+  if (k.room) {
+    const def = roomDef(k.room);
+    if (def && roomOpen(state, def)) return def.id;
+  }
+  let best = 'den';
+  for (const [room, n] of Object.entries(state.dig)) if (n > (state.dig[best] ?? 0) && roomDef(room)) best = room;
+  return best;
+}
+
+/** Named diggers on a room. */
+export function namedDiggersIn(state: GameState, roomId: string): NamedKobold[] {
+  return namedIn(state, 'digger').filter((k) => namedDigRoom(state, k) === roomId);
+}
+
 export function digRates(state: GameState): Record<string, number> {
   const out: Record<string, number> = {};
   const def = jobDef('digger');
-  let crowd = 0;
-  for (const [room, n] of Object.entries(state.dig)) if (n > 0 && roomDef(room)) crowd += n;
-  const total = def && crowd > 0 ? jobOutput(state, def) : 0;
-  if (total > 0) for (const [room, n] of Object.entries(state.dig)) if (n > 0 && roomDef(room)) out[room] = (total * n) / crowd;
+  if (def && jobOpen(state, def)) {
+    // the crowd's digging goes to rooms by how many are on each; each named digger digs their own room
+    const each = baseRate(def) * jobMultiplier(state, def.id) * globalMultiplier(state);
+    const tools = toolMults(state, def.id);
+    let crowd = 0;
+    for (const [room, n] of Object.entries(state.dig)) if (n > 0 && roomDef(room)) crowd += n;
+    const total = crowd * each * crewLift(state, def.id) * tools.crew;
+    if (total > 0) for (const [room, n] of Object.entries(state.dig)) if (n > 0 && roomDef(room)) out[room] = (total * n) / crowd;
+    namedIn(state, def.id).forEach((k, i) => {
+      const room = namedDigRoom(state, k);
+      out[room] = (out[room] ?? 0) + each * personalMult(k) * (tools.named[i] ?? 1);
+    });
+  }
   const sc = scavengerDig(state);
   if (sc > 0) out.hoard = (out.hoard ?? 0) + sc;
   return out;

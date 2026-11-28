@@ -1,8 +1,8 @@
 // Named kobolds: each one's card, with their job, likes, traits, gifts and story.
 
 import { ART, ARTISAN, artOpen, canBecomeArtisan, makeArtisan } from '../game/art';
-import { IDLE, JOBS } from '../game/data';
-import { jobOpen } from '../game/economy';
+import { IDLE, JOBS, ROOMS } from '../game/data';
+import { jobOpen, namedDigRoom, roomOpen } from '../game/economy';
 import {
   canPromote,
   fullName,
@@ -11,14 +11,13 @@ import {
   lieutenants,
   lieutenantSlots,
   makeLieutenant,
-  EPITHET_MULT,
   moveNamed,
+  setNamedRoom,
   personalMult,
   personalParts,
   standDown,
   type NamedKobold,
 } from '../game/kobolds';
-import { EPITHETS } from '../game/events';
 import { colonyBlocked, coloniesOpen, foundColony } from '../game/colonies';
 import { rng, type GameState } from '../game/state';
 import { timeAgo } from './chronicle';
@@ -47,7 +46,7 @@ export class NamedView {
     if (!s.named.length) return;
     setText(this.summary, `${s.named.length} named · ${lieutenants(s).length} of ${lieutenantSlots(s)} lieutenants`);
     const key =
-      s.named.map((k) => `${k.id}:${k.job}:${k.lieutenant}:${k.history.length}:${k.gifts.length}:${k.traits.length}:${k.talents?.length ?? 0}:${k.epithet ?? ''}`).join('|') +
+      s.named.map((k) => `${k.id}:${k.job}:${k.job === 'digger' ? namedDigRoom(s, k) : ''}:${k.lieutenant}:${k.history.length}:${k.gifts.length}:${k.traits.length}:${k.talents?.length ?? 0}:${k.epithet ?? ''}`).join('|') +
       `|${lieutenantSlots(s)}|${Math.floor(now / 60000)}|${JOBS.filter((j) => jobOpen(s, j)).length}|${artOpen(s)}|${coloniesOpen(s)}|${s.named.map((k) => colonyBlocked(s, k) ?? '').join()}`;
     if (key === this.key) return;
     this.key = key;
@@ -59,7 +58,7 @@ export class NamedView {
   private card(s: GameState, k: NamedKobold, now: number, isOpen: boolean): HTMLLIElement {
     const li = document.createElement('li');
     li.className = 'named';
-    li.innerHTML = `<details><summary><b></b> <span class="desc job"></span></summary><div class="named-body"><div class="desc likes"></div><div class="desc mods"></div><div class="desc traits"></div><div class="named-controls"><label class="desc">Job <select></select></label><button type="button" class="lt"></button><button type="button" class="art"></button><button type="button" class="colony-btn"></button></div><div class="desc lt-note"></div><ul class="history"></ul></div></details>`;
+    li.innerHTML = `<details><summary><b></b> <span class="desc job"></span></summary><div class="named-body"><div class="desc likes"></div><div class="desc mods"></div><div class="desc traits"></div><div class="named-controls"><label class="desc">Job <select class="job-pick"></select></label><label class="desc room-pick" hidden>Digging <select></select></label><button type="button" class="lt"></button><button type="button" class="art"></button><button type="button" class="colony-btn"></button></div><div class="desc lt-note"></div><ul class="history"></ul></div></details>`;
     const det = li.querySelector('details')!;
     det.dataset.id = String(k.id);
     det.open = isOpen;
@@ -75,7 +74,17 @@ export class NamedView {
       ...k.gifts.map((g) => `Gift: ${giftDef(g)?.name ?? g}`),
     ];
     li.querySelector('.traits')!.textContent = extras.join(' · ');
-    const sel = li.querySelector('select')!;
+    const sel = li.querySelector<HTMLSelectElement>('.job-pick')!;
+    // a named digger digs a room of their own
+    const roomLabel = li.querySelector<HTMLElement>('.room-pick')!;
+    roomLabel.hidden = k.job !== 'digger';
+    if (k.job === 'digger') {
+      const roomSel = roomLabel.querySelector('select')!;
+      syncOptions(roomSel, ROOMS.filter((r) => roomOpen(s, r)).map((r) => [r.id, `The ${r.name.toLowerCase()}`] as [string, string]), namedDigRoom(s, k));
+      roomSel.addEventListener('change', () => {
+        if (setNamedRoom(this.getState(), k.id, roomSel.value)) this.onChange(k, 'job');
+      });
+    }
     syncOptions(sel, [[IDLE, 'Idle'], ...JOBS.filter((j) => jobOpen(s, j)).map((j) => [j.id, `${j.name} ${timesText(personalMult(k, j.id))}`] as [string, string]), ...(k.job === ARTISAN ? [[ARTISAN, 'Artisan'] as [string, string]] : [])], k.job);
     sel.addEventListener('change', () => {
       if (moveNamed(this.getState(), k.id, sel.value)) this.onChange(k, 'job');
@@ -135,12 +144,11 @@ export class NamedView {
   }
 }
 
-/** "As a digger: ×1.9 (loves it ×1.5, Shovel-hands ×1.25). ×1.9 of ×3 for an epithet." */
+/** "As a digger: ×1.9 a crowd kobold's work (loves it ×1.5, Shovel-hands ×1.25)." */
 export function modsText(k: NamedKobold): string {
   const parts = personalParts(k);
   const m = personalMult(k);
   let text = `As a ${jobName(k.job).toLowerCase()}: ${timesText(m)} a crowd kobold's work`;
   text += parts.length ? ` (${parts.map((p) => `${p.label} ${timesText(p.mult)}`).join(', ')}).` : '.';
-  if (!k.epithet && EPITHETS[k.job]) text += ` ${timesText(m)} of ${timesText(EPITHET_MULT)} to be known as the kobold who ${EPITHETS[k.job]}.`;
   return text;
 }
