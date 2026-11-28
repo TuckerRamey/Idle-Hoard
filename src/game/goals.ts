@@ -5,12 +5,14 @@ import { DRAGON_STAGES } from './data';
 import { moltNeeds } from './dragon';
 import { kindKnown } from './areas';
 import { beds, diggersIn, hoardValue, population, workers } from './economy';
+import { hungry } from './losses';
 import { opened } from './research';
 import type { GameState } from './state';
 
 export function nextGoal(state: GameState): string | null {
   if (!state.chief) return null;
   const full = population(state) >= beds(state);
+  if (hungry(state) > 0) return 'Next: the kobolds are going hungry. Put more on farming (Gathering tab).';
   if (!kindKnown(state, 'wood') || !kindKnown(state, 'stone')) {
     const what = !kindKnown(state, 'wood') && !kindKnown(state, 'stone') ? 'woodland and stone' : !kindKnown(state, 'wood') ? 'woodland' : 'stone';
     const job = !kindKnown(state, 'wood') ? 'woodcutter' : 'miner';

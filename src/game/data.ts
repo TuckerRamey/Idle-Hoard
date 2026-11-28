@@ -3,7 +3,7 @@
 // src/render/manifest.ts if it needs a new sprite).
 
 export type SpriteId = string;
-export type ResourceId = 'copper' | 'silver' | 'gold' | 'wood' | 'stone' | 'ore' | 'bars' | 'steel' | 'mithril' | 'adamant' | 'meat';
+export type ResourceId = 'copper' | 'silver' | 'gold' | 'wood' | 'stone' | 'ore' | 'bars' | 'steel' | 'mithril' | 'adamant' | 'meat' | 'food';
 
 export interface ResourceDef {
   id: ResourceId;
@@ -34,6 +34,7 @@ export const RESOURCES: ResourceDef[] = [
   { id: 'mithril', name: 'Mithril', store: 'metals', perPace: 80, foundOnly: true },
   { id: 'adamant', name: 'Adamant', store: 'metals', perPace: 80, foundOnly: true },
   { id: 'meat', name: 'Meat', store: 'larder', perPace: 30, requires: 'crab-wrangling' },
+  { id: 'food', name: 'Food', store: 'granary', perPace: 40 },
 ];
 
 /** Gems: treasure on the hoard, only ever found. Each adds its worth to the hoard. */
@@ -88,7 +89,7 @@ export interface JobDef {
   /** Exploring points each kobold puts in per second. */
   explores?: number;
   /** Works areas of this kind. Those with no room in them go looking for more. */
-  area?: 'wood' | 'stone' | 'copper' | 'monsters';
+  area?: 'wood' | 'stone' | 'copper' | 'farm' | 'monsters';
   /** Research that opens this job. */
   requires?: string;
   sprite: SpriteId;
@@ -117,6 +118,16 @@ export const JOBS: JobDef[] = [
     sprite: 'kobold-woodcutter',
     motion: { kind: 'haul', lane: 1, speed: 13 },
     firstText: 'The first woodcutter came back with a mushroom twice their size and a very proud face.',
+  },
+  {
+    id: 'farmer',
+    name: 'Farmer',
+    description: 'Grows mushrooms and cave moss in the farming caverns. Every kobold eats.',
+    produces: { resource: 'food', rate: 0.5 },
+    area: 'farm',
+    sprite: 'kobold-herder',
+    motion: { kind: 'station', x: 70, y: 100, spacing: 6 },
+    firstText: 'The first farmer planted a row of mushrooms and sat down to watch them grow. It may take a while.',
   },
   {
     id: 'digger',
@@ -276,6 +287,14 @@ export const ROOMS: RoomDef[] = [
     id: 'stoneyard',
     name: 'Stone yard',
     description: 'Stone blocks in neat rows.',
+    holds: 'goods',
+    group: 'stores',
+    start: 50,
+  },
+  {
+    id: 'granary',
+    name: 'Granary',
+    description: 'Mushrooms and moss for the kobolds, dried and stacked.',
     holds: 'goods',
     group: 'stores',
     start: 50,

@@ -13,7 +13,7 @@ import { givePiece, piece } from './gear';
 import { opened, researchEffects } from './research';
 import type { GameState } from './state';
 
-export type AreaKind = 'wood' | 'stone' | 'copper' | 'monsters';
+export type AreaKind = 'wood' | 'stone' | 'copper' | 'farm' | 'monsters';
 
 export interface AreaDef {
   id: string;
@@ -62,6 +62,13 @@ export const AREAS: AreaDef[] = [
   { id: 'collapsed-mine', kind: 'copper', name: 'Collapsed mine', cap: 20, mix: { copper: 0.9, ore: 0.1 }, foundText: 'The scouts found a collapsed mine, left by someone long gone, with copper still in the carts.' },
   { id: 'old-battlefield', kind: 'copper', name: 'Old battlefield', cap: 30, mix: { copper: 0.9, steel: 0.1 }, extras: { weapon: 1 / 20000 }, minStage: 1, foundText: 'The scouts found an old battlefield, all rusty armor and dropped purses.' },
   { id: 'drowned-treasury', kind: 'copper', name: 'Drowned treasury', cap: 60, mix: { copper: 0.85, silver: 0.12, gold: 0.03 }, minStage: 4, foundText: 'The scouts found a drowned treasury. Something lives in the water, but it took one look at the dragon and left.' },
+  // farming caverns
+  { id: 'mushroom-beds', kind: 'farm', name: 'The mushroom beds', cap: 4, mix: { food: 1 }, foundText: '' },
+  { id: 'damp-hollow', kind: 'farm', name: 'Damp hollow', cap: 6, mix: { food: 1 }, foundText: 'The scouts found a damp hollow where moss grows thick enough to sleep on. The farmers have other plans for it.' },
+  { id: 'dripping-grotto', kind: 'farm', name: 'Dripping grotto', cap: 8, mix: { food: 1 }, foundText: 'The scouts found a dripping grotto. Everything in it grows, including some things nobody planted.' },
+  { id: 'river-terraces', kind: 'farm', name: 'River terraces', cap: 10, mix: { food: 1 }, minStage: 1, foundText: 'The scouts found an underground river with flat shelves along its banks. Perfect for terraces.' },
+  { id: 'glowcap-gardens', kind: 'farm', name: 'Glowcap gardens', cap: 15, mix: { food: 1 }, minStage: 2, foundText: 'The scouts found a cavern where glowcaps grow in rings. The farmers say it was a garden once.' },
+  { id: 'deep-loam', kind: 'farm', name: 'The deep loam', cap: 25, mix: { food: 1 }, minStage: 3, deep: true, foundText: 'Far below the deepest room, the scouts found a cavern of black, rich earth. Anything would grow here.' },
   // hunting grounds
   { id: 'bear-caves', kind: 'monsters', name: 'The bear caves', cap: 2, monsters: ['cave-bear'], killWork: 1_800, minStage: 1, foundText: 'The scouts found caves that smell of bear. Hunters can go after them now.' },
   { id: 'ember-pits', kind: 'monsters', name: 'The ember pits', cap: 2, monsters: ['salamander'], killWork: 1_800, minStage: 1, foundText: 'The scouts found pits of glowing embers with salamanders basking in them. Hunters can go after them now.' },
@@ -74,10 +81,16 @@ export const AREAS: AreaDef[] = [
 
 export const areaDef = (id: string) => AREAS.find((a) => a.id === id);
 
+/** "woodland", "stone areas", "farming caverns", "hunting grounds". */
+export function kindWords(kind: AreaKind): string {
+  return kind === 'wood' ? 'woodland' : kind === 'monsters' ? 'hunting grounds' : kind === 'farm' ? 'farming caverns' : `${kind} areas`;
+}
+
 export const KINDS: { id: AreaKind; name: string; job: string; base?: ResourceId }[] = [
   { id: 'wood', name: 'Woodland', job: 'woodcutter', base: 'wood' },
   { id: 'stone', name: 'Stone', job: 'miner', base: 'stone' },
   { id: 'copper', name: 'Copper', job: 'scavenger', base: 'copper' },
+  { id: 'farm', name: 'Farming caverns', job: 'farmer', base: 'food' },
   { id: 'monsters', name: 'Monsters', job: 'hunter' },
 ];
 
@@ -86,7 +99,7 @@ export const kindOfJob = (job: string) => KINDS.find((k) => k.job === job)?.id;
 
 export const EXPLORE = {
   /** Exploring points for the first find of each kind; each one after costs `growth` times the last. */
-  firstCost: { wood: 60, stone: 60, copper: 400, monsters: 300 } as Record<AreaKind, number>,
+  firstCost: { wood: 60, stone: 60, copper: 400, farm: 200, monsters: 300 } as Record<AreaKind, number>,
   growth: 2.5,
   /** Each area found of a kind is this many times bigger than its listed size for every one found before it. */
   sizeGrowth: 2,
@@ -146,7 +159,7 @@ export function exploreKinds(state: GameState): AreaKind[] {
 
 /** Exploring points for the next find of a kind. */
 export function findCost(state: GameState, kind: AreaKind): number {
-  const n = state.explore.found.filter((id) => areaDef(id)?.kind === kind && id !== 'near-tunnels').length;
+  const n = state.explore.found.filter((id) => areaDef(id)?.kind === kind && areaDef(id)!.foundText !== '').length;
   return EXPLORE.firstCost[kind] * EXPLORE.growth ** n;
 }
 
@@ -154,7 +167,7 @@ export function findCost(state: GameState, kind: AreaKind): number {
 export function exploreBlocked(state: GameState, kind: AreaKind): string | null {
   if (AREAS.some((a) => a.kind === kind && findable(state, a))) return null;
   const left = AREAS.filter((a) => a.kind === kind && !state.explore.found.includes(a.id));
-  const what = kind === 'monsters' ? 'hunting grounds' : kind === 'wood' ? 'woodland' : `${kind} areas`;
+  const what = kindWords(kind);
   if (!left.length) return `Every one of the ${what} has been found.`;
   if (kind === 'monsters' && !opened(state, 'monster-tracking')) return 'The hunters need monster tracking to know what to look for.';
   if (left.some((a) => a.deep && !deepRoom(state) && state.stage >= (a.minStage ?? 0))) return `The next ${what} lie deeper. Dig a room past ${WORK_FINDS.deepPaces.toLocaleString('en-US')} paces.`;
@@ -267,7 +280,7 @@ export function capHint(state: GameState, kind: AreaKind): string | null {
   const f = fills(state, kind);
   if (f.raw <= 0 || f.spare < f.raw * 0.02 + 1e-9) return null;
   const k = kindDef(kind);
-  const what = kind === 'wood' ? 'woodland' : kind === 'monsters' ? 'hunting grounds' : `${kind} areas`;
+  const what = kindWords(kind);
   const job = jobDef(k.job)!;
   const each = f.raw / Math.max(1, workers(state, k.job));
   const idle = Math.floor(f.spare / Math.max(1e-9, each));
@@ -275,9 +288,9 @@ export function capHint(state: GameState, kind: AreaKind): string | null {
   const more = idle > 0 ? (blocked ? ` About ${idle} of the ${job.name.toLowerCase()}s have nothing to do: ${blocked.charAt(0).toLowerCase()}${blocked.slice(1)}` : ` About ${idle} of the ${job.name.toLowerCase()}s are out looking for more ${what}.`) : '';
   if (kind === 'monsters') return `Every hunting ground is hunted as much as it can be (${formatCap(f.fills.reduce((a, x) => a + (x.area ? areaCap(state, x.area) : 0), 0))} kills an hour).${more}`;
   const one = f.fills.length === 1 && f.fills[0].area;
-  const unit = k.base === 'copper' ? 'copper' : k.base === 'wood' ? 'wood' : 'stone';
+  const unit = k.base === 'food' ? 'food' : k.base === 'copper' ? 'copper' : k.base === 'wood' ? 'wood' : 'stone';
   if (one) return `${areaName(state, one)} gives at most ${formatCap(areaCap(state, one))} ${unit} a second.${more}`;
-  return `Every ${kind === 'wood' ? 'woodland' : `${kind} area`} found is giving all it can (${formatCap(kindCap(state, kind))} a second).${more}`;
+  return `Every one of the ${kindWords(kind)} found is giving all it can (${formatCap(kindCap(state, kind))} a second).${more}`;
 }
 
 const formatCap = (n: number) => Math.round(n).toLocaleString('en-US');
@@ -407,7 +420,7 @@ export function areaLuck(state: GameState, job: string): number {
  * room in "the old workings") that nothing they made before drops.
  */
 export function legacyAreas(state: GameState) {
-  for (const id of ['near-tunnels', 'grove', 'rubble-cave']) addArea(state, id);
+  for (const id of ['near-tunnels', 'mushroom-beds', 'grove', 'rubble-cave']) addArea(state, id);
   if (opened(state, 'ore-sniffing')) addArea(state, 'iron-seam');
   if (opened(state, 'monster-tracking') && state.stage >= 1) {
     for (const id of ['bear-caves', 'ember-pits', 'glow-pools']) addArea(state, id);

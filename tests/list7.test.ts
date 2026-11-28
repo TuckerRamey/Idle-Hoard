@@ -53,8 +53,8 @@ describe('a new game', () => {
     expect(open(s, 'woodcutter')).toBe(true);
     expect(open(s, 'miner')).toBe(true);
     expect(jobDef('scout')).toBeUndefined();
-    expect(found(s).map((a) => a.id)).toEqual(['near-tunnels']);
-    expect(exploreKinds(s)).toEqual(['wood', 'stone', 'copper']);
+    expect(found(s).map((a) => a.id)).toEqual(['near-tunnels', 'mushroom-beds']);
+    expect(exploreKinds(s)).toEqual(['wood', 'stone', 'copper', 'farm']);
   });
 
   it('woodcutters with nowhere to work go looking, and the first find is the grove', () => {

@@ -105,14 +105,14 @@ export interface GameState {
 }
 
 export interface ExploreState {
-  target: 'wood' | 'stone' | 'copper' | 'monsters' | null;
-  points: Partial<Record<'wood' | 'stone' | 'copper' | 'monsters', number>>;
+  target: 'wood' | 'stone' | 'copper' | 'farm' | 'monsters' | null;
+  points: Partial<Record<'wood' | 'stone' | 'copper' | 'farm' | 'monsters', number>>;
   /** Area ids, in the order found. */
   found: string[];
   /** Areas named after the kobold who found them. */
   names: Record<string, string>;
   /** Old saves only: extra room per kind, so nothing they made before drops ("the old workings"). */
-  bonus: Partial<Record<'wood' | 'stone' | 'copper' | 'monsters', number>>;
+  bonus: Partial<Record<'wood' | 'stone' | 'copper' | 'farm' | 'monsters', number>>;
   /** Hunting work toward the next kill on each ground. */
   progress: Record<string, number>;
 }
@@ -125,14 +125,19 @@ export interface LossState {
   wanderAcc: number;
   died: number;
   wandered: number;
+  /** Seconds the warren has gone short of food without a break, and toward the next hungry kobold leaving. */
+  hungryFor?: number;
+  starveAcc?: number;
+  /** Kobolds who left for want of food, ever. */
+  starved?: number;
 }
 
 export function newLosses(): LossState {
-  return { acc: {}, idleFor: 0, wanderAcc: 0, died: 0, wandered: 0 };
+  return { acc: {}, idleFor: 0, wanderAcc: 0, died: 0, wandered: 0, hungryFor: 0, starveAcc: 0, starved: 0 };
 }
 
 export function newExplore(): ExploreState {
-  return { target: 'wood', points: {}, found: ['near-tunnels'], names: {}, bonus: {}, progress: {} };
+  return { target: 'wood', points: {}, found: ['near-tunnels', 'mushroom-beds'], names: {}, bonus: {}, progress: {} };
 }
 
 export interface HuntState {
@@ -240,7 +245,7 @@ export function newGame(now: number): GameState {
   const rooms: Record<string, RoomState> = {};
   for (const r of ROOMS) rooms[r.id] = { volume: r.start };
   return {
-    res: { copper: 0, silver: 0, gold: 0, wood: 0, stone: 0, ore: 0, bars: 0, steel: 0, mithril: 0, adamant: 0, meat: 0 },
+    res: { copper: 0, silver: 0, gold: 0, wood: 0, stone: 0, ore: 0, bars: 0, steel: 0, mithril: 0, adamant: 0, meat: 0, food: 500 },
     totalEarned: 0,
     idle: 0,
     crews: {},

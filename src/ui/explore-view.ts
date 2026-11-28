@@ -24,7 +24,7 @@ import { $, setText } from './dom';
 import { formatDuration, formatNumber } from './format';
 import { row } from './hud';
 
-const LOOK_FOR: Record<AreaKind, string> = { wood: 'woodland', stone: 'stone', copper: 'copper', monsters: 'hunting grounds' };
+const LOOK_FOR: Record<AreaKind, string> = { wood: 'woodland', stone: 'stone', copper: 'copper', farm: 'farming caverns', monsters: 'hunting grounds' };
 
 export class ExploreView {
   private section = $('#explore-section');
@@ -117,5 +117,5 @@ export class ExploreView {
 }
 
 function unit(kind: AreaKind): string {
-  return kind === 'wood' ? 'wood' : kind === 'stone' ? 'stone' : 'copper';
+  return kind === 'wood' ? 'wood' : kind === 'stone' ? 'stone' : kind === 'farm' ? 'food' : 'copper';
 }

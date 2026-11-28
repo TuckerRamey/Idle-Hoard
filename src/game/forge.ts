@@ -46,6 +46,7 @@ export const TOOL_NAMES: Record<string, string> = {
   alchemist: 'tongs',
   blacksmith: 'hammers',
   hunter: 'spears',
+  farmer: 'hoes',
   shaman: 'rattles',
 };
 

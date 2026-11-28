@@ -491,6 +491,9 @@ export function normalize(raw: unknown, now: number): GameState {
       wanderAcc: num(r.losses?.wanderAcc, 0),
       died: Math.floor(num(r.losses?.died, 0)),
       wandered: Math.floor(num(r.losses?.wandered, 0)),
+      hungryFor: num(r.losses?.hungryFor, 0),
+      starveAcc: num(r.losses?.starveAcc, 0),
+      starved: Math.floor(num(r.losses?.starved, 0)),
     },
     seed: Number.isInteger(r.seed) ? r.seed : base.seed,
   };
@@ -499,7 +502,7 @@ export function normalize(raw: unknown, now: number): GameState {
   return state;
 }
 
-const KIND_IDS = ['wood', 'stone', 'copper', 'monsters'] as const;
+const KIND_IDS = ['wood', 'stone', 'copper', 'farm', 'monsters'] as const;
 
 function normalizeExplore(v: any): ExploreState {
   const base = newExplore();
@@ -507,6 +510,8 @@ function normalizeExplore(v: any): ExploreState {
   const nums = (o: any) => Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).filter(([, n]) => typeof n === 'number' && Number.isFinite(n) && n >= 0)) as Record<string, number>;
   const found = strList(v.found).filter((id, i, a) => areaDef(id) && a.indexOf(id) === i);
   if (!found.includes('near-tunnels')) found.unshift('near-tunnels');
+  // every warren has somewhere to grow food
+  if (!found.includes('mushroom-beds')) found.push('mushroom-beds');
   const pick = (o: Record<string, number>) => Object.fromEntries(Object.entries(o).filter(([k]) => (KIND_IDS as readonly string[]).includes(k)));
   return {
     target: (KIND_IDS as readonly string[]).includes(v.target) ? v.target : v.target === null ? null : base.target,
