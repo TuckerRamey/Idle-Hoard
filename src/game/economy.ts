@@ -256,7 +256,6 @@ export function roomVolume(state: GameState, roomId: string): number {
 
 /** What a room holds: cubic paces of goods, or beds, herders or smiths. */
 export function roomCapacity(state: GameState, def: RoomDef, volume = roomVolume(state, def.id)): number {
-  if (def.holds === 'dragon') return 0;
   if (def.holds === 'goods') return volume;
   let m = 1;
   if (def.holds === 'beds') m *= storageMult(state) * researchMult(state, 'bedsMult');
@@ -279,7 +278,8 @@ export function capacity(state: GameState, res: ResourceId): number {
     // one shared pile: what's held, plus however much more fits in the space left
     let used = 0;
     for (const g of storeGoods(state, 'hoard')) used += state.res[g.id] / g.perPace;
-    const free = Math.max(0, roomVolume(state, 'hoard') * mult - used);
+    // the dragon sleeps on the pile and takes up room as it grows
+    const free = Math.max(0, roomVolume(state, 'hoard') * mult - state.dragon.size - used);
     return Math.floor(state.res[res] + free * def.perPace + 1e-9);
   }
   const share = roomVolume(state, room.id) / Math.max(1, storeGoods(state, room.id).length);

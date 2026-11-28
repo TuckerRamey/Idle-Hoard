@@ -30,7 +30,7 @@ function fed(stage = 1): GameState {
   s.crews.herder = { n: 3 };
   s.dragon.hungry = false;
   s.dragon.nextRequestAt = 1e12;
-  s.rooms.lair.volume = 2_000;
+  s.rooms.hoard.volume = 2_000;
   return s;
 }
 
@@ -85,13 +85,13 @@ describe('the dragon grows and refines', () => {
     expect(s.res.copper + s.res.silver * REFINE.copperPerSilver).toBeCloseTo(1_000);
   });
 
-  it('grows into its lair, up to its stage limit', () => {
+  it('grows into the hoard room, up to its stage limit', () => {
     const s = fed();
-    s.rooms.lair.volume = 100;
+    s.rooms.hoard.volume = 100;
     expect(sizeCap(s)).toBe(50);
     tick(s, 10 * 3600);
     expect(s.dragon.size).toBeCloseTo(50);
-    s.rooms.lair.volume = 1e6;
+    s.rooms.hoard.volume = 1e6;
     expect(sizeCap(s)).toBe(SIZE.capByStage[1]);
   });
 
@@ -168,7 +168,7 @@ describe('the Chief grows', () => {
   it('evolving earns a pip of your choice, up to the cap', () => {
     const s = fed();
     const m = MOLTS[0];
-    s.rooms.lair.volume = m.lair;
+    s.rooms.hoard.volume = m.hoard;
     s.res.copper = m.value;
     s.dragon.granted = m.granted;
     s.dragon.content = m.contentHours * 3600;

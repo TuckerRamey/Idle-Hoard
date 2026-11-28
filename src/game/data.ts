@@ -166,8 +166,8 @@ export interface RoomDef {
   id: string;
   name: string;
   description: string;
-  /** Goods (see ResourceDef.store), or paces per bed / herder / smith, or the dragon's lair. */
-  holds: 'goods' | 'beds' | 'herders' | 'smiths' | 'dragon';
+  /** Goods (see ResourceDef.store), or paces per bed / herder / smith. */
+  holds: 'goods' | 'beds' | 'herders' | 'smiths';
   /** For beds, herders and smiths: cubic paces each one needs. */
   pacesEach?: number;
   /** Which list it shows in. */
@@ -184,7 +184,7 @@ export const ROOMS: RoomDef[] = [
   {
     id: 'hoard',
     name: 'Hoard room',
-    description: 'Where the copper and the dragon live. A bigger room holds more and draws more kobolds.',
+    description: 'Where the dragon sleeps on its hoard. The dragon takes up room as it grows; the rest holds copper, silver and gold.',
     holds: 'goods',
     group: 'living',
     start: 100,
@@ -197,15 +197,6 @@ export const ROOMS: RoomDef[] = [
     pacesEach: 10,
     group: 'living',
     start: 40,
-  },
-  {
-    id: 'lair',
-    name: 'Lair',
-    description: 'Where the dragon sleeps. It grows into its lair like a goldfish: each molt needs a bigger one.',
-    holds: 'dragon',
-    group: 'living',
-    minStage: 1,
-    start: 50,
   },
   {
     id: 'pasture',

@@ -23,7 +23,7 @@ export const ODDITIES: OddityDef[] = [
   { id: 'shed-scales', name: 'Shed dragon scales', description: '{n} of them, each the size of a shield. The dragon leaves them for kobolds it likes. Nobody knows what they are for yet.', stacks: true },
   { id: 'old-bones', name: 'Very old bones', description: '{n} of them, dug out of the walls. They belonged to something enormous. It is definitely gone.', stacks: true },
   { id: 'colony-gifts', name: 'Gifts from the colonies', description: '{n} carvings of the dragon, sent by the colonies. Each one is smaller than the real thing, and more serious.', stacks: true },
-  { id: 'shed-skins', name: 'Shed dragon skins', description: '{n} of them, each bigger than the last. Kept rolled up in the lair like rugs.', stacks: true },
+  { id: 'shed-skins', name: 'Shed dragon skins', description: '{n} of them, each bigger than the last. Kept rolled up beside the hoard like rugs.', stacks: true },
 ];
 
 export function oddityText(def: OddityDef, count: number): string {

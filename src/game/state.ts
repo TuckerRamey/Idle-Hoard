@@ -114,7 +114,7 @@ export interface DragonState {
   /** Meat eaten since the last molt, by animal ('jerky' for the alchemist's). */
   fed: Record<string, number>;
   traits: string[];
-  /** Cubic paces. It grows into its lair while content. */
+  /** Cubic paces. It grows into the hoard room while content, taking up space there. */
   size: number;
 }
 

@@ -47,7 +47,7 @@ function fed(): GameState {
   s.crews.herder = { n: 3 };
   s.dragon.hungry = false;
   s.dragon.nextRequestAt = 1e12;
-  s.rooms.lair.volume = 2_000;
+  s.rooms.hoard.volume = 2_000;
   s.dragon.size = 200;
   return s;
 }
@@ -104,8 +104,8 @@ describe('diggers per room', () => {
   });
 
   it('an older save with one room being dug moves its diggers there', () => {
-    const s = normalize({ crews: { digger: { n: 5 } }, digging: 'lair' }, T0);
-    expect(s.dig).toEqual({ lair: 5 });
+    const s = normalize({ crews: { digger: { n: 5 } }, digging: 'woodpile' }, T0);
+    expect(s.dig).toEqual({ woodpile: 5 });
   });
 });
 

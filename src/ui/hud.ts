@@ -393,7 +393,6 @@ export class Hud {
       if (def.holds === 'beds') holds = `${cap} beds, ${population(s)} taken`;
       else if (def.holds === 'herders') holds = `Fits ${cap} herders, ${workers(s, 'herder')} working`;
       else if (def.holds === 'smiths') holds = `Fits ${cap} blacksmiths, ${workers(s, 'blacksmith')} working`;
-      else if (def.holds === 'dragon') holds = s.stage === 0 ? 'Waiting for the dragon to hatch' : `The dragon grows into it`;
       else {
         const goods = storeGoods(s, def.id);
         holds = goods.length ? `Holds ${goods.map((g) => `${formatNumber(f[g.id].cap)} ${resName(g.id)}`).join(', ')}` : '';
