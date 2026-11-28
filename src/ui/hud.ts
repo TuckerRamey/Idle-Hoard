@@ -3,6 +3,7 @@
 
 import { huntHint } from '../game/hunting';
 import { gathered, yardFull } from '../game/areas';
+import { idleNote, lossesPerHour } from '../game/losses';
 import { shamanHint } from '../game/magic';
 import { toolTag } from '../game/forge';
 import { DIG, DRAGON_STAGES, GEMS, IDLE, JOBS, RESOURCES, ROOMS, type ResourceId } from '../game/data';
@@ -124,6 +125,7 @@ export class Hud {
   private groupHeads = new Map<string, HTMLElement>();
   private jobHeads = new Map<string, HTMLElement>();
   private idleCount!: HTMLElement;
+  private idleNote!: HTMLElement;
   private newcomerSelect!: HTMLSelectElement;
   private roomRows = new Map<
     string,
@@ -176,8 +178,9 @@ export class Hud {
       }
 
     const list = $('#jobs');
-    const idle = row(`<div class="row-main"><b>Idle</b> <span class="count"></span><div class="desc newcomers"><label for="newcomer-job">Newcomers go to</label> <select id="newcomer-job"></select></div></div>`);
+    const idle = row(`<div class="row-main"><b>Idle</b> <span class="count"></span><div class="desc newcomers"><label for="newcomer-job">Newcomers go to</label> <select id="newcomer-job"></select></div><div class="hint info"></div></div>`);
     this.idleCount = idle.querySelector('.count')!;
+    this.idleNote = idle.querySelector('.hint')!;
     this.newcomerSelect = idle.querySelector('select')!;
     this.newcomerSelect.addEventListener('change', () => {
       this.getState().newcomerJob = this.newcomerSelect.value;
@@ -352,8 +355,12 @@ export class Hud {
     } else setText(this.popText, `All ${bedCount} beds are taken. Dig the den bigger to make room for more. Appeal ${a}.`);
 
     setText(this.idleCount, `×${s.idle}`);
+    const note = idleNote(s);
+    setText(this.idleNote, note ?? '');
+    this.idleNote.classList.toggle('info', !(note ?? '').startsWith('They have'));
     for (const el of document.querySelectorAll<HTMLElement>('.idle-note')) setText(el, `${s.idle} idle`);
-    const open = JOBS.filter((j) => jobOpen(s, j) && j.id !== 'digger');
+    // scouts are only ever sent on purpose
+    const open = JOBS.filter((j) => jobOpen(s, j) && j.id !== 'digger' && j.id !== 'scout');
     syncOptions(this.newcomerSelect, [[IDLE, 'Idle (wait for orders)'], ...open.map((j) => [j.id, j.name] as [string, string])], s.newcomerJob);
 
     const hints = jobHints(s);
@@ -379,7 +386,9 @@ export class Hud {
         // mana comes slowly: per hour reads better
         setText(row.rate, withTag(workers(s, def.id) > 0 ? `${formatNumber(total * 3600)} mana an hour (${formatNumber(each * 3600)} each)` : `${formatNumber(each * 3600)} mana an hour each`));
       } else setText(row.rate, withTag(workers(s, def.id) > 0 ? `${formatNumber(total)} ${what} / s (${formatNumber(each)} each)` : `${formatNumber(each)} ${what} / s each`));
-      const note = def.id === 'hunter' ? huntHint(s) : def.id === 'shaman' ? shamanHint(s) : null;
+      const danger = lossesPerHour(s, def.id);
+      const risk = danger > 0 ? ` Dangerous work: about one lost every ${formatDuration(3600 / danger)} at this pace. Research and better tools make it safer.` : '';
+      const note = (((def.id === 'hunter' ? huntHint(s) : def.id === 'shaman' ? shamanHint(s) : null) ?? '') + risk).trim() || null;
       setText(row.hint, hints[def.id] ?? note ?? '');
       row.hint.classList.toggle('info', !hints[def.id] && !!note && !note.startsWith('Out of'));
       setDisabled(row.down, c.n < 1);

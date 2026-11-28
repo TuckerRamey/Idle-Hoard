@@ -33,6 +33,8 @@ export interface NamedKobold {
   epithet?: string;
   /** For a named digger: the room they dig. */
   room?: string;
+  /** Seconds left resting by the hoard after being hurt on dangerous work. They don't work meanwhile. */
+  restLeft?: number;
 }
 
 export interface Talent {
@@ -86,7 +88,7 @@ export function findNamed(state: GameState, id: number): NamedKobold | undefined
 }
 
 export function namedIn(state: GameState, job: string): NamedKobold[] {
-  return state.named.filter((k) => k.job === job);
+  return state.named.filter((k) => k.job === job && !((k.restLeft ?? 0) > 0));
 }
 
 /** What makes this kobold better or worse than a crowd kobold at `job`, one part each. */

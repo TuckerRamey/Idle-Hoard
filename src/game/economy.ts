@@ -3,6 +3,7 @@
 
 import { PIP_ODDITIES, quirkOf, raiseStat } from './chief';
 import { artStep } from './art';
+import { lossStep } from './losses';
 import { areaExtrasStep, capHint, exploreStep, gathered, kindKnown, yardFull } from './areas';
 import { findStep } from './finds';
 import { huntStep } from './hunting';
@@ -572,7 +573,7 @@ export function arrive(state: GameState, seconds: number): number {
   if (n > 0) {
     state.idle += n;
     const job = jobDef(state.newcomerJob);
-    if (state.newcomerJob !== IDLE && job && jobOpen(state, job)) assign(state, state.newcomerJob, n);
+    if (state.newcomerJob !== IDLE && state.newcomerJob !== 'scout' && job && jobOpen(state, job)) assign(state, state.newcomerJob, n);
   }
   return n;
 }
@@ -620,9 +621,14 @@ export interface TickResult {
   learned: string[];
   /** Chronicle lines. {chief} is filled in by the caller. */
   events: string[];
+  /** Crowd kobolds lost on dangerous work, by job, and idle ones who wandered off. */
+  died: Record<string, number>;
+  wandered: number;
+  /** Areas the scouts found. */
+  explored: string[];
 }
 
-const emptyResult = (): TickResult => ({ gained: emptyRes(), lost: emptyRes(), newStage: null, dug: [], learned: [], events: [] });
+const emptyResult = (): TickResult => ({ gained: emptyRes(), lost: emptyRes(), newStage: null, dug: [], learned: [], events: [], died: {}, wandered: 0, explored: [] });
 
 /** Rates are worked out again at least this often (seconds). */
 const SUBSTEP = 10;
@@ -675,7 +681,13 @@ function step(state: GameState, dt: number, at: number, rand: () => number, r: T
     r.events.push(...findStep(state, dt, at, rand));
     r.events.push(...epithetStep(state, at));
     r.events.push(...colonyStep(state, dt, at, rand));
+    const known = state.explore.found.length;
     r.events.push(...exploreStep(state, dt, at, rand));
+    r.explored.push(...state.explore.found.slice(known));
+    const loss = lossStep(state, dt, at, rand);
+    r.events.push(...loss.lines);
+    for (const [job, n] of Object.entries(loss.died)) r.died[job] = (r.died[job] ?? 0) + n;
+    r.wandered += loss.wandered;
     r.events.push(...areaExtrasStep(state, dt, at, rand));
     const s = stageFor(hoardValue(state));
     if (s > state.stage) state.stage = s;
@@ -806,6 +818,9 @@ export function advanceTo(state: GameState, now: number): AdvanceResult {
     out.dug.push(...r.dug);
     out.learned.push(...r.learned);
     out.events.push(...r.events);
+    for (const [job, n] of Object.entries(r.died)) out.died[job] = (out.died[job] ?? 0) + n;
+    out.wandered += r.wandered;
+    out.explored.push(...r.explored);
     out.arrived += arrive(state, step);
   }
   return out;

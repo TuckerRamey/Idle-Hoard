@@ -42,7 +42,9 @@ export type ResearchEffect =
   /** Rare finds (uncommon and better) are this much likelier. */
   | { kind: 'findLuck'; mult: number }
   /** Mithril turns up among the miners' rare finds. */
-  | { kind: 'mithrilFinds' };
+  | { kind: 'mithrilFinds' }
+  /** Dangerous work (scouting, hunting, the deep workings) loses this much as many kobolds; for one job, or all. */
+  | { kind: 'dangerMult'; mult: number; job?: string };
 
 export interface ResearchDef {
   id: string;
@@ -331,6 +333,29 @@ export const RESEARCH: ResearchDef[] = [
     requires: ['crab-wrangling'],
     minStage: 1,
     doneText: 'The researchers drew a map of where the monsters live. Then they drew a second map of where they are going to stay well away from.',
+  },
+  {
+    id: 'ropes-and-lanterns',
+    name: 'Ropes and lanterns',
+    description: 'Scouts and deep miners go roped together, with a light each. Half as many are lost.',
+    cost: 4_000,
+    resources: { wood: 300 },
+    requires: [],
+    effects: [
+      { kind: 'dangerMult', job: 'scout', mult: 0.5 },
+      { kind: 'dangerMult', job: 'miner', mult: 0.5 },
+    ],
+    doneText: 'Ropes and lanterns for the scouts. They look like a very slow, very bright caterpillar going down the tunnel.',
+  },
+  {
+    id: 'hide-armor',
+    name: 'Hide armor',
+    description: 'Hunters wear the hides of what they hunted. Half as many are lost.',
+    cost: 8_000,
+    resources: { meat: 150, wood: 200 },
+    requires: ['monster-tracking'],
+    effects: [{ kind: 'dangerMult', job: 'hunter', mult: 0.5 }],
+    doneText: 'The hunters wear bear hide now. The bears in the caves seem offended.',
   },
   {
     id: 'bone-reading',

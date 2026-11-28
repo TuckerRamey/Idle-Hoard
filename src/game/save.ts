@@ -224,6 +224,7 @@ function normalizeNamed(v: unknown): NamedKobold[] {
         : {}),
       ...(typeof k.epithet === 'string' ? { epithet: k.epithet } : {}),
       ...(typeof k.room === 'string' ? { room: k.room } : {}),
+      ...(typeof k.restLeft === 'number' && k.restLeft > 0 ? { restLeft: k.restLeft } : {}),
     }));
 }
 
@@ -431,6 +432,13 @@ export function normalize(raw: unknown, now: number): GameState {
     hunt: normalizeHunt(r.hunt),
     magic: normalizeMagic(r.magic, r.oddities),
     explore: normalizeExplore(r.explore),
+    losses: {
+      acc: Object.fromEntries(Object.entries(r.losses?.acc && typeof r.losses.acc === 'object' ? r.losses.acc : {}).filter(([, n]) => typeof n === 'number' && Number.isFinite(n))) as Record<string, number>,
+      idleFor: num(r.losses?.idleFor, 0),
+      wanderAcc: num(r.losses?.wanderAcc, 0),
+      died: Math.floor(num(r.losses?.died, 0)),
+      wandered: Math.floor(num(r.losses?.wandered, 0)),
+    },
     seed: Number.isInteger(r.seed) ? r.seed : base.seed,
   };
   // saves from before areas: find enough for them that nothing they made drops

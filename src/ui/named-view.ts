@@ -23,6 +23,7 @@ import { rng, type GameState } from '../game/state';
 import { timeAgo } from './chronicle';
 import { $, confirmTap, setDisabled, setText } from './dom';
 import { syncOptions } from './hud';
+import { formatDuration } from './format';
 
 /** ×1.5, ×3.2, ×0.75 */
 export const timesText = (m: number) => `×${m.toFixed(2).replace(/0$/, '').replace(/\.0$/, '')}`;
@@ -46,7 +47,7 @@ export class NamedView {
     if (!s.named.length) return;
     setText(this.summary, `${s.named.length} named · ${lieutenants(s).length} of ${lieutenantSlots(s)} lieutenants`);
     const key =
-      s.named.map((k) => `${k.id}:${k.job}:${k.job === 'digger' ? namedDigRoom(s, k) : ''}:${k.lieutenant}:${k.history.length}:${k.gifts.length}:${k.traits.length}:${k.talents?.length ?? 0}:${k.epithet ?? ''}`).join('|') +
+      s.named.map((k) => `${k.id}:${k.job}:${k.job === 'digger' ? namedDigRoom(s, k) : ''}:${k.lieutenant}:${k.history.length}:${k.gifts.length}:${k.traits.length}:${k.talents?.length ?? 0}:${k.epithet ?? ''}:${Math.ceil((k.restLeft ?? 0) / 600)}`).join('|') +
       `|${lieutenantSlots(s)}|${Math.floor(now / 60000)}|${JOBS.filter((j) => jobOpen(s, j)).length}|${artOpen(s)}|${coloniesOpen(s)}|${s.named.map((k) => colonyBlocked(s, k) ?? '').join()}`;
     if (key === this.key) return;
     this.key = key;
@@ -64,7 +65,8 @@ export class NamedView {
     det.open = isOpen;
     li.querySelector('b')!.textContent = `${k.lieutenant ? '★ ' : ''}${fullName(k)}`;
     const working = k.job !== IDLE && k.job !== ARTISAN;
-    li.querySelector('.job')!.textContent = working ? `${jobName(k.job)} ${timesText(personalMult(k))}` : jobName(k.job);
+    const rest = (k.restLeft ?? 0) > 0 ? ` · hurt, resting by the hoard (${formatDuration(k.restLeft!)} left)` : '';
+    li.querySelector('.job')!.textContent = (working ? `${jobName(k.job)} ${timesText(personalMult(k))}` : jobName(k.job)) + rest;
     li.querySelector('.mods')!.textContent = working ? modsText(k) : '';
     li.querySelector('.likes')!.textContent = `Loves ${jobName(k.loves).toLowerCase()}, hates ${jobName(k.hates).toLowerCase()}.`;
     const extras = [

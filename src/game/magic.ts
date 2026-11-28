@@ -154,7 +154,7 @@ const SPELLS: SpellDef[] = [
       if (n < 1) return null;
       state.idle += n;
       const job = jobDef(state.newcomerJob);
-      if (state.newcomerJob !== IDLE && job && jobOpen(state, job)) assign(state, state.newcomerJob, n);
+      if (state.newcomerJob !== IDLE && state.newcomerJob !== 'scout' && job && jobOpen(state, job)) assign(state, state.newcomerJob, n);
       return `The dragon called out in its sleep, a sound you feel more than hear. By morning ${n} kobold${n === 1 ? ' had' : 's had'} found their way to the hoard.`;
     },
   },
