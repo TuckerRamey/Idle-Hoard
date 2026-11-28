@@ -111,6 +111,7 @@ describe('the forge', () => {
 
   it('tools wear out with use, about once a week each, and unused ones do not', () => {
     const s = game();
+    s.chief = null; // no talents or names pulling miners out of the crew mid-test
     s.crews.miner = { n: 2 };
     s.tools.miner = { stone: { n: 4, wear: 0 } };
     tick(s, FORGE.toolLifeSeconds / 2 + 10);

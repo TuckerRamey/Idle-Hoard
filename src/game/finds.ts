@@ -149,7 +149,12 @@ export function findStep(state: GameState, dt: number, t: number, rand: () => nu
     const k = named.length && rand() < named.length / n ? pick(named, rand) : null;
     let luck = (k ? luckOf(k, job) : 1) * (researchEffect(state, 'findLuck')?.mult ?? 1);
     if (named.some((x) => x.lieutenant)) luck *= WORK_FINDS.lieutenantLuck;
-    const rarity = rollRarity(state, luck, rand, job);
+    let rarity = rollRarity(state, luck, rand, job);
+    // a shaman's lucky charm: the next few finds are at least uncommon
+    if (state.magic.charms > 0 && job !== 'scavenger') {
+      if (rarity === 'common') rarity = 'uncommon';
+      state.magic.charms--;
+    }
     const found = findFor(state, job, rarity, rand, t);
     if (!found || rarity === 'common') continue;
     // the crew's finds go in the story of a named kobold on the job, if there is one

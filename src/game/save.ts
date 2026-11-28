@@ -13,7 +13,7 @@ import { OLD_QUIRKS, QUIRKS, type Chief } from './chief';
 import { RESOURCES } from './data';
 import type { NamedKobold } from './kobolds';
 import type { Colony } from './colonies';
-import { CHRONICLE_MAX, newDragon, newGame, newHunt, type ChronicleEntry, type Crew, type DragonState, type GameState, type HuntState, type RoomState } from './state';
+import { CHRONICLE_MAX, newDragon, newGame, newHunt, newMagic, type ChronicleEntry, type Crew, type DragonState, type GameState, type HuntState, type MagicState, type RoomState } from './state';
 
 export const SAVE_VERSION = 3;
 export const SAVE_KEY = 'idle-hoard.save';
@@ -272,7 +272,7 @@ function normalizeDragon(v: any): DragonState {
     trained: { might: num(v.trained?.might, 0), fire: num(v.trained?.fire, 0), presence: num(v.trained?.presence, 0) },
     raid:
       v.raid && typeof v.raid.target === 'string' && typeof v.raid.until === 'number'
-        ? { target: v.raid.target, until: v.raid.until, rider: typeof v.raid.rider === 'number' ? v.raid.rider : null }
+        ? { target: v.raid.target, until: v.raid.until, rider: typeof v.raid.rider === 'number' ? v.raid.rider : null, ...(v.raid.blessed === true ? { blessed: true } : {}) }
         : null,
     nextRaidAt: num(v.nextRaidAt, 0),
     raided: Object.fromEntries(Object.entries(v.raided && typeof v.raided === 'object' ? v.raided : {}).map(([k, n]) => [k, Math.floor(num(n, 0))])),
@@ -396,7 +396,26 @@ export function normalize(raw: unknown, now: number): GameState {
     gems: Object.fromEntries(Object.entries(r.gems && typeof r.gems === 'object' ? r.gems : {}).filter(([, v]) => typeof v === 'number' && Number.isFinite(v) && v > 0)) as Record<string, number>,
     discovered: strList(r.discovered),
     hunt: normalizeHunt(r.hunt),
+    magic: normalizeMagic(r.magic, r.oddities),
     seed: Number.isInteger(r.seed) ? r.seed : base.seed,
+  };
+}
+
+function normalizeMagic(v: any, oddities: any): MagicState {
+  const base = newMagic();
+  // scales and skins from before magic existed count as ground already, so an old save doesn't get a pile of dust
+  const seen = Math.floor(num(oddities?.['shed-scales']?.count, 0) + num(oddities?.['shed-skins']?.count, 0));
+  if (!v || typeof v !== 'object') return { ...base, ground: seen };
+  return {
+    bones: num(v.bones, 0),
+    dust: num(v.dust, 0),
+    mana: num(v.mana, 0),
+    ground: Math.floor(num(v.ground, seen)),
+    blessed: v.blessed === true,
+    stoneSong: num(v.stoneSong, 0),
+    vision: num(v.vision, 0),
+    charms: Math.floor(num(v.charms, 0)),
+    nextSpellAt: num(v.nextSpellAt, 0),
   };
 }
 

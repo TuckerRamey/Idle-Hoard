@@ -54,6 +54,10 @@ export const HUNT = {
   farmedGain: 0.1,
   /** Herders raising a monster put by this much of their meat as monster meat. */
   farmShare: 0.05,
+  /** Bones per kill, times the monster's gain, for the shamans. */
+  bonesPerKill: 3,
+  /** Most bones kept. */
+  maxBones: 300,
   /** Kills that put a trophy on the shelf. */
   trophyEvery: 10,
 };
@@ -138,6 +142,7 @@ export function huntStep(state: GameState, dt: number, t: number, rand: () => nu
       const meat = meatOf(state, m.id);
       meat.wild = Math.min(HUNT.maxMeat, meat.wild + HUNT.meatPerKill);
       store(state, 'meat', HUNT.larderPerKill);
+      state.magic.bones = Math.min(HUNT.maxBones, state.magic.bones + HUNT.bonesPerKill * m.gain);
       if (before === 0) {
         const named = namedIn(state, 'hunter');
         const k = named.length ? named[Math.floor(rand() * named.length) % named.length] : null;

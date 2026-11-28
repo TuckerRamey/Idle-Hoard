@@ -334,6 +334,16 @@ export const RESEARCH: ResearchDef[] = [
     doneText: 'The researchers drew a map of where the monsters live. Then they drew a second map of where they are going to stay well away from.',
   },
   {
+    id: 'bone-reading',
+    name: 'Bone-reading',
+    description: 'Opens the shaman job: kobolds who draw mana out of monster bones and dragon dust, for rituals on the Leadership tab.',
+    cost: 15_000,
+    resources: { meat: 200, stone: 300 },
+    requires: ['monster-tracking'],
+    minStage: 2,
+    doneText: 'The researchers threw a handful of bear bones on the floor and read the future in them. The future says: more bones.',
+  },
+  {
     id: 'bear-taming',
     name: 'Bear taming',
     description: 'Cave bears can be raised in the pasture. Farmed meat trains the dragon less than wild, but it never stops coming.',

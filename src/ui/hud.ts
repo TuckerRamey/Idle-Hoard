@@ -2,6 +2,7 @@
 // text that changed are written, so it costs next to nothing.
 
 import { huntableMonsters, huntHint, setQuarry } from '../game/hunting';
+import { shamanHint } from '../game/magic';
 import { toolSummary } from '../game/forge';
 import { DIG, DRAGON_STAGES, GEMS, IDLE, JOBS, RESOURCES, ROOMS, type ResourceId } from '../game/data';
 import { animalsOpen, setHerd, STATS, worthRate } from '../game/dragon';
@@ -69,7 +70,7 @@ export const JOB_GROUPS: { name: string; jobs: string[] }[] = [
   { name: 'Animals', jobs: ['herder', 'hunter'] },
 ];
 /** Jobs assigned from their own tab: researchers on Research, blacksmiths and the alchemist on Forge. */
-export const JOB_ELSEWHERE: Record<string, string> = { researcher: '#research-jobs', blacksmith: '#forge-jobs', alchemist: '#forge-jobs' };
+export const JOB_ELSEWHERE: Record<string, string> = { researcher: '#research-jobs', shaman: '#research-jobs', blacksmith: '#forge-jobs', alchemist: '#forge-jobs' };
 
 export function row(html: string): HTMLLIElement {
   const li = document.createElement('li');
@@ -368,7 +369,7 @@ export class Hud {
       const stars = namedInJob(s, def.id);
       setText(row.count, `×${c.n}${stars ? ` + ${stars} named` : ''}`);
       const each = perKobold(s, def);
-      const what = def.produces ? resName(def.produces.resource) : def.digs ? 'digging' : def.researches ? 'research' : def.smiths ? 'forge work' : def.hunts ? 'hunting' : 'turned over';
+      const what = def.produces ? resName(def.produces.resource) : def.digs ? 'digging' : def.researches ? 'research' : def.smiths ? 'forge work' : def.hunts ? 'hunting' : def.channels ? 'mana' : 'turned over';
       setText(row.tools, toolSummary(s, def.id));
       const total = jobOutput(s, def);
       if (def.id === 'miner' && oreShare(s) > 0) {
@@ -376,9 +377,13 @@ export class Hud {
         const sp = minerSplit(s);
         const parts = (x: number) => [sp.stone > 0 ? `${formatNumber(x * sp.stone)} stone` : '', `${formatNumber(x * sp.ore)} iron ore`].filter(Boolean).join(' and ');
         setText(row.rate, workers(s, def.id) > 0 ? `${parts(total)} / s (${sp.yardFull ? 'ore only while the stone yard is full' : `${Math.round(oreShare(s) * 100)}% comes out as ore`})` : `${parts(each)} / s each`);
+      } else if (def.channels) {
+        // mana comes slowly: per hour reads better
+        setText(row.rate, workers(s, def.id) > 0 ? `${formatNumber(total * 3600)} mana an hour (${formatNumber(each * 3600)} each)` : `${formatNumber(each * 3600)} mana an hour each`);
       } else setText(row.rate, workers(s, def.id) > 0 ? `${formatNumber(total)} ${what} / s (${formatNumber(each)} each)` : `${formatNumber(each)} ${what} / s each`);
-      setText(row.hint, hints[def.id] ?? (def.id === 'hunter' ? (huntHint(s) ?? '') : ''));
-      row.hint.classList.toggle('info', !hints[def.id] && def.id === 'hunter');
+      const note = def.id === 'hunter' ? huntHint(s) : def.id === 'shaman' ? shamanHint(s) : null;
+      setText(row.hint, hints[def.id] ?? note ?? '');
+      row.hint.classList.toggle('info', !hints[def.id] && !!note && !note.startsWith('Out of'));
       setDisabled(row.down, c.n < 1);
       setDisabled(row.up, s.idle < 1);
       const label = this.step === Infinity ? 'all' : String(this.step);

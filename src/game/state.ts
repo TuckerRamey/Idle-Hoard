@@ -91,6 +91,8 @@ export interface GameState {
   discovered: string[];
   /** Hunting: the monster the hunters are after, work toward the next kill, kills ever, and meat waiting for the dragon. */
   hunt: HuntState;
+  /** Shaman magic: what they work with, mana, and rituals running. */
+  magic: MagicState;
   /** For the game's own dice (mishaps, requests), so runs replay the same in tests. */
   seed: number;
 }
@@ -103,6 +105,28 @@ export interface HuntState {
   meat: Record<string, { wild: number; farmed: number }>;
   /** Seconds toward the dragon's next bite of monster meat. */
   eatClock: number;
+}
+
+export interface MagicState {
+  /** Bones from hunts, and dragon dust ground from shed scales and skins. */
+  bones: number;
+  dust: number;
+  mana: number;
+  /** Scales and skins already ground into dust. */
+  ground: number;
+  /** The next raid goes with the dragon blessed. */
+  blessed: boolean;
+  /** Seconds left of stone-song (digging twice as fast) and of reading the bones (seeing a day ahead). */
+  stoneSong: number;
+  vision: number;
+  /** Finds still to come up at least uncommon. */
+  charms: number;
+  /** Dragon clock seconds when an elder dragon next casts a spell of its own. */
+  nextSpellAt: number;
+}
+
+export function newMagic(): MagicState {
+  return { bones: 0, dust: 0, mana: 0, ground: 0, blessed: false, stoneSong: 0, vision: 0, charms: 0, nextSpellAt: 0 };
 }
 
 export function newHunt(): HuntState {
@@ -138,7 +162,7 @@ export interface DragonState {
   /** Stats trained by eating monster meat, on top of each stage's base. */
   trained: { might: number; fire: number; presence: number };
   /** A raid it's on: where, when it's back (dragon clock seconds), and who rode along. */
-  raid: { target: string; until: number; rider: number | null } | null;
+  raid: { target: string; until: number; rider: number | null; blessed?: boolean } | null;
   /** Dragon clock seconds when it next goes raiding. */
   nextRaidAt: number;
   /** Raids on each kind of place, ever. */
@@ -211,6 +235,7 @@ export function newGame(now: number): GameState {
     gems: {},
     discovered: [],
     hunt: newHunt(),
+    magic: newMagic(),
     seed: (now % 2_147_483_647) || 1,
   };
 }

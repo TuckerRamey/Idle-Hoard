@@ -83,6 +83,8 @@ export interface JobDef {
   smiths?: number;
   /** Hunting work each kobold does per second, toward bringing down the chosen monster. */
   hunts?: number;
+  /** Mana each kobold draws out of bones and dragon dust per second. */
+  channels?: number;
   /** Research that opens this job. */
   requires?: string;
   sprite: SpriteId;
@@ -156,6 +158,16 @@ export const JOBS: JobDef[] = [
     sprite: 'kobold-hunter',
     motion: { kind: 'haul', lane: 1, speed: 15 },
     firstText: 'The first hunter went off into the deep caves with a spear and a very serious face.',
+  },
+  {
+    id: 'shaman',
+    name: 'Shaman',
+    description: 'Rattles bones and burns dragon dust, and draws mana out of them for rituals.',
+    channels: 0.005,
+    requires: 'bone-reading',
+    sprite: 'kobold-shaman',
+    motion: { kind: 'station', x: 186, y: 112, spacing: 8 },
+    firstText: 'The first shaman painted their face with soot and started talking to a skull. It may have answered.',
   },
   {
     id: 'alchemist',

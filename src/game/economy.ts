@@ -5,6 +5,7 @@ import { PIP_ODDITIES, quirkOf, raiseStat } from './chief';
 import { artStep } from './art';
 import { findStep } from './finds';
 import { huntStep } from './hunting';
+import { MAGIC, magicStep } from './magic';
 import { raidStep } from './raids';
 import {
   ATTRACTION,
@@ -138,6 +139,7 @@ export function jobMultiplier(state: GameState, jobId: string): number {
   m *= researchMult(state, 'jobMult', (e) => e.job === jobId);
   const q = quirkOf(state.chief);
   if (q?.effect.kind === 'jobMult' && q.effect.job === jobId) m *= q.effect.mult;
+  if (jobId === 'digger' && state.magic.stoneSong > 0) m *= MAGIC.stoneSongMult;
   return m * dragonJobMult(state, jobId);
 }
 
@@ -150,7 +152,7 @@ export function globalMultiplier(state: GameState): number {
 }
 
 function baseRate(def: JobDef): number {
-  return def.produces?.rate ?? def.digs ?? def.researches ?? def.converts ?? def.smiths ?? def.hunts ?? 0;
+  return def.produces?.rate ?? def.digs ?? def.researches ?? def.converts ?? def.smiths ?? def.hunts ?? def.channels ?? 0;
 }
 
 /** What one crowd kobold in this job makes (or digs, researches, converts) per second. */
@@ -644,6 +646,7 @@ export function tick(state: GameState, seconds: number, t = state.lastTick): Tic
     r.events.push(...dragonStep(state, dt, at, rand));
     r.events.push(...raidStep(state, at, rand));
     r.events.push(...huntStep(state, dt, at, rand));
+    r.events.push(...magicStep(state, dt, at, rand));
     r.events.push(...artStep(state, dt, at, rand));
     r.events.push(...oddityPips(state));
     r.events.push(...talentStep(state, dt, at, rand));

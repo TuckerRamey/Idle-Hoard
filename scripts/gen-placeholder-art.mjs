@@ -319,6 +319,7 @@ kobold('kobold-miner.png', '#6a6a72', '#3c3c44', '#e8b830', false, 'coins');
 kobold('kobold-herder.png', '#8fa060', '#5a6a38', '#d07a40');
 kobold('kobold-alchemist.png', '#9a6ab8', '#5e3e74', '#5ad0a0');
 kobold('kobold-blacksmith.png', '#7a7a80', '#3e3e44', '#e0782a');
+kobold('kobold-shaman.png', '#b08a5a', '#6a4e2e', '#e8e0d0'); // bone necklace
 kobold('kobold-hunter.png', '#5e7a4a', '#3a4e2c', '#7a4a2a', false, 'meat'); // leather
 
 // ---------- hats for named kobolds: 12x12 frames, one row of 6 looks ----------
