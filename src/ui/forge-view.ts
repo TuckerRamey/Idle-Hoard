@@ -7,7 +7,7 @@ import { jobDef, workers } from '../game/economy';
 import type { GameState } from '../game/state';
 import type { ResourceId } from '../game/data';
 import { cancelCommission, nextUpgrade, piece, pieceLook } from '../game/gear';
-import { $, setText } from './dom';
+import { $, setText, setBar } from './dom';
 import { formatDuration, formatNumber } from './format';
 import { costText, row, syncOptions } from './hud';
 
@@ -71,7 +71,7 @@ export class ForgeView {
       syncOptions(r.select, options, slot.order ?? NOTHING);
       const unit = unitFor(s, slot.order);
       const blocked = slotBlocked(s, slot);
-      r.bar.style.width = unit ? `${Math.min(100, (slot.progress / unit.work) * 100).toFixed(1)}%` : '0';
+      setBar(r.bar, unit ? slot.progress / unit.work : 0);
       const share = busy ? rate / busy : 0;
       let sub = '';
       if (!slot.order) sub = 'Idle.';

@@ -5,6 +5,17 @@ export function setText(el: HTMLElement, text: string) {
   if (el.textContent !== text) el.textContent = text;
 }
 
+/**
+ * Fill a progress bar (the inner div of a .bar) to `fraction`. It's drawn with
+ * a transform, not a width, and without a transition, so a bar that moves
+ * every second costs no layout and doesn't keep the page animating between ticks.
+ */
+export function setBar(el: HTMLElement, fraction: number) {
+  const f = Number.isFinite(fraction) ? Math.max(0, Math.min(1, fraction)) : 0;
+  const v = `scaleX(${f.toFixed(3)})`;
+  if (el.style.transform !== v) el.style.transform = v;
+}
+
 export function setDisabled(el: HTMLButtonElement, v: boolean) {
   if (el.disabled !== v) el.disabled = v;
 }

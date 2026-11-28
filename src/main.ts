@@ -2,7 +2,7 @@ import './style.css';
 import { RitualsView } from './ui/rituals-view';
 import type { Chief } from './game/chief';
 import { CONFIG, DRAGON_STAGES, JOBS, RESOURCES, ROOMS } from './game/data';
-import { advanceTo, beds, hoardValue, offlineCap, population, roomCapacity, stageFor, workers, type AdvanceResult } from './game/economy';
+import { advanceTo, beds, cached, emptyAdvance, mergeResult, hoardValue, offlineCap, population, roomCapacity, stageFor, workers, type AdvanceResult } from './game/economy';
 import { awayHappenings, happen, happeningChance } from './game/happenings';
 import { nextGoal } from './game/goals';
 import { ColoniesView } from './ui/colonies-view';
@@ -101,6 +101,11 @@ document.querySelector('#settings-open')!.addEventListener('click', () => tabs.t
 const renderer = new Renderer(document.querySelector('#scene') as HTMLCanvasElement, getState);
 
 function updatePanels() {
+  // the panels ask for the same job outputs many times over; work them out once per update
+  cached(updatePanelsNow);
+}
+
+function updatePanelsNow() {
   hud.update();
   dragonView.update();
   researchView.update();
@@ -151,12 +156,69 @@ if (loaded.kind === 'error') {
 } else if (loaded.kind === 'loaded' && loaded.migratedFrom) {
   tell(`Save updated from version ${loaded.migratedFrom}. A backup of the old one was kept.`);
 }
-creditTime(true);
 
 /** Credit all time since the last tick. Adds a chronicle line after a long absence. */
 function creditTime(isReturn: boolean) {
   const before = population(state);
-  const r = advanceTo(state, Date.now());
+  report(advanceTo(state, Date.now()), before, isReturn);
+}
+
+/** Game time worked through in one go while catching up (seconds). */
+const CATCH_UP_SLICE = 1800;
+/** How long one go may hold the page (ms) before it lets the browser draw and take taps. */
+const CATCH_UP_BUDGET_MS = 25;
+let catching: Promise<void> | null = null;
+
+/**
+ * Credit time since the last tick like creditTime, but a long absence is
+ * worked through half an hour at a time, letting the page draw in between.
+ * A day away can take a phone several seconds to work through; this way it
+ * never freezes, and closing the game part way keeps what's been worked
+ * through so far (the rest is credited next time).
+ */
+function catchUp(): Promise<void> {
+  if (catching) return catching;
+  const now = Date.now();
+  const elapsed = Math.max(0, (now - state.lastTick) / 1000);
+  if (elapsed <= CATCH_UP_SLICE) {
+    creditTime(true);
+    return Promise.resolve();
+  }
+  const s = state;
+  const credited = Math.min(elapsed, offlineCap(s));
+  s.lastTick = now - credited * 1000;
+  const before = population(s);
+  const total = emptyAdvance(elapsed, credited);
+  awayTitle.textContent = `Catching up on ${formatDuration(credited)} away…`;
+  awayList.replaceChildren();
+  awayEl.hidden = false;
+  catching = new Promise((done) => {
+    const slice = () => {
+      // a save was loaded or the game started over meanwhile: that game has its own time
+      if (state !== s) {
+        catching = null;
+        awayEl.hidden = true;
+        return done();
+      }
+      const until = performance.now() + CATCH_UP_BUDGET_MS;
+      while (s.lastTick < now && performance.now() < until) mergeResult(total, advanceTo(s, Math.min(now, s.lastTick + CATCH_UP_SLICE * 1000)));
+      if (s.lastTick < now) {
+        setTimeout(slice, 0);
+        return;
+      }
+      catching = null;
+      awayEl.hidden = true;
+      report(total, before, true);
+      refresh();
+      done();
+    };
+    slice();
+  });
+  return catching;
+}
+
+/** Chronicle lines and the away card for a stretch of credited time. */
+function report(r: AdvanceResult, before: number, isReturn: boolean) {
   const after = population(state);
   if (after > before) firstOnJobs();
   for (let m = Math.floor(before / 10) * 10 + 10; m <= after; m += 10) tell(`The warren has grown to ${m} kobolds.`);
@@ -219,7 +281,7 @@ function showAway(r: AdvanceResult, happened: number) {
   if (art) items.push(`${art} piece${art === 1 ? '' : 's'} of art finished.`);
   const other = r.events.length + happened - r.learned.length - molted - art;
   if (other > 0) items.push(`${other} other thing${other === 1 ? '' : 's'} happened. The chronicle has the stories.`);
-  if (r.elapsed > r.credited) items.push(`Only the first ${formatDuration(offlineCap(state))} counted.`);
+  if (r.elapsed > r.credited + 60) items.push(`Only the first ${formatDuration(offlineCap(state))} counted.`);
   if (!items.length) return;
   awayTitle.textContent = `While you were away (${formatDuration(r.elapsed)})`;
   awayList.replaceChildren(
@@ -237,7 +299,13 @@ let tickTimer: number | undefined;
 let saveTimer: number | undefined;
 
 function tickOnce() {
-  creditTime(false);
+  if (catching) return;
+  // a laptop that slept with the game showing skips visibilitychange, so a long gap here is caught up like a return
+  if (Date.now() - state.lastTick > CATCH_UP_SLICE * 1000) {
+    catchUp();
+    return;
+  }
+  creditTime(true);
   if (Math.random() < happeningChance(state, TICK_MS / 1000)) maybeHappen();
   updatePanels();
   chiefPanel.update();
@@ -247,7 +315,7 @@ function tickOnce() {
 }
 
 function resume() {
-  creditTime(true);
+  catchUp();
   refresh();
   renderer.start();
   if (tickTimer === undefined) tickTimer = window.setInterval(tickOnce, TICK_MS);
@@ -255,7 +323,8 @@ function resume() {
 }
 
 function pause() {
-  creditTime(false);
+  // part way through catching up, the rest is picked up again on return
+  if (!catching) creditTime(false);
   save();
   renderer.stop();
   clearInterval(tickTimer);
@@ -265,7 +334,7 @@ function pause() {
 
 document.addEventListener('visibilitychange', () => (document.hidden ? pause() : resume()));
 window.addEventListener('pagehide', () => {
-  creditTime(false);
+  if (!catching) creditTime(false);
   save();
 });
 if (!document.hidden) resume();
@@ -373,5 +442,5 @@ if (new URLSearchParams(location.search).has('debug')) {
     last = renderer.draws;
   }, 5000);
   // handy in the console: hoard.state, hoard.save()
-  (window as any).hoard = { get state() { return state; }, save, skip: (s: number) => { state.lastTick -= s * 1000; creditTime(true); refresh(); } };
+  (window as any).hoard = { get state() { return state; }, save, skip: (s: number) => { state.lastTick -= s * 1000; catchUp(); refresh(); } };
 }

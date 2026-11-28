@@ -44,7 +44,7 @@ import {
   workers,
 } from '../game/economy';
 import type { GameState } from '../game/state';
-import { $, setDisabled, setText } from './dom';
+import { $, setDisabled, setText, setBar } from './dom';
 import { formatDuration, formatNumber } from './format';
 
 export type HudEvent =
@@ -301,7 +301,7 @@ export class Hud {
     if (s.stage === 0) {
       this.stageBar.parentElement!.hidden = false;
       const v = hoardValue(s);
-      this.stageBar.style.width = `${Math.min(100, (v / hatchAt) * 100).toFixed(1)}%`;
+      setBar(this.stageBar, v / hatchAt);
       setText(this.stageText, `Hatches when the hoard is worth ${formatNumber(hatchAt)} copper (${formatNumber(v)} so far)`);
     } else {
       this.stageBar.parentElement!.hidden = true;

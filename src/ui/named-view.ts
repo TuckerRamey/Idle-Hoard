@@ -41,6 +41,7 @@ export class NamedView {
   private list = $('#named');
   private summary = $('#named-summary');
   private key = '';
+  private minute = 0;
 
   constructor(
     private getState: () => GameState,
@@ -54,10 +55,22 @@ export class NamedView {
     setText(this.summary, `${s.named.length} named · ${lieutenants(s).length} of ${lieutenantSlots(s)} lieutenants`);
     const key =
       s.named.map((k) => `${k.id}:${k.job}:${k.job === 'digger' ? namedDigRoom(s, k) : ''}:${k.lieutenant}:${k.history.length}:${k.gifts.length}:${k.traits.length}:${k.talents?.length ?? 0}:${k.epithet ?? ''}:${Math.ceil((k.restLeft ?? 0) / 600)}:${JSON.stringify(k.gear ?? {})}`).join('|') +
-      `|${JSON.stringify(s.forge.commissions)}|${s.research.done.length}|${Math.floor(s.res.steel)}|${Math.floor(s.res.bars)}|${Math.floor(s.res.stone)}` +
-      `|${lieutenantSlots(s)}|${Math.floor(now / 60000)}|${JOBS.filter((j) => jobOpen(s, j)).length}|${artOpen(s)}|${coloniesOpen(s)}|${s.named.map((k) => colonyBlocked(s, k) ?? '').join()}`;
-    if (key === this.key) return;
+      `|${JSON.stringify(s.forge.commissions)}|${s.research.done.length}` +
+      `|${lieutenantSlots(s)}|${JOBS.filter((j) => jobOpen(s, j)).length}|${artOpen(s)}|${coloniesOpen(s)}|${s.named.map((k) => colonyBlocked(s, k) ?? '').join()}`;
+    if (key === this.key) {
+      // nothing on the cards changed: just keep the "3h ago" times current, once a minute
+      const minute = Math.floor(now / 60000);
+      if (minute !== this.minute) {
+        this.minute = minute;
+        for (const el of this.list.querySelectorAll<HTMLElement>('.when[data-t]')) setText(el, timeAgo(now - Number(el.dataset.t)));
+      }
+      return;
+    }
+    // rebuilding the cards would close a job or room picker someone is using; wait until they're done
+    const focus = document.activeElement;
+    if (focus instanceof HTMLSelectElement && this.list.contains(focus)) return;
     this.key = key;
+    this.minute = Math.floor(now / 60000);
     const open = this.list.querySelectorAll('details[open]');
     const openIds = new Set([...open].map((d) => (d as HTMLElement).dataset.id));
     this.list.replaceChildren(...s.named.map((k) => this.card(s, k, now, openIds.has(String(k.id)))));
@@ -148,6 +161,7 @@ export class NamedView {
       const item = document.createElement('li');
       const when = document.createElement('span');
       when.className = 'when';
+      when.dataset.t = String(h.t);
       when.textContent = timeAgo(now - h.t);
       item.append(h.text, ' ', when);
       hist.append(item);

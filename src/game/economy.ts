@@ -28,7 +28,7 @@ import {
   type RoomDef,
 } from './data';
 import { dragonAppeal, dragonJobMult, dragonStep, eatRate, moodMult } from './dragon';
-import { forgeMakes, forgeStep, forgeUse, toolMults } from './forge';
+import { forgeMakes, forgeStep, forgeUse, stepAllocCache, toolMults } from './forge';
 import { addHistory, addTalent, crewLift, fullName, nameOrCredit, namedIn, personalMult, takeDigger, type NamedKobold } from './kobolds';
 import { digFinds, epithetStep, talentStep } from './events';
 import { colonyStep } from './colonies';
@@ -209,6 +209,17 @@ export function chiefRate(state: GameState): number {
 
 /** Everything made per second by jobs and the Chief, before storage limits. Not counting alchemy. */
 export function production(state: GameState): Record<ResourceId, number> {
+  // during a tick step this is asked for several times (the step, a full hoard, the dragon's meals); work it out once
+  if (outputCache) {
+    productionCache ??= makeProduction(state);
+    return { ...productionCache };
+  }
+  return makeProduction(state);
+}
+
+let productionCache: Record<ResourceId, number> | null = null;
+
+function makeProduction(state: GameState): Record<ResourceId, number> {
   const p = emptyRes();
   p.copper = chiefRate(state);
   for (const def of JOBS) {
@@ -647,14 +658,27 @@ export function tick(state: GameState, seconds: number, t = state.lastTick): Tic
   for (let left = seconds; left > 1e-9; left -= SUBSTEP) {
     const dt = Math.min(SUBSTEP, left);
     at += dt * 1000;
-    outputCache = new Map();
-    try {
-      step(state, dt, at, rand, r);
-    } finally {
-      outputCache = null;
-    }
+    cached(() => step(state, dt, at, rand, r));
   }
   return r;
+}
+
+/**
+ * Run `fn` with job outputs, production and the tool split worked out once
+ * and reused, as inside a tick step. The panels use it too: they ask for the
+ * same numbers many times over while they update. Nested calls share the outer cache.
+ */
+export function cached<T>(fn: () => T): T {
+  if (outputCache) return fn();
+  outputCache = new Map();
+  stepAllocCache(true);
+  try {
+    return fn();
+  } finally {
+    outputCache = null;
+    productionCache = null;
+    stepAllocCache(false);
+  }
 }
 
 /** One step of a tick, with job outputs cached for its length. */
@@ -799,33 +823,45 @@ export interface AdvanceResult extends TickResult {
 /**
  * Credit all time since `state.lastTick`, capped at the offline cap.
  * Used every tick, so a sleeping laptop, a hidden tab and a closed game
- * all work the same way. A clock that went backwards credits nothing.
+ * all work the same way. A clock that went backwards credits nothing, and
+ * the game carries on from the new time (rather than standing still until
+ * the clock catches up with the old one).
  */
 export function advanceTo(state: GameState, now: number): AdvanceResult {
   const elapsed = Math.max(0, (now - state.lastTick) / 1000);
   const credited = Math.min(elapsed, offlineCap(state));
-  state.lastTick = Math.max(state.lastTick, now);
-  const out: AdvanceResult = { ...emptyResult(), arrived: 0, elapsed, credited };
+  if (Number.isFinite(now)) state.lastTick = now;
+  const out = emptyAdvance(elapsed, credited);
   // when the credited time started, so history entries land at about the right moment
   let at = now - credited * 1000;
   for (let left = credited; left > 0; left -= ADVANCE_STEP) {
     const step = Math.min(ADVANCE_STEP, left);
     const r = tick(state, step, at);
     at += step * 1000;
-    for (const res of RESOURCES) {
-      out.gained[res.id] += r.gained[res.id];
-      out.lost[res.id] += r.lost[res.id];
-    }
-    if (r.newStage !== null) out.newStage = r.newStage;
-    out.dug.push(...r.dug);
-    out.learned.push(...r.learned);
-    out.events.push(...r.events);
-    for (const [job, n] of Object.entries(r.died)) out.died[job] = (out.died[job] ?? 0) + n;
-    out.wandered += r.wandered;
-    out.explored.push(...r.explored);
+    mergeResult(out, r);
     out.arrived += arrive(state, step);
   }
   return out;
+}
+
+export function emptyAdvance(elapsed: number, credited: number): AdvanceResult {
+  return { ...emptyResult(), arrived: 0, elapsed, credited };
+}
+
+/** Add one stretch of time's results onto another (elapsed and credited are left alone). */
+export function mergeResult(out: TickResult & { arrived?: number }, r: TickResult & { arrived?: number }) {
+  for (const res of RESOURCES) {
+    out.gained[res.id] += r.gained[res.id];
+    out.lost[res.id] += r.lost[res.id];
+  }
+  if (r.newStage !== null) out.newStage = r.newStage;
+  out.dug.push(...r.dug);
+  out.learned.push(...r.learned);
+  out.events.push(...r.events);
+  for (const [job, n] of Object.entries(r.died)) out.died[job] = (out.died[job] ?? 0) + n;
+  out.wandered += r.wandered;
+  out.explored.push(...r.explored);
+  if (out.arrived !== undefined && r.arrived !== undefined) out.arrived += r.arrived;
 }
 
 /** Every few kinds of oddity found, the Chief grows more cunning. */
