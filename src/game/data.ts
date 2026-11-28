@@ -157,8 +157,6 @@ export const JOBS: JobDef[] = [
 export const IDLE = 'idle';
 
 /** A crew's bonus for working together: up to `maxBonus`, half of it after `halfHours`. */
-export const CREW = { maxBonus: 0.3, halfHours: 6 };
-
 /**
  * Rooms. Each is measured in cubic paces; digging adds volume. A room's
  * volume sets what it holds: goods (by how many fit in a pace), beds,
@@ -266,8 +264,10 @@ export const ROOMS: RoomDef[] = [
 ];
 
 export const DIG = {
-  /** Dig work per cubic pace. The same for every room and every pace. */
-  workPerPace: 2,
+  /** Dig work per cubic pace in a tiny room... */
+  workPerPace: 10,
+  /** ...and it goes up by that much again for every this many cubic paces the room already has. Big rooms are slow to grow. */
+  growPaces: 500,
   /**
    * Small rooms need no supports. From these volumes on, each cubic pace dug
    * uses this much of a resource to hold the ceiling up.

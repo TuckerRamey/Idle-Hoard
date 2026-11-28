@@ -28,7 +28,7 @@ describe('save round trip', () => {
     const s = newGame(T0);
     s.res.copper = 123.5;
     s.res.wood = 7;
-    s.crews.digger = { n: 4, exp: 1.5 };
+    s.crews.digger = { n: 4 };
     s.dig = { den: 4 };
     s.idle = 2;
     s.rooms.den = { volume: 123.5 };
@@ -70,10 +70,10 @@ describe('save round trip', () => {
     const text = JSON.stringify({
       version: SAVE_VERSION,
       savedAt: T0,
-      state: { crews: { scavenger: { n: 2, exp: 1 }, futureJob: { n: 3, exp: 0 } }, rooms: { vault: { volume: 70 } } },
+      state: { crews: { scavenger: { n: 2 }, futureJob: { n: 3 } }, rooms: { vault: { volume: 70 } } },
     });
     const s = deserialize(text, T0);
-    expect(s.crews).toEqual({ scavenger: { n: 2, exp: 1 }, futureJob: { n: 3, exp: 0 } });
+    expect(s.crews).toEqual({ scavenger: { n: 2 }, futureJob: { n: 3 } });
     expect(s.rooms.vault).toEqual({ volume: 70 });
     expect(s.rooms.den).toEqual({ volume: 40 });
   });

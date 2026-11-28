@@ -87,12 +87,22 @@ export function namedIn(state: GameState, job: string): NamedKobold[] {
   return state.named.filter((k) => k.job === job);
 }
 
-/** How hard this kobold works, before the job's own multipliers. */
-export function personalMult(k: NamedKobold): number {
-  let m = k.job === k.loves ? LOVE_MULT : k.job === k.hates ? HATE_MULT : 1;
-  for (const g of k.gifts) m *= giftDef(g)?.mult ?? 1;
-  for (const t of k.talents ?? []) if (t.job === k.job) m *= t.mult;
-  return m;
+/** What makes this kobold better or worse than a crowd kobold at `job`, one part each. */
+export function personalParts(k: NamedKobold, job: string = k.job): { label: string; mult: number }[] {
+  const parts: { label: string; mult: number }[] = [];
+  if (job === k.loves) parts.push({ label: 'loves it', mult: LOVE_MULT });
+  else if (job === k.hates) parts.push({ label: 'hates it', mult: HATE_MULT });
+  for (const g of k.gifts) {
+    const d = giftDef(g);
+    if (d && d.mult !== 1) parts.push({ label: d.name, mult: d.mult });
+  }
+  for (const t of k.talents ?? []) if (t.job === job) parts.push({ label: t.name, mult: t.mult });
+  return parts;
+}
+
+/** How hard this kobold works at `job` (their own by default), before the job's own multipliers. */
+export function personalMult(k: NamedKobold, job: string = k.job): number {
+  return personalParts(k, job).reduce((m, p) => m * p.mult, 1);
 }
 
 /** Give a kobold a talent, unless they already have one by that name. */
@@ -215,6 +225,44 @@ export function nameKobold(
   addHistory(k, t, firstStory);
   state.named.push(k);
   return k;
+}
+
+/** How many named kobolds the warren keeps: about one in ten, and at least a few. */
+export const NAMED = { per: 10, min: 3 };
+
+export function namedCap(state: GameState): number {
+  let pop = state.idle + state.named.length;
+  for (const c of Object.values(state.crews)) pop += c.n;
+  return Math.max(NAMED.min, Math.floor(pop / NAMED.per));
+}
+
+/** Is there room for someone new to get a name? */
+export function canName(state: GameState): boolean {
+  return state.named.length < namedCap(state);
+}
+
+/** A named kobold to credit with something that happened at `job`: one who works it if there is one, else anyone. */
+export function creditNamed(state: GameState, job: string, rand: () => number): NamedKobold | null {
+  const same = namedIn(state, job);
+  const pool = same.length ? same : state.named;
+  return pool.length ? pool[Math.floor(rand() * pool.length) % pool.length] : null;
+}
+
+/**
+ * Someone memorable at `job`: a crowd kobold gets a name if the warren has
+ * room for one more, otherwise an existing named kobold (same job first)
+ * gets the experience. `fresh` says which. The caller writes the history.
+ */
+export function nameOrCredit(state: GameState, job: string, title: string, t: number, rand: () => number): { k: NamedKobold; fresh: boolean } | null {
+  if (canName(state)) {
+    const k = nameKobold(state, job, title, '', t, rand);
+    if (k) {
+      k.history = [];
+      return { k, fresh: true };
+    }
+  }
+  const k = creditNamed(state, job, rand);
+  return k ? { k, fresh: false } : null;
 }
 
 export function fullName(k: NamedKobold): string {

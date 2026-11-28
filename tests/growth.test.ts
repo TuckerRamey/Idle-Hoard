@@ -20,7 +20,6 @@ import {
   storeGoods,
   supportsFor,
   tick,
-  veteranLabel,
   workers,
 } from '../src/game/economy';
 import { happen } from '../src/game/happenings';
@@ -48,7 +47,7 @@ describe('rooms measured in volume', () => {
   it('supports change at set volumes: bars from 1,500 paces, and bars need the forge', () => {
     const s = game();
     s.rooms.den.volume = 1_500;
-    s.crews.digger = { n: 1, exp: 0 };
+    s.crews.digger = { n: 1 };
     s.dig = { den: s.crews.digger?.n ?? 0 };
     s.res.wood = 100;
     s.res.stone = 100;
@@ -61,12 +60,14 @@ describe('rooms measured in volume', () => {
   it('a dig crossing a support threshold starts paying there', () => {
     const s = game();
     s.rooms.den.volume = 140;
-    s.crews.digger = { n: 1, exp: 0 };
+    s.crews.digger = { n: 1 };
     s.dig = { den: s.crews.digger?.n ?? 0 };
     s.res.wood = 100;
-    tick(s, 40); // 20 paces: 10 free, 10 with wood
-    expect(s.rooms.den.volume).toBeCloseTo(160);
-    expect(s.res.wood).toBeCloseTo(90);
+    tick(s, 300);
+    const wood = DIG.supports.find((x) => x.resource === 'wood')!;
+    expect(s.rooms.den.volume).toBeGreaterThan(wood.fromPaces);
+    // only the paces past the threshold paid for wood
+    expect(s.res.wood).toBeCloseTo(100 - (s.rooms.den.volume - wood.fromPaces) * wood.perPace, 3);
   });
 });
 
@@ -80,7 +81,7 @@ describe('research', () => {
 
   it('researchers uncover new resources and jobs, one at a time', () => {
     const s = game();
-    s.crews.researcher = { n: 10, exp: 0 };
+    s.crews.researcher = { n: 10 };
     s.res.stone = 500;
     chooseResearch(s, 'ore-sniffing');
     const r = tick(s, researchDef('ore-sniffing')!.cost / 0.9);
@@ -89,7 +90,7 @@ describe('research', () => {
     expect(resourceOpen(s, 'ore')).toBe(true);
     expect(storeGoods(s, 'metals').map((g) => g.id)).toEqual(['ore']);
     s.idle = 2;
-    s.crews.miner = { n: 2, exp: 0 };
+    s.crews.miner = { n: 2 };
     expect(jobOutput(s, jobDef('miner')!)).toBeGreaterThan(0);
   });
 
@@ -142,7 +143,7 @@ describe('research', () => {
     expect(spilled).toHaveLength(1);
     expect(spilled[0][1]).toBeCloseTo(ore.cost / 2 - ore.cost / 10);
     const hint = jobHints(s);
-    s.crews.researcher = { n: 1, exp: 0 };
+    s.crews.researcher = { n: 1 };
     expect(jobHints(s).researcher).toMatch(/waiting for stone/);
     expect(hint).toBeDefined();
   });
@@ -154,7 +155,7 @@ describe('research', () => {
     expect(recipeRatio(s, RECIPES.find((r) => r.id === 'wood-to-meat')!)).toBe(4);
     expect(capacity(s, 'meat')).toBeGreaterThan(capacity(s, 'wood'));
     expect(lieutenantSlots(s)).toBe(1 + s.stage + 1);
-    s.crews.scavenger = { n: 3, exp: 0 };
+    s.crews.scavenger = { n: 3 };
     nameKobold(s, 'scavenger', 'the Test', 'Was tested.', T0, rng(s));
     expect(crewLift(s, 'scavenger')).toBeCloseTo(1.05);
     learn(s, 'kobold-arithmetic', 'transmutation-theory');
@@ -182,11 +183,6 @@ describe('research', () => {
     expect(cravingHintSeconds(s)).toBe(2 * 86_400);
   });
 
-  it('a crew is new until its bonus reaches 1%', () => {
-    expect(veteranLabel(0)).toBe('new crew');
-    expect(veteranLabel(0.5)).toBe('green');
-  });
-
   it('old saves put their shared research pool on the current project', () => {
     const s = game();
     const raw = JSON.parse(JSON.stringify(s));
@@ -202,7 +198,7 @@ describe('research', () => {
 
   it('mishaps are harmless and give researchers names', () => {
     const s = game();
-    s.crews.researcher = { n: 6, exp: 0 };
+    s.crews.researcher = { n: 6 };
     s.chief!.voice = 0;
     const pop = population(s);
     tick(s, 20 * 3600);
@@ -215,7 +211,7 @@ describe('research', () => {
 describe('named kobolds', () => {
   it('leave the crowd count but stay in the warren', () => {
     const s = game();
-    s.crews.scavenger = { n: 3, exp: 0 };
+    s.crews.scavenger = { n: 3 };
     const k = nameKobold(s, 'scavenger', 'the Test', 'Was tested.', T0, rng(s))!;
     expect(s.crews.scavenger.n).toBe(2);
     expect(workers(s, 'scavenger')).toBe(3);
@@ -226,7 +222,7 @@ describe('named kobolds', () => {
 
   it('work harder at a job they love, and lift their crew', () => {
     const s = game();
-    s.crews.scavenger = { n: 2, exp: 0 };
+    s.crews.scavenger = { n: 2 };
     const k = nameKobold(s, 'scavenger', 'the Test', 'Was tested.', T0, rng(s))!;
     k.loves = 'scavenger';
     k.hates = 'digger';
@@ -236,7 +232,7 @@ describe('named kobolds', () => {
 
   it('become lieutenants after enough experiences, with limited slots', () => {
     const s = game();
-    s.crews.scavenger = { n: 3, exp: 0 };
+    s.crews.scavenger = { n: 3 };
     const a = nameKobold(s, 'scavenger', 'A', 'one', T0, rng(s))!;
     const b = nameKobold(s, 'scavenger', 'B', 'one', T0, rng(s))!;
     expect(canPromote(s, a)).toBe(false);
@@ -249,10 +245,10 @@ describe('named kobolds', () => {
 
   it('happenings give crowd kobolds names and stories', () => {
     const s = game();
-    s.crews = { scavenger: { n: 20, exp: 0 }, woodcutter: { n: 20, exp: 0 }, quarrier: { n: 20, exp: 0 } };
+    s.crews = { scavenger: { n: 20 }, woodcutter: { n: 20 }, quarrier: { n: 20 } };
     const rand = rng(s);
     for (let i = 0; i < 200; i++) happen(s, T0 + i, rand);
-    expect(s.named.length).toBeGreaterThan(3);
+    expect(s.named.length).toBe(6); // one in ten of 60
     expect(s.named.some((k) => k.history.length > 1)).toBe(true);
     expect(population(s)).toBe(60);
   });
@@ -277,7 +273,7 @@ describe('the dragon', () => {
     expect(mood(s)).toBe('hungry');
     tick(s, 3600);
     expect(s.dragon.content).toBe(0);
-    s.crews.herder = { n: 2, exp: 0 };
+    s.crews.herder = { n: 2 };
     tick(s, 3600);
     expect(s.dragon.content).toBeGreaterThan(3000);
     expect(mood(s)).toBe('delighted'); // crabs are all it knows, and all it craves
@@ -286,7 +282,7 @@ describe('the dragon', () => {
   it('a craving change is hinted about a day ahead', () => {
     const s = hatched();
     learn(s, 'goat-herding', 'beetle-ranching');
-    s.crews.herder = { n: 3, exp: 0 };
+    s.crews.herder = { n: 3 };
     const lines: string[] = [];
     for (let h = 0; h < 50; h++) lines.push(...tick(s, 3600).events);
     const hint = lines.findIndex((l) => /in about a day/.test(l));
@@ -298,7 +294,7 @@ describe('the dragon', () => {
   it('a new herd settles in at half pace', () => {
     const s = hatched();
     learn(s, 'goat-herding');
-    s.crews.herder = { n: 2, exp: 0 };
+    s.crews.herder = { n: 2 };
     const full = jobOutput(s, jobDef('herder')!);
     expect(setHerd(s, 'goat')).toBe(true);
     expect(jobOutput(s, jobDef('herder')!)).toBeCloseTo(full / 2);
@@ -308,9 +304,9 @@ describe('the dragon', () => {
 
   it('the pasture limits how many herders work', () => {
     const s = hatched();
-    s.crews.herder = { n: 50, exp: 0 };
+    s.crews.herder = { n: 50 };
     const capped = jobOutput(s, jobDef('herder')!);
-    s.crews.herder = { n: herdersFit(s), exp: 0 };
+    s.crews.herder = { n: herdersFit(s) };
     expect(jobOutput(s, jobDef('herder')!)).toBeCloseTo(capped);
   });
 
@@ -326,7 +322,7 @@ describe('the dragon', () => {
 
   it('an audience names a crowd kobold and gives them a gift', () => {
     const s = hatched();
-    s.crews.quarrier = { n: 3, exp: 0 };
+    s.crews.quarrier = { n: 3 };
     s.dragon.request = { kind: 'audience', namedId: null, job: 'quarrier', name: 'one of the quarriers', until: 1e9 };
     expect(grantRequest(s, T0, rng(s))).toMatch(/came back with/);
     expect(s.named).toHaveLength(1);
@@ -353,7 +349,7 @@ describe('the dragon', () => {
     s.res.copper = m.value;
     s.dragon.granted = m.granted;
     s.dragon.content = m.contentHours * 3600 - 5;
-    s.crews.herder = { n: 2, exp: 0 };
+    s.crews.herder = { n: 2 };
     s.res.meat = 100;
     s.dragon.nextRequestAt = 1e12;
     const r = tick(s, 20);
@@ -369,7 +365,7 @@ describe('alchemy', () => {
   it('turns plentiful into scarce at its ratio, and only with input', () => {
     const s = game();
     learn(s, 'ore-sniffing', 'alchemy');
-    s.crews.alchemist = { n: 2, exp: 0 };
+    s.crews.alchemist = { n: 2 };
     s.recipe = 'stone-to-ore';
     s.res.stone = 80;
     tick(s, 100);
@@ -395,12 +391,12 @@ describe('a long absence with everything going', () => {
     s.stage = 1;
     s.rooms.pasture = { volume: 60 };
     s.crews = {
-      scavenger: { n: 10, exp: 0 },
-      woodcutter: { n: 6, exp: 0 },
-      quarrier: { n: 6, exp: 0 },
-      digger: { n: 4, exp: 0 },
-      researcher: { n: 4, exp: 0 },
-      herder: { n: 3, exp: 0 },
+      scavenger: { n: 10 },
+      woodcutter: { n: 6 },
+      quarrier: { n: 6 },
+      digger: { n: 4 },
+      researcher: { n: 4 },
+      herder: { n: 3 },
     };
     s.dig = { lair: s.crews.digger?.n ?? 0 };
     const pop = population(s);

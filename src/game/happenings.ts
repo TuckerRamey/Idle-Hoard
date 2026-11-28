@@ -5,7 +5,7 @@ import { KOBOLD_NAMES, MAX_PIPS, raiseStat, statName, type StatId } from './chie
 import { ODDITIES } from './oddities';
 import { IDLE, JOBS } from './data';
 import { incomePerSecond, population, store, workers } from './economy';
-import { addHistory, fullName, nameKobold, namedIn, type NamedKobold } from './kobolds';
+import { addHistory, canName, fullName, nameKobold, namedIn, type NamedKobold } from './kobolds';
 import { addChronicle, type GameState } from './state';
 
 export interface HappeningDef {
@@ -132,6 +132,7 @@ export function happen(state: GameState, now: number, rand: () => number): Happe
     const pool = h.needsJob ? namedIn(state, h.needsJob) : state.named;
     const naming = NAMING[h.id];
     if (pool.length && rand() < 0.4) named = pool[Math.floor(rand() * pool.length) % pool.length];
+    else if (naming && !canName(state) && pool.length) named = pool[Math.floor(rand() * pool.length) % pool.length];
     else if (naming && rand() < 0.5) {
       const jobs = h.needsJob ? [h.needsJob] : [...JOBS.map((j) => j.id).filter((j) => (state.crews[j]?.n ?? 0) > 0), ...(state.idle > 0 ? [IDLE] : [])];
       if (jobs.length) {

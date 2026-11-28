@@ -44,7 +44,7 @@ function fed(): GameState {
   s.stage = 1;
   s.research.done.push('crab-wrangling');
   s.res.meat = 5_000;
-  s.crews.herder = { n: 3, exp: 0 };
+  s.crews.herder = { n: 3 };
   s.dragon.hungry = false;
   s.dragon.nextRequestAt = 1e12;
   s.rooms.lair.volume = 2_000;
@@ -75,10 +75,12 @@ describe('diggers per room', () => {
     const r = digRates(s);
     expect(r.den).toBeCloseTo(r.hoard * 2);
     expect(r.den + r.hoard).toBeCloseTo(jobOutput(s, jobDef('digger')!));
+    // same size rooms, so a pace costs the same work in each
+    s.rooms.den.volume = s.rooms.hoard.volume = 100;
     const den = s.rooms.den.volume;
     const hoard = s.rooms.hoard.volume;
     tick(s, 20);
-    expect(s.rooms.den.volume - den).toBeCloseTo((s.rooms.hoard.volume - hoard) * 2, 3);
+    expect(s.rooms.den.volume - den).toBeCloseTo((s.rooms.hoard.volume - hoard) * 2, 1);
   });
 
   it('the job list cannot add diggers without a room, and taking them off empties the busiest room', () => {
@@ -102,7 +104,7 @@ describe('diggers per room', () => {
   });
 
   it('an older save with one room being dug moves its diggers there', () => {
-    const s = normalize({ crews: { digger: { n: 5, exp: 1 } }, digging: 'lair' }, T0);
+    const s = normalize({ crews: { digger: { n: 5 } }, digging: 'lair' }, T0);
     expect(s.dig).toEqual({ lair: 5 });
   });
 });
@@ -110,7 +112,7 @@ describe('diggers per room', () => {
 describe('a full hoard', () => {
   it('sends the scavengers to dig the hoard room until there is room', () => {
     const s = game();
-    s.crews.scavenger = { n: 10, exp: 0 };
+    s.crews.scavenger = { n: 10 };
     s.res.copper = capacity(s, 'copper');
     expect(hoardFull(s)).toBe(true);
     expect(scavengerDig(s)).toBeGreaterThan(0);
@@ -122,7 +124,7 @@ describe('a full hoard', () => {
 
   it('scavengers just scavenge while there is room', () => {
     const s = game();
-    s.crews.scavenger = { n: 10, exp: 0 };
+    s.crews.scavenger = { n: 10 };
     expect(hoardFull(s)).toBe(false);
     expect(digRate(s, 'hoard')).toBe(0);
   });
@@ -150,7 +152,7 @@ describe("the dragon's favor", () => {
 
   it('a favor makes one job twice as fast for an hour, then wears off', () => {
     const s = fed();
-    s.crews.quarrier = { n: 4, exp: 0 };
+    s.crews.quarrier = { n: 4 };
     const q = jobDef('quarrier')!;
     const before = jobOutput(s, q);
     expect(useFavor(s, 'quarrier')).toBeNull(); // nothing owed yet
@@ -167,7 +169,7 @@ describe("the dragon's favor", () => {
 
   it('a kobold summoned from the crowd starts with one experience, not two', () => {
     const s = fed();
-    s.crews.quarrier = { n: 4, exp: 0 };
+    s.crews.quarrier = { n: 4 };
     s.dragon.request = { kind: 'audience', namedId: null, job: 'quarrier', name: 'one of the quarriers', until: 1e12 };
     grantRequest(s, T0, rng(s));
     expect(s.named).toHaveLength(1);
@@ -179,7 +181,7 @@ describe("the dragon's favor", () => {
 describe('the dragon', () => {
   it('tells named kobolds stories while content', () => {
     const s = fed();
-    s.crews.quarrier = { n: 4, exp: 0 };
+    s.crews.quarrier = { n: 4 };
     s.chief = null; // keep the test about stories
     const k = nameKobold(s, 'quarrier', 'the Test', 'Was tested.', T0, rng(s))!;
     tick(s, 48 * 3600);
@@ -214,7 +216,7 @@ describe('more happens as the warren grows', () => {
 
   it('digging turns things up, and the digger can earn a name for it', () => {
     const s = game();
-    s.crews.digger = { n: 5, exp: 0 };
+    s.crews.digger = { n: 5 };
     s.dig = { den: 5 };
     const old = FIND.perPace;
     FIND.perPace = 1;
@@ -238,7 +240,7 @@ describe('more happens as the warren grows', () => {
 describe('talents and epithets', () => {
   it('a talent makes a kobold better at that job only', () => {
     const s = game();
-    s.crews.miner = { n: 1, exp: 0 };
+    s.crews.miner = { n: 1 };
     const k = nameKobold(s, 'miner', 't', 'x', T0, rng(s))!;
     k.loves = 'herder';
     k.hates = 'scavenger';
@@ -252,7 +254,7 @@ describe('talents and epithets', () => {
 
   it('working long enough, someone finds a knack and earns a name', () => {
     const s = game();
-    s.crews.scavenger = { n: 40, exp: 0 };
+    s.crews.scavenger = { n: 40 };
     const lines: string[] = [];
     for (let i = 0; i < 200; i++) lines.push(...talentStep(s, 3600, T0, rng(s)));
     expect(lines.length).toBeGreaterThan(0);
@@ -264,7 +266,7 @@ describe('talents and epithets', () => {
 
   it('a kobold this good at their job earns an epithet, once', () => {
     const s = game();
-    s.crews.digger = { n: 2, exp: 0 };
+    s.crews.digger = { n: 2 };
     s.dig = { den: 2 };
     const k = nameKobold(s, 'digger', 't', 'x', T0, rng(s))!;
     k.loves = 'digger';
@@ -278,7 +280,7 @@ describe('talents and epithets', () => {
 describe('colonies', () => {
   function ready(): { s: GameState; id: number } {
     const s = fed();
-    s.crews.quarrier = { n: 10, exp: 0 };
+    s.crews.quarrier = { n: 10 };
     const k = nameKobold(s, 'quarrier', 'the Bold', 'Was bold.', T0, rng(s))!;
     for (let i = 0; i < COLONY.experiences; i++) addHistory(k, T0, 'Did a thing.');
     return { s, id: k.id };
@@ -317,7 +319,7 @@ describe('colonies', () => {
   it('round trip through a save', () => {
     const { s, id } = ready();
     foundColony(s, id, T0, rng(s));
-    s.crews.miner = { n: 1, exp: 0 };
+    s.crews.miner = { n: 1 };
     const k = nameKobold(s, 'miner', 't', 'x', T0, rng(s))!;
     addTalent(k, { job: 'miner', mult: 1.25, name: 'Seam-finder' });
     k.epithet = 'mines like a dragon';

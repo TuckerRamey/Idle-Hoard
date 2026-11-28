@@ -6,7 +6,6 @@ import { artStep } from './art';
 import {
   ATTRACTION,
   CONFIG,
-  CREW,
   DIG,
   DRAGON_STAGES,
   HOARD_SIZE_THRESHOLDS,
@@ -22,7 +21,7 @@ import {
 } from './data';
 import { dragonAppeal, dragonJobMult, dragonStep, eatRate, moodMult } from './dragon';
 import { forgeMakes, forgeStep, forgeUse, toolMults } from './forge';
-import { addHistory, addTalent, crewLift, fullName, nameKobold, namedIn, personalMult, takeDigger } from './kobolds';
+import { addHistory, addTalent, crewLift, fullName, nameOrCredit, namedIn, personalMult, takeDigger } from './kobolds';
 import { digFinds, epithetStep, talentStep } from './events';
 import { colonyStep } from './colonies';
 import { ODDITIES } from './oddities';
@@ -58,7 +57,7 @@ export function recipesOpen(state: GameState) {
 // ---------- crews ----------
 
 export function crew(state: GameState, jobId: string): Crew {
-  return state.crews[jobId] ?? { n: 0, exp: 0 };
+  return state.crews[jobId] ?? { n: 0 };
 }
 
 /** Everyone working a job: the crowd crew plus named kobolds. */
@@ -73,25 +72,10 @@ export function population(state: GameState): number {
   return n;
 }
 
-/** Bonus for a crew that has worked together for `hours` on average. */
-export function veteranBonus(hours: number): number {
-  return CREW.maxBonus * (1 - Math.pow(0.5, Math.max(0, hours) / CREW.halfHours));
-}
-
-export function veteranLabel(hours: number): string {
-  const b = veteranBonus(hours);
-  if (b < 0.01) return 'new crew';
-  if (b < 0.05) return 'green';
-  if (b < 0.15) return 'steady';
-  if (b < 0.25) return 'seasoned';
-  return 'veteran';
-}
-
 /**
  * Move crowd kobolds between the idle pool and a job. A positive `k` takes
- * them from idle, a negative one sends them back. Newcomers to a crew start
- * with no experience, so moving many at once waters down the crew's bonus.
- * Returns how many actually moved.
+ * them from idle, a negative one sends them back. Moving kobolds costs
+ * nothing: a crew works as well the moment it's put together. Returns how many actually moved.
  */
 export function assign(state: GameState, jobId: string, k: number): number {
   // diggers are put on a room with assignDig; taking them off here takes them from the busiest rooms
@@ -127,7 +111,6 @@ function moveCrew(state: GameState, jobId: string, k: number): number {
     if (!jobOpen(state, def)) return 0;
     const m = Math.min(Math.floor(k), state.idle);
     if (m <= 0) return 0;
-    c.exp = (c.exp * c.n) / (c.n + m);
     c.n += m;
     state.idle -= m;
     state.crews[jobId] = c;
@@ -136,7 +119,6 @@ function moveCrew(state: GameState, jobId: string, k: number): number {
   const m = Math.min(Math.floor(-k), c.n);
   if (m <= 0) return 0;
   c.n -= m;
-  if (c.n === 0) c.exp = 0;
   state.idle += m;
   state.crews[jobId] = c;
   return -m;
@@ -145,7 +127,9 @@ function moveCrew(state: GameState, jobId: string, k: number): number {
 // ---------- multipliers ----------
 
 export function jobMultiplier(state: GameState, jobId: string): number {
-  let m = 1 + veteranBonus(crew(state, jobId).exp);
+  let m = 1;
+  // a cunning Chief keeps the researchers on the right track
+  if (jobId === 'researcher' && state.chief) m *= 1 + 0.1 * state.chief.cunning;
   m *= researchMult(state, 'jobMult', (e) => e.job === jobId);
   const q = quirkOf(state.chief);
   if (q?.effect.kind === 'jobMult' && q.effect.job === jobId) m *= q.effect.mult;
@@ -337,6 +321,11 @@ export function digBlocked(state: GameState, roomId: string): ResourceId | 'full
   return null;
 }
 
+/** Dig work for one more cubic pace of a room this big: the bigger the room, the slower it grows. */
+export function workPerPace(volume: number): number {
+  return DIG.workPerPace * (1 + volume / DIG.growPaces);
+}
+
 /** Round volumes worth a line in the chronicle. */
 export function volumeMilestone(v: number): number {
   const steps = [1, 1.5, 2, 2.5, 4, 5, 6, 8];
@@ -375,7 +364,7 @@ export function flows(state: GameState): Record<ResourceId, Flow> {
     if (!top[res] || n > top[res].n) top[res] = { by, n };
   };
   for (const [room, rate] of Object.entries(digRates(state))) {
-    const paces = rate / DIG.workPerPace;
+    const paces = rate / workPerPace(roomVolume(state, room));
     // a dig stalled for one support uses none of the others either
     const blocked = digBlocked(state, room);
     if (paces > 0 && blocked !== 'full')
@@ -550,14 +539,13 @@ const SUBSTEP = 10;
 
 /**
  * Let `seconds` pass: production, storage limits, alchemy, digging, research
- * and mishaps, crew experience, the dragon. `t` is the epoch ms when this
+ * and mishaps, the dragon. `t` is the epoch ms when this
  * time started, for history entries.
  */
 export function tick(state: GameState, seconds: number, t = state.lastTick): TickResult {
   const r = emptyResult();
   if (!(seconds > 0)) return r;
   const rand = rng(state);
-  const expRate = state.chief ? 1 + 0.1 * state.chief.cunning : 1;
   let at = t;
   for (let left = seconds; left > 1e-9; left -= SUBSTEP) {
     const dt = Math.min(SUBSTEP, left);
@@ -580,7 +568,6 @@ export function tick(state: GameState, seconds: number, t = state.lastTick): Tic
     r.events.push(...talentStep(state, dt, at, rand));
     r.events.push(...epithetStep(state, at));
     r.events.push(...colonyStep(state, dt, at, rand));
-    for (const c of Object.values(state.crews)) if (c.n > 0) c.exp += (dt / 3600) * expRate;
     const s = stageFor(hoardValue(state));
     if (s > state.stage) state.stage = s;
     if (state.stage > before) r.newStage = state.stage;
@@ -601,13 +588,15 @@ function alchemy(state: GameState, input: number) {
 
 function dig(state: GameState, roomId: string, work: number, r: TickResult, rand: () => number, t: number) {
   // supports change at set volumes, so dig up to each one in turn
-  for (let guard = 0; guard < 20 && work > 1e-9; guard++) {
+  for (let guard = 0; guard < 100 && work > 1e-9; guard++) {
     const def = roomDef(roomId);
     if (!def) return;
     const room = (state.rooms[def.id] ??= { volume: def.start });
     const max = maxVolume(state);
     const next = DIG.supports.find((x) => x.fromPaces > room.volume + 1e-9)?.fromPaces ?? Infinity;
-    const want = Math.min(work / DIG.workPerPace, Math.min(next, max) - room.volume);
+    // dig in small steps, so the work per pace keeps up as the room grows
+    const wpp = workPerPace(room.volume);
+    const want = Math.min(work / wpp, Math.min(next, max) - room.volume, 25);
     let paces = want;
     const sup = supportsFor(room.volume, state);
     for (const x of sup) paces = Math.min(paces, state.res[x.resource] / x.perPace);
@@ -615,7 +604,7 @@ function dig(state: GameState, roomId: string, work: number, r: TickResult, rand
     for (const x of sup) state.res[x.resource] = Math.max(0, state.res[x.resource] - paces * x.perPace);
     const before = room.volume;
     room.volume += paces;
-    work -= paces * DIG.workPerPace;
+    work -= paces * wpp;
     const mark = volumeMilestone(before);
     if (room.volume >= mark - 1e-6) r.dug.push({ room: def.id, volume: mark });
     const found = digFinds(state, def, paces, rand, t);
@@ -637,16 +626,21 @@ function research(state: GameState, dt: number, t: number, rand: () => number, r
   const named = namedIn(state, 'researcher');
   let k = named.length && rand() < (researchEffect(state, 'mishapNamedChance')?.chance ?? 0.35) ? named[Math.floor(rand() * named.length) % named.length] : null;
   let text: string;
-  if (k) {
+  let fresh = false;
+  if (!k) {
+    const got = nameOrCredit(state, 'researcher', m.title, t, rand);
+    if (!got) return;
+    k = got.k;
+    fresh = got.fresh;
+  }
+  if (fresh) {
+    addHistory(k, t, m.text.replaceAll('{kobold}', 'They'));
+    text = `${m.text.replaceAll('{kobold}', 'A researcher')} From now on they are ${fullName(k)}.`;
+  } else {
     text = m.text.replaceAll('{kobold}', fullName(k));
     addHistory(k, t, m.text.replaceAll('{kobold}', k.name));
-    if (!k.traits.includes(m.trait)) k.traits.push(m.trait);
-  } else {
-    k = nameKobold(state, 'researcher', m.title, m.text.replaceAll('{kobold}', 'They'), t, rand);
-    if (!k) return;
-    k.traits.push(m.trait);
-    text = `${m.text.replaceAll('{kobold}', 'A researcher')} From now on they are ${fullName(k)}.`;
   }
+  if (!k.traits.includes(m.trait)) k.traits.push(m.trait);
   if (m.talent && addTalent(k, m.talent)) text += ` It left them better at ${jobDef(m.talent.job)?.name.toLowerCase() ?? m.talent.job} work for good.`;
   const e = m.effect;
   if (e?.kind === 'research') {

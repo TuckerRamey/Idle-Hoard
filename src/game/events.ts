@@ -4,7 +4,7 @@
 
 import { IDLE, JOBS, type RoomDef } from './data';
 import { beds, jobOpen, population, resourceOpen, store, workers } from './economy';
-import { addHistory, addTalent, EPITHET_MULT, fullName, nameKobold, namedIn, personalMult, type NamedKobold } from './kobolds';
+import { addHistory, addTalent, canName, EPITHET_MULT, fullName, nameKobold, nameOrCredit, namedIn, personalMult, type NamedKobold } from './kobolds';
 import type { GameState } from './state';
 
 function pick<T>(xs: T[], rand: () => number): T {
@@ -97,11 +97,11 @@ export function digFinds(state: GameState, room: RoomDef, paces: number, rand: (
     if (named.length && rand() < 0.5) {
       k = pick(named, rand);
       who = fullName(k);
-    } else if ((state.crews.digger?.n ?? 0) > 0) {
-      k = nameKobold(state, 'digger', pick(['Lucky-pick', 'the Finder', 'Deepnose', 'Rubble-rummager'], rand), '', t, rand);
-      if (k) {
-        k.history = [];
-        who = `A digger, now ${fullName(k)},`;
+    } else if ((state.crews.digger?.n ?? 0) > 0 || named.length) {
+      const got = nameOrCredit(state, 'digger', pick(['Lucky-pick', 'the Finder', 'Deepnose', 'Rubble-rummager'], rand), t, rand);
+      if (got) {
+        k = got.k;
+        who = got.fresh ? `A digger, now ${fullName(k)},` : fullName(k);
       }
     }
   }
@@ -197,12 +197,22 @@ export function talentStep(state: GameState, dt: number, t: number, rand: () => 
     const n = state.crews[def.id]?.n ?? 0;
     if (n < 1 || rand() >= (Math.sqrt(n) * dt) / (TALENT.crowdHours * 3600)) continue;
     const [name, how] = pick(list, rand);
-    const k = nameKobold(state, def.id, titleFor(name), '', t, rand);
-    if (!k) continue;
-    k.history = [];
+    if (canName(state)) {
+      const k = nameKobold(state, def.id, titleFor(name), '', t, rand);
+      if (!k) continue;
+      k.history = [];
+      addTalent(k, { job: def.id, mult: TALENT.mult, name });
+      addHistory(k, t, `Found they had a knack for the work: they ${how}. (${name})`);
+      lines.push(`One of the ${def.name.toLowerCase()}s ${how}. From now on they are ${fullName(k)}.`);
+      continue;
+    }
+    // the warren has all the names it needs: a named kobold on the job picks up the knack instead
+    const named = namedIn(state, def.id).filter((k) => !(k.talents ?? []).some((x) => x.name === name));
+    if (!named.length) continue;
+    const k = pick(named, rand);
     addTalent(k, { job: def.id, mult: TALENT.mult, name });
     addHistory(k, t, `Found they had a knack for the work: they ${how}. (${name})`);
-    lines.push(`One of the ${def.name.toLowerCase()}s ${how}. From now on they are ${fullName(k)}.`);
+    lines.push(`${fullName(k)} ${how}. They have a knack for it: ${name}.`);
   }
   return lines;
 }

@@ -27,7 +27,7 @@ function fed(stage = 1): GameState {
   s.stage = stage;
   s.research.done.push('crab-wrangling');
   s.res.meat = 1_000;
-  s.crews.herder = { n: 3, exp: 0 };
+  s.crews.herder = { n: 3 };
   s.dragon.hungry = false;
   s.dragon.nextRequestAt = 1e12;
   s.rooms.lair.volume = 2_000;
@@ -117,7 +117,7 @@ describe('art', () => {
   function withArtist(): { s: GameState; id: number } {
     const s = game();
     s.research.done.push('artistry');
-    s.crews.quarrier = { n: 2, exp: 0 };
+    s.crews.quarrier = { n: 2 };
     const k = nameKobold(s, 'quarrier', 'the Test', 'Was tested.', T0, rng(s))!;
     k.loves = 'quarrier';
     return { s, id: k.id };
@@ -139,7 +139,7 @@ describe('art', () => {
     for (let i = 0; i < ART.experiences; i++) addHistory(k, T0, 'Did a thing.');
     expect(makeArtisan(s, id, T0)).toBe(true);
     expect(artisans(s)).toHaveLength(1);
-    s.crews.quarrier = { n: 0, exp: 0 }; // no new stone while they work
+    s.crews.quarrier = { n: 0 }; // no new stone while they work
     s.chief = null;
     s.res.stone = 1_000;
     s.res.wood = 1_000;
