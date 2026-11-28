@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { ATTRACTION, CONFIG, CREW, DIG, DRAGON_STAGES, HOARD_SIZE_THRESHOLDS, ROOMS } from '../src/game/data';
+import { ATTRACTION, CONFIG, DIG, DRAGON_STAGES, HOARD_SIZE_THRESHOLDS, ROOMS } from '../src/game/data';
 import {
+  jobDef,
+  perKobold,
   advanceTo,
   appeal,
   arrivalSeconds,
@@ -19,7 +21,6 @@ import {
   stageFor,
   tick,
   workPerPace,
-  veteranBonus,
 } from '../src/game/economy';
 import { newGame, type GameState } from '../src/game/state';
 import type { Chief } from '../src/game/chief';
@@ -62,43 +63,35 @@ describe('crews', () => {
     expect(assign(s, 'no-such-job', 1)).toBe(0);
   });
 
-  it('a crew gets better the longer it works together', () => {
+  it('a crew works as well the moment it is put together, so moving kobolds costs nothing', () => {
     const s = game();
-    s.idle = 1;
-    assign(s, 'scavenger', 1);
-    const fresh = production(s).copper;
-    tick(s, CREW.halfHours * 3600);
-    expect(veteranBonus(s.crews.scavenger.exp)).toBeCloseTo(CREW.maxBonus / 2, 2);
-    expect(production(s).copper).toBeGreaterThan(fresh);
-  });
-
-  it('newcomers water down a veteran crew, so bulk moves cost some experience', () => {
-    const s = game();
-    s.crews.scavenger = { n: 10, exp: 12 };
     s.idle = 10;
     assign(s, 'scavenger', 10);
-    expect(s.crews.scavenger.exp).toBeCloseTo(6);
-    // leaving doesn't change the experience of those who stay
-    assign(s, 'scavenger', -5);
-    expect(s.crews.scavenger.exp).toBeCloseTo(6);
+    const fresh = production(s).copper;
+    s.chief = null;
+    tick(s, 6 * 3600);
+    s.chief = game().chief;
+    expect(production(s).copper).toBeCloseTo(fresh);
+    assign(s, 'scavenger', -10);
+    assign(s, 'scavenger', 10);
+    expect(production(s).copper).toBeCloseTo(fresh);
   });
 
-  it('Cunning makes crews learn faster', () => {
+  it('Cunning makes research faster', () => {
     const a = game();
     const b = game();
-    b.chief!.cunning = 3;
-    a.crews.scavenger = { n: 1, exp: 0 };
-    b.crews.scavenger = { n: 1, exp: 0 };
-    tick(a, 3600);
-    tick(b, 3600);
-    expect(b.crews.scavenger.exp).toBeCloseTo(a.crews.scavenger.exp * 1.3);
+    b.chief!.cunning = a.chief!.cunning + 3;
+    const r = jobDef('researcher')!;
+    a.crews.researcher = { n: 1 };
+    b.crews.researcher = { n: 1 };
+    expect(perKobold(b, r) / perKobold(a, r)).toBeCloseTo((1 + 0.1 * b.chief!.cunning) / (1 + 0.1 * a.chief!.cunning));
   });
 });
 
 describe('tick', () => {
   it('makes each resource from its job, and the Chief hauls copper', () => {
     const s = game();
-    s.crews = { scavenger: { n: 3, exp: 0 }, woodcutter: { n: 2, exp: 0 }, quarrier: { n: 4, exp: 0 } };
+    s.crews = { scavenger: { n: 3 }, woodcutter: { n: 2 }, quarrier: { n: 4 } };
     tick(s, 10);
     // experience grows a hair over 10 seconds, so allow a little
     expect(s.res.copper).toBeCloseTo((3 * 0.5 + CONFIG.chiefRate) * 10, 0);
@@ -110,8 +103,8 @@ describe('tick', () => {
   it('gives about the same result for one long tick or many short ones', () => {
     const a = game();
     const b = game();
-    a.crews.scavenger = { n: 7, exp: 0 };
-    b.crews.scavenger = { n: 7, exp: 0 };
+    a.crews.scavenger = { n: 7 };
+    b.crews.scavenger = { n: 7 };
     tick(a, 600);
     for (let i = 0; i < 600; i++) tick(b, 1);
     expect(a.res.copper / b.res.copper).toBeCloseTo(1, 3);
@@ -125,7 +118,7 @@ describe('tick', () => {
 
   it('stops at what the rooms can hold, and counts the rest as lost', () => {
     const s = game();
-    s.crews.woodcutter = { n: 10, exp: 0 };
+    s.crews.woodcutter = { n: 10 };
     const cap = capacity(s, 'wood');
     const r = tick(s, 3600);
     expect(s.res.wood).toBe(cap);
@@ -134,10 +127,10 @@ describe('tick', () => {
 
   it('keeps each good in its own store, so stone can never crowd out wood', () => {
     const s = game();
-    s.crews.quarrier = { n: 50, exp: 0 };
+    s.crews.quarrier = { n: 50 };
     tick(s, 86_400);
     expect(s.res.stone).toBe(capacity(s, 'stone'));
-    s.crews = { woodcutter: { n: 1, exp: 0 } };
+    s.crews = { woodcutter: { n: 1 } };
     tick(s, 10);
     expect(s.res.wood).toBeGreaterThan(0);
   });
@@ -162,7 +155,7 @@ describe('tick', () => {
 describe('digging rooms', () => {
   it('small rooms need only diggers, and grow with every bit of digging', () => {
     const s = game();
-    s.crews.digger = { n: 1, exp: 0 };
+    s.crews.digger = { n: 1 };
     s.dig = { den: s.crews.digger?.n ?? 0 };
     const before = beds(s);
     tick(s, 1000);
@@ -174,7 +167,7 @@ describe('digging rooms', () => {
     const wood = DIG.supports.find((x) => x.resource === 'wood')!;
     const s = game();
     s.rooms.den.volume = wood.fromPaces;
-    s.crews.digger = { n: 1, exp: 0 };
+    s.crews.digger = { n: 1 };
     s.dig = { den: s.crews.digger?.n ?? 0 };
     s.res.wood = 10;
     tick(s, 4);
@@ -190,7 +183,7 @@ describe('digging rooms', () => {
   it('a stalled dig points at the job that fixes it', () => {
     const s = game();
     s.rooms.woodpile.volume = 200;
-    s.crews.digger = { n: 4, exp: 0 };
+    s.crews.digger = { n: 4 };
     s.dig = { woodpile: s.crews.digger?.n ?? 0 };
     const hints = jobHints(s);
     expect(hints.woodcutter).toMatch(/run out of mushroom wood.*About \d+ more woodcutters?/);
@@ -199,9 +192,9 @@ describe('digging rooms', () => {
 
   it('a long absence digs a long way and notes round sizes', () => {
     const s = game();
-    s.crews.digger = { n: 5, exp: 0 };
-    s.crews.woodcutter = { n: 10, exp: 0 };
-    s.crews.quarrier = { n: 10, exp: 0 };
+    s.crews.digger = { n: 5 };
+    s.crews.woodcutter = { n: 10 };
+    s.crews.quarrier = { n: 10 };
     s.dig = { hoard: s.crews.digger?.n ?? 0 };
     const r = advanceTo(s, T0 + 3 * 3600 * 1000);
     expect(r.dug.length).toBeGreaterThan(1);

@@ -133,7 +133,7 @@ function normalizeChronicle(v: unknown): ChronicleEntry[] {
 function normalizeCrews(v: unknown): Record<string, Crew> {
   const out: Record<string, Crew> = {};
   if (!v || typeof v !== 'object') return out;
-  for (const [k, c] of Object.entries(v as Record<string, any>)) out[k] = { n: Math.floor(num(c?.n, 0)), exp: num(c?.exp, 0) };
+  for (const [k, c] of Object.entries(v as Record<string, any>)) out[k] = { n: Math.floor(num(c?.n, 0)) };
   return out;
 }
 

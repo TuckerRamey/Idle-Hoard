@@ -2,7 +2,7 @@
 // text that changed are written, so it costs next to nothing.
 
 import { toolSummary } from '../game/forge';
-import { CREW, DIG, DRAGON_STAGES, IDLE, JOBS, RESOURCES, ROOMS, type ResourceId } from '../game/data';
+import { DIG, DRAGON_STAGES, IDLE, JOBS, RESOURCES, ROOMS, type ResourceId } from '../game/data';
 import { animalsOpen, setHerd } from '../game/dragon';
 import {
   appeal,
@@ -34,8 +34,6 @@ import {
   setRecipe,
   storeGoods,
   supportsFor,
-  veteranBonus,
-  veteranLabel,
   recipeRatio,
   workPerPace,
   workers,
@@ -90,7 +88,6 @@ export function syncOptions(sel: HTMLSelectElement, opts: [string, string][], va
 interface JobRow {
   li: HTMLLIElement;
   count: HTMLElement;
-  vet: HTMLElement;
   tools: HTMLElement;
   rate: HTMLElement;
   hint: HTMLElement;
@@ -168,7 +165,7 @@ export class Hud {
 
     for (const def of JOBS) {
       const li = row(
-        `<div class="row-main"><b></b> <span class="count"></span> <span class="vet"></span><div class="desc"></div><div class="sub"></div><div class="desc tools"></div><div class="hint"></div></div><div class="job-buttons"><button type="button" class="small down">−</button><button type="button" class="small up">+</button></div>`,
+        `<div class="row-main"><b></b> <span class="count"></span><div class="desc"></div><div class="sub"></div><div class="desc tools"></div><div class="hint"></div></div><div class="job-buttons"><button type="button" class="small down">−</button><button type="button" class="small up">+</button></div>`,
       );
       li.querySelector('b')!.textContent = def.name;
       li.querySelector('.desc')!.textContent = def.description;
@@ -176,7 +173,7 @@ export class Hud {
       const up = li.querySelector<HTMLButtonElement>('.up')!;
       down.addEventListener('click', () => this.move(def.id, -1));
       up.addEventListener('click', () => this.move(def.id, 1));
-      const r: JobRow = { li, count: li.querySelector('.count')!, vet: li.querySelector('.vet')!, rate: li.querySelector('.sub')!, tools: li.querySelector('.tools')!, hint: li.querySelector('.hint')!, down, up };
+      const r: JobRow = { li, count: li.querySelector('.count')!, rate: li.querySelector('.sub')!, tools: li.querySelector('.tools')!, hint: li.querySelector('.hint')!, down, up };
       if (def.id === 'herder' || def.id === 'alchemist') {
         const wrap = document.createElement('div');
         wrap.className = 'desc newcomers';
@@ -316,10 +313,6 @@ export class Hud {
       const c = crew(s, def.id);
       const stars = namedInJob(s, def.id);
       setText(row.count, `×${c.n}${stars ? ` + ${stars} named` : ''}`);
-      const bonus = Math.round(veteranBonus(c.exp) * 100);
-      const vet = veteranLabel(c.exp);
-      setText(row.vet, c.n > 0 ? (vet === 'new crew' ? 'New crew' : `${vet} +${bonus}%`) : '');
-      row.vet.title = c.n > 0 ? `Experience: a crew gets better the longer it works the same job, up to +${Math.round(CREW.maxBonus * 100)}%. This crew is at +${bonus}%.` : '';
       const each = perKobold(s, def);
       const what = def.produces ? resName(def.produces.resource) : def.digs ? 'digging' : def.researches ? 'research' : def.smiths ? 'forge work' : 'turned over';
       setText(row.tools, toolSummary(s, def.id));
@@ -346,11 +339,9 @@ export class Hud {
     const digger = JOBS.find((j) => j.id === 'digger')!;
     const dc = crew(s, 'digger');
     const dn = namedInJob(s, 'digger');
-    const vb = Math.round(veteranBonus(dc.exp) * 100);
-    const vl = veteranLabel(dc.exp);
     let status = `Put diggers on any rooms with − and +; each room grows with its own diggers. ${formatNumber(perKobold(s, digger))} digging / s each.`;
     if (dc.n + dn > 0)
-      status = `${dc.n} digger${dc.n === 1 ? '' : 's'}${dn ? ` + ${dn} named` : ''}, ${vl === 'new crew' ? 'a new crew' : `${vl} +${vb}%`}. ${formatNumber(perKobold(s, digger))} digging / s each.`;
+      status = `${dc.n} digger${dc.n === 1 ? '' : 's'}${dn ? ` + ${dn} named` : ''}. ${formatNumber(perKobold(s, digger))} digging / s each.`;
     if (dn > 0 && dc.n === 0) status += ' Named diggers help whichever rooms have diggers, so put some on a room.';
     setText(this.digStatus, status);
     const scav = scavengerDig(s);

@@ -157,8 +157,6 @@ export const JOBS: JobDef[] = [
 export const IDLE = 'idle';
 
 /** A crew's bonus for working together: up to `maxBonus`, half of it after `halfHours`. */
-export const CREW = { maxBonus: 0.3, halfHours: 6 };
-
 /**
  * Rooms. Each is measured in cubic paces; digging adds volume. A room's
  * volume sets what it holds: goods (by how many fit in a pace), beds,

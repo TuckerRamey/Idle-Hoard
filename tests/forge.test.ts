@@ -47,7 +47,7 @@ describe('the forge', () => {
 
   it('smelts ore and wood into bars', () => {
     const s = game();
-    s.crews.blacksmith = { n: 2, exp: 0 };
+    s.crews.blacksmith = { n: 2 };
     syncSlots(s);
     expect(setOrder(s, 0, 'smelt')).toBe(true);
     s.res.ore = 20;
@@ -60,7 +60,7 @@ describe('the forge', () => {
 
   it('splits its work between anvils', () => {
     const s = game('second-anvil');
-    s.crews.blacksmith = { n: 2, exp: 0 };
+    s.crews.blacksmith = { n: 2 };
     syncSlots(s);
     expect(forgeSlotCount(s)).toBe(2);
     setOrder(s, 0, 'smelt');
@@ -83,7 +83,7 @@ describe('the forge', () => {
 
   it('hands the best tools to named kobolds first, then the crew, and the rest work bare', () => {
     const s = game();
-    s.crews.miner = { n: 4, exp: 0 };
+    s.crews.miner = { n: 4 };
     const k = nameKobold(s, 'miner', 'the Test', 'Was tested.', T0, rng(s))!;
     expect(k).toBeTruthy();
     s.tools.miner = { steel: { n: 1, wear: 0 }, iron: { n: 2, wear: 0 } };
@@ -101,7 +101,7 @@ describe('the forge', () => {
 
   it('tools stay with their job when kobolds move', () => {
     const s = game();
-    s.crews.woodcutter = { n: 3, exp: 0 };
+    s.crews.woodcutter = { n: 3 };
     s.tools.woodcutter = { stone: { n: 3, wear: 0 } };
     s.crews.woodcutter.n = 0;
     s.idle = 3;
@@ -111,7 +111,7 @@ describe('the forge', () => {
 
   it('tools wear out with use, about once a week each, and unused ones do not', () => {
     const s = game();
-    s.crews.quarrier = { n: 2, exp: 0 };
+    s.crews.quarrier = { n: 2 };
     s.tools.quarrier = { stone: { n: 4, wear: 0 } };
     tick(s, FORGE.toolLifeSeconds / 2 + 10);
     expect(s.tools.quarrier.stone!.n).toBe(3);
@@ -121,8 +121,8 @@ describe('the forge', () => {
 
   it('the automatic order makes tools for whoever is shortest of the best kind', () => {
     const s = game();
-    s.crews.scavenger = { n: 5, exp: 0 };
-    s.crews.miner = { n: 2, exp: 0 };
+    s.crews.scavenger = { n: 5 };
+    s.crews.miner = { n: 2 };
     expect(autoJob(s)).toBe('scavenger');
     s.tools.scavenger = { stone: { n: 5, wear: 0 } };
     expect(autoJob(s)).toBe('miner');
@@ -132,9 +132,9 @@ describe('the forge', () => {
 
   it('blacksmiths beyond what the forge fits do nothing', () => {
     const s = game();
-    s.crews.blacksmith = { n: 3, exp: 0 };
+    s.crews.blacksmith = { n: 3 };
     const three = forgeRate(s);
-    s.crews.blacksmith = { n: 30, exp: 0 };
+    s.crews.blacksmith = { n: 30 };
     expect(forgeRate(s)).toBeCloseTo(three);
   });
 });
@@ -144,7 +144,7 @@ describe('the stores show forge use steadily', () => {
     const s = newGame(0);
     s.chief = { name: 'A', cunning: 1, voice: 1, nerve: 1, quirk: 'none' };
     s.research.done.push('ore-sniffing', 'smithing', 'second-anvil');
-    s.crews = { scavenger: { n: 6, exp: 0 }, quarrier: { n: 4, exp: 0 }, miner: { n: 4, exp: 0 }, woodcutter: { n: 4, exp: 0 }, blacksmith: { n: 3, exp: 0 } };
+    s.crews = { scavenger: { n: 6 }, quarrier: { n: 4 }, miner: { n: 4 }, woodcutter: { n: 4 }, blacksmith: { n: 3 } };
     s.res.stone = 500;
     s.res.wood = 500;
     s.res.ore = 300;

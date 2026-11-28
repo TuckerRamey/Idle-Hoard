@@ -13,7 +13,7 @@ export interface Chief {
 }
 
 export const STATS: { id: StatId; name: string; effect: string }[] = [
-  { id: 'cunning', name: 'Cunning', effect: 'Crews gain experience 10% faster per point' },
+  { id: 'cunning', name: 'Cunning', effect: 'Research 10% faster per point' },
   { id: 'voice', name: 'Voice', effect: 'The hoard draws kobolds 10% faster per point' },
   { id: 'nerve', name: 'Nerve', effect: 'Everything +5% per point' },
 ];

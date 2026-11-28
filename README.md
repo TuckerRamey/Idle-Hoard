@@ -69,7 +69,7 @@ The chronicle under the cave scene is a short story log. It only records things 
 
 Nobody is hired. Kobolds wander in on their own, drawn by the hoard's **appeal**: the hoard's worth (each tenfold step adds the same), the dragon's size, the art in the hoard room and the oddities on the shelf. Every kobold needs a bed, so the **den** sets how many can stay.
 
-Jobs are assignments, not a ladder. Newcomers go to the job picked under Idle (Scavenger by default). The − and + buttons move kobolds between Idle and any job, 1, 5, 20 or all at a time. A crew gets better the longer it works together (up to +30%), and newcomers water that down, so big reshuffles cost a little.
+Jobs are assignments, not a ladder. Newcomers go to the job picked under Idle (Scavenger by default). The − and + buttons move kobolds between Idle and any job, 1, 5, 20 or all at a time. Moving kobolds costs nothing: a crew works as well the moment it is put together. A cunning Chief speeds up research (+10% per point).
 
 Rooms are measured in cubic paces, and digging adds volume at the same rate for every room (`DIG` in `src/game/data.ts`). Each good has its own store: copper, silver and gold share the hoard room (better metals take less space for their worth), wood in the woodpile, stone in the stone yard, meat in the larder, and iron ore, bars and steel sharing the metal store evenly. A new game knows copper, wood and stone; research uncovers the rest. When a store is full, the extra is lost until it's dug bigger, except the hoard room: when it fills, the scavengers dig it bigger themselves until there's room again. Diggers are put to work from the rooms list, with − and + on each room, so several rooms can be dug at once, each at its own diggers' pace; the list is grouped into living rooms, work rooms and stores. Digging now and then turns something up (`src/game/events.ts`): a stash of copper or ore, old bones, a forgotten side cave, or a lost kobold who moves in. Small rooms need no supports; from 150 cubic paces a room needs wood, from 500 stone too, and from 1,500 iron bars, a little for every pace dug. Rooms stop at 4,000 paces until deep delving is researched. A dig with no supplies stalls, and the job rows say what's short and roughly how many kobolds would fix it.
 
@@ -114,7 +114,6 @@ All game content is data in `src/game/data.ts`:
 - `RECIPES` – what the alchemist can make, and at what loss.
 - `HOARD_SIZE_THRESHOLDS` – how much the hoard is worth for the coin pile picture to grow. Silver and gold coins show on it once they're a real part of the hoard.
 - `ATTRACTION` – how much appeal the hoard's worth, the dragon's size and oddities add, and how appeal turns into arrival time.
-- `CREW` – the crew experience bonus.
 
 ## Swapping in your own art
 

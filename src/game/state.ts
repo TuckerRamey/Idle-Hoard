@@ -24,10 +24,9 @@ export interface ChronicleEntry {
 /** Most chronicle entries kept in the save. */
 export const CHRONICLE_MAX = 40;
 
-/** A crew: how many kobolds work a job, and their average experience in hours. */
+/** A crew: how many crowd kobolds work a job. */
 export interface Crew {
   n: number;
-  exp: number;
 }
 
 export interface RoomState {

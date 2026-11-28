@@ -6,7 +6,6 @@ import { artStep } from './art';
 import {
   ATTRACTION,
   CONFIG,
-  CREW,
   DIG,
   DRAGON_STAGES,
   HOARD_SIZE_THRESHOLDS,
@@ -58,7 +57,7 @@ export function recipesOpen(state: GameState) {
 // ---------- crews ----------
 
 export function crew(state: GameState, jobId: string): Crew {
-  return state.crews[jobId] ?? { n: 0, exp: 0 };
+  return state.crews[jobId] ?? { n: 0 };
 }
 
 /** Everyone working a job: the crowd crew plus named kobolds. */
@@ -73,25 +72,10 @@ export function population(state: GameState): number {
   return n;
 }
 
-/** Bonus for a crew that has worked together for `hours` on average. */
-export function veteranBonus(hours: number): number {
-  return CREW.maxBonus * (1 - Math.pow(0.5, Math.max(0, hours) / CREW.halfHours));
-}
-
-export function veteranLabel(hours: number): string {
-  const b = veteranBonus(hours);
-  if (b < 0.01) return 'new crew';
-  if (b < 0.05) return 'green';
-  if (b < 0.15) return 'steady';
-  if (b < 0.25) return 'seasoned';
-  return 'veteran';
-}
-
 /**
  * Move crowd kobolds between the idle pool and a job. A positive `k` takes
- * them from idle, a negative one sends them back. Newcomers to a crew start
- * with no experience, so moving many at once waters down the crew's bonus.
- * Returns how many actually moved.
+ * them from idle, a negative one sends them back. Moving kobolds costs
+ * nothing: a crew works as well the moment it's put together. Returns how many actually moved.
  */
 export function assign(state: GameState, jobId: string, k: number): number {
   // diggers are put on a room with assignDig; taking them off here takes them from the busiest rooms
@@ -127,7 +111,6 @@ function moveCrew(state: GameState, jobId: string, k: number): number {
     if (!jobOpen(state, def)) return 0;
     const m = Math.min(Math.floor(k), state.idle);
     if (m <= 0) return 0;
-    c.exp = (c.exp * c.n) / (c.n + m);
     c.n += m;
     state.idle -= m;
     state.crews[jobId] = c;
@@ -136,7 +119,6 @@ function moveCrew(state: GameState, jobId: string, k: number): number {
   const m = Math.min(Math.floor(-k), c.n);
   if (m <= 0) return 0;
   c.n -= m;
-  if (c.n === 0) c.exp = 0;
   state.idle += m;
   state.crews[jobId] = c;
   return -m;
@@ -145,7 +127,9 @@ function moveCrew(state: GameState, jobId: string, k: number): number {
 // ---------- multipliers ----------
 
 export function jobMultiplier(state: GameState, jobId: string): number {
-  let m = 1 + veteranBonus(crew(state, jobId).exp);
+  let m = 1;
+  // a cunning Chief keeps the researchers on the right track
+  if (jobId === 'researcher' && state.chief) m *= 1 + 0.1 * state.chief.cunning;
   m *= researchMult(state, 'jobMult', (e) => e.job === jobId);
   const q = quirkOf(state.chief);
   if (q?.effect.kind === 'jobMult' && q.effect.job === jobId) m *= q.effect.mult;
@@ -555,14 +539,13 @@ const SUBSTEP = 10;
 
 /**
  * Let `seconds` pass: production, storage limits, alchemy, digging, research
- * and mishaps, crew experience, the dragon. `t` is the epoch ms when this
+ * and mishaps, the dragon. `t` is the epoch ms when this
  * time started, for history entries.
  */
 export function tick(state: GameState, seconds: number, t = state.lastTick): TickResult {
   const r = emptyResult();
   if (!(seconds > 0)) return r;
   const rand = rng(state);
-  const expRate = state.chief ? 1 + 0.1 * state.chief.cunning : 1;
   let at = t;
   for (let left = seconds; left > 1e-9; left -= SUBSTEP) {
     const dt = Math.min(SUBSTEP, left);
@@ -585,7 +568,6 @@ export function tick(state: GameState, seconds: number, t = state.lastTick): Tic
     r.events.push(...talentStep(state, dt, at, rand));
     r.events.push(...epithetStep(state, at));
     r.events.push(...colonyStep(state, dt, at, rand));
-    for (const c of Object.values(state.crews)) if (c.n > 0) c.exp += (dt / 3600) * expRate;
     const s = stageFor(hoardValue(state));
     if (s > state.stage) state.stage = s;
     if (state.stage > before) r.newStage = state.stage;
