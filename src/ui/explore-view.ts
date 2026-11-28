@@ -1,81 +1,62 @@
-// The Explore panel on the Gathering tab: what the scouts are looking for,
-// how close the next find is, and every area found so far with how much of
+// The Areas panel on the Gathering tab: who is out looking for more places
+// to work and how close the next find is, and every area found so far with how much of
 // it is being worked.
 
 import {
   areaCap,
   areaMix,
-  depth,
-  nothingNew,
   areaName,
   exploreBlocked,
   exploreKinds,
   exploreRate,
-  EXPLORE,
   fills,
   findCost,
   KINDS,
   kindDef,
-  setExploreTarget,
+  searchers,
   type AreaKind,
 } from '../game/areas';
-import { resourceDef, resourceOpen, workers } from '../game/economy';
+import { jobDef, resourceDef } from '../game/economy';
 import type { ResourceId } from '../game/data';
 import { monsterDef } from '../game/hunting';
 import type { GameState } from '../game/state';
-import { $, setText, setBar } from './dom';
+import { $, setText } from './dom';
 import { formatDuration, formatNumber } from './format';
-import { row, syncOptions } from './hud';
+import { row } from './hud';
 
-const NOBODY = '';
-const LOOK_FOR: Record<AreaKind, string> = { wood: 'Woodland', stone: 'Stone', copper: 'Copper', monsters: 'Monsters' };
+const LOOK_FOR: Record<AreaKind, string> = { wood: 'woodland', stone: 'stone', copper: 'copper', farm: 'farming caverns', monsters: 'hunting grounds' };
 
 export class ExploreView {
   private section = $('#explore-section');
-  private select = $('#explore-target') as HTMLSelectElement;
   private status = $('#explore-status');
-  private bar = $('#explore-bar > div');
   private list = $('#areas');
   private key = '';
 
   constructor(
     private getState: () => GameState,
-    private onChange: () => void,
-  ) {
-    this.select.addEventListener('change', () => {
-      const v = this.select.value === NOBODY ? null : (this.select.value as AreaKind);
-      if (setExploreTarget(this.getState(), v)) this.onChange();
-    });
-  }
+    _onChange: () => void,
+  ) {}
 
   update() {
     const s = this.getState();
     this.section.hidden = !s.chief;
     if (this.section.hidden) return;
-    syncOptions(this.select, [[NOBODY, 'Nothing'], ...exploreKinds(s).map((k): [string, string] => [k, LOOK_FOR[k]])], s.explore.target ?? NOBODY);
 
-    const kind = s.explore.target;
-    const rate = exploreRate(s);
-    let status: string;
-    let pct = 0;
-    if (!kind) status = 'The scouts are told to look for nothing, so they sit about.';
-    else if (exploreBlocked(s, kind)) status = exploreBlocked(s, kind)!;
-    else {
-      const cost = findCost(s, kind);
-      const have = s.explore.points[kind] ?? 0;
-      pct = Math.min(100, (have / cost) * 100);
-      if (workers(s, 'scout') === 0) status = 'Put some kobolds on scouting to start.';
-      else {
-        const eta = formatDuration(Math.max(1, (cost - have) / Math.max(rate, 1e-9)));
-        const none = nothingNew(s, kind);
-        status = none
-          ? `${formatNumber(rate)} exploring / s. ${none.replace(/\.$/, '')}, so the scouts push deeper into what they know: in about ${eta}, every one gives twice as much.`
-          : `${formatNumber(rate)} exploring / s. The next find is about ${eta} away.`;
-        if (resourceOpen(s, 'meat')) status += s.res.meat < 1 ? ' Out of meat for provisions, so the scouts go at half pace.' : ` Provisions: about ${formatNumber(rate * EXPLORE.meatPerPoint * 3600)} meat an hour.`;
+    // gatherers with no room to work go looking for more of their kind of place
+    const looking: string[] = [];
+    for (const k of exploreKinds(s)) {
+      const n = Math.round(searchers(s, k));
+      if (n < 1) continue;
+      const job = jobDef(KINDS.find((x) => x.id === k)!.job)!.name.toLowerCase();
+      const blocked = exploreBlocked(s, k);
+      if (blocked) {
+        looking.push(`${n} ${job}${n === 1 ? ' has' : 's have'} no room to work. ${blocked}`);
+        continue;
       }
+      const left = Math.max(0, findCost(s, k) - (s.explore.points[k] ?? 0));
+      looking.push(`${n} ${job}${n === 1 ? ' is' : 's are'} out looking for more ${LOOK_FOR[k]}: the next find in about ${formatDuration(Math.max(1, left / Math.max(exploreRate(s, k), 1e-9)))}.`);
     }
-    setText(this.status, status);
-    setBar(this.bar, pct / 100);
+    setText(this.status, looking.length ? looking.join(' ') : 'Gatherers and hunters with no room to work go looking for more places on their own.');
 
     // found areas, one folded line per kind with its total; rebuilt only when what's found or worked changes
     const sections: { kind: AreaKind; head: string; total: string; lines: { name: string; text: string }[] }[] = [];
@@ -106,7 +87,7 @@ export class ExploreView {
         const cap = f.fills.reduce((t, x) => t + x.cap, 0);
         total = `${formatNumber(used)} of ${formatNumber(cap)} ${unit(k.id)} / s`;
       }
-      sections.push({ kind: k.id, head: `${kindDef(k.id).name} · ${f.fills.filter((x) => x.area).length} found${depth(s, k.id) ? `, ${depth(s, k.id)} deeper` : ''}`, total, lines });
+      sections.push({ kind: k.id, head: `${kindDef(k.id).name} · ${f.fills.filter((x) => x.area).length} found`, total, lines });
     }
     const key = JSON.stringify(sections);
     if (key === this.key) return;
@@ -136,5 +117,5 @@ export class ExploreView {
 }
 
 function unit(kind: AreaKind): string {
-  return kind === 'wood' ? 'wood' : kind === 'stone' ? 'stone' : 'copper';
+  return kind === 'wood' ? 'wood' : kind === 'stone' ? 'stone' : kind === 'farm' ? 'food' : 'copper';
 }

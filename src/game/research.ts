@@ -43,7 +43,7 @@ export type ResearchEffect =
   | { kind: 'findLuck'; mult: number }
   /** Mithril turns up among the miners' rare finds. */
   | { kind: 'mithrilFinds' }
-  /** Dangerous work (scouting, hunting, the deep workings) loses this much as many kobolds; for one job, or all. */
+  /** Dangerous work (hunting, the deep workings) loses this much as many kobolds; for one job, or all. */
   | { kind: 'dangerMult'; mult: number; job?: string };
 
 export interface ResearchDef {
@@ -337,15 +337,14 @@ export const RESEARCH: ResearchDef[] = [
   {
     id: 'ropes-and-lanterns',
     name: 'Ropes and lanterns',
-    description: 'Scouts and deep miners go roped together, with a light each. Half as many are lost.',
+    description: 'Deep miners go roped together, with a light each. Half as many are lost.',
     cost: 4_000,
     resources: { wood: 300 },
     requires: [],
     effects: [
-      { kind: 'dangerMult', job: 'scout', mult: 0.5 },
       { kind: 'dangerMult', job: 'miner', mult: 0.5 },
     ],
-    doneText: 'Ropes and lanterns for the scouts. They look like a very slow, very bright caterpillar going down the tunnel.',
+    doneText: 'Ropes and lanterns for the deep miners. They look like a very slow, very bright caterpillar going down the tunnel.',
   },
   {
     id: 'hide-armor',

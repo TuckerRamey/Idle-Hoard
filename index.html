@@ -22,7 +22,7 @@
         </section>
         <header class="totals">
           <div><span id="copper" class="big">0</span> <span id="worth-unit" class="unit">copper</span><div id="metals" class="desc metals"></div></div>
-          <div class="totals-right"><span id="rate" class="rate" title="Hoard worth gained per second">+0 / s</span> <button type="button" id="settings-open" class="small gear" aria-label="Settings and save" title="Settings and save">⚙</button></div>
+          <div class="totals-right"><span id="rate" class="rate" title="Hoard worth gained per second">+0 / s</span> <span id="speed-badge" class="speed-badge" hidden></span> <button type="button" id="settings-open" class="small gear" aria-label="Settings and save" title="Settings and save">⚙</button></div>
         </header>
 
         <div class="growth">
@@ -81,10 +81,8 @@
         <div class="step-row"><span class="desc">Move</span> <div id="step" class="step" role="group" aria-label="How many to move at once"></div></div>
         <ul id="jobs" class="list"></ul>
         <section id="explore-section" class="explore" hidden>
-          <h2>Explore</h2>
-          <div class="favor-row"><label for="explore-target" class="desc">Scouts look for</label> <select id="explore-target"></select></div>
+          <h2>Areas</h2>
           <p id="explore-status" class="desc"></p>
-          <div id="explore-bar" class="bar"><div></div></div>
           <ul id="areas" class="list"></ul>
         </section>
 
@@ -181,6 +179,18 @@
           </div>
           <p id="save-status" class="desc" aria-live="polite"></p>
           <button id="reset" class="danger">Start over</button>
+        </details>
+        <details id="debug-tools" class="settings debug-tools">
+          <summary>Debug tools</summary>
+          <p class="desc">For testing. Skipping ahead works time through like being away (up to a day at a time).</p>
+          <div class="step-row"><span class="desc">Skip ahead</span>
+            <div class="step"><button type="button" class="small" data-skip="3600">1h</button><button type="button" class="small" data-skip="28800">8h</button><button type="button" class="small" data-skip="86400">24h</button></div>
+          </div>
+          <div class="step-row"><span class="desc">Speed</span>
+            <div id="debug-speed" class="step" role="group" aria-label="Game speed"><button type="button" class="small" data-speed="1">1×</button><button type="button" class="small" data-speed="10">10×</button><button type="button" class="small" data-speed="100">100×</button></div>
+          </div>
+          <button type="button" id="debug-reset" class="danger">Reset progress</button>
+          <p id="debug-status" class="desc" aria-live="polite"></p>
         </details>
         </div>
         <p id="debug" class="desc" hidden></p>

@@ -179,7 +179,7 @@ function comeHome(state: GameState, def: RaidDef, rider: NamedKobold | null, ble
   if (n > 0) {
     state.idle += n;
     const job = jobDef(state.newcomerJob);
-    if (state.newcomerJob !== IDLE && state.newcomerJob !== 'scout' && job && jobOpen(state, job)) assign(state, state.newcomerJob, n);
+    if (state.newcomerJob !== IDLE && job && jobOpen(state, job)) assign(state, state.newcomerJob, n);
   }
   // keepsakes
   const banners = state.oddities['raid-banners'];

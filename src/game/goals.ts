@@ -5,16 +5,18 @@ import { DRAGON_STAGES } from './data';
 import { moltNeeds } from './dragon';
 import { kindKnown } from './areas';
 import { beds, diggersIn, hoardValue, population, workers } from './economy';
+import { hungry } from './losses';
 import { opened } from './research';
 import type { GameState } from './state';
 
 export function nextGoal(state: GameState): string | null {
   if (!state.chief) return null;
   const full = population(state) >= beds(state);
+  if (hungry(state) > 0) return 'Next: the kobolds are going hungry. Put more on farming (Gathering tab).';
   if (!kindKnown(state, 'wood') || !kindKnown(state, 'stone')) {
     const what = !kindKnown(state, 'wood') && !kindKnown(state, 'stone') ? 'woodland and stone' : !kindKnown(state, 'wood') ? 'woodland' : 'stone';
-    if (workers(state, 'scout') === 0) return `Next: put a kobold or two on scouting (Gathering tab) to find ${what}.`;
-    if (state.explore.target === 'copper' || state.explore.target === 'monsters' || !state.explore.target) return `Next: have the scouts look for ${what}.`;
+    const job = !kindKnown(state, 'wood') ? 'woodcutter' : 'miner';
+    if (workers(state, job) === 0) return `Next: put a kobold or two on ${job === 'woodcutter' ? 'woodcutting' : 'mining'} (Gathering tab). With nowhere to work yet, they go looking for ${what}.`;
   }
   if (state.stage === 0) {
     if (full && diggersIn(state, 'den') === 0) return 'Next: put some diggers on the den, so more kobolds can move in.';

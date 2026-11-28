@@ -11,13 +11,12 @@ import {
   exploreKinds,
   exploreRate,
   exploreStep,
-  nothingNew,
   findCost,
   fills,
   found,
   gathered,
   kindCap,
-  setExploreTarget,
+  searchers,
 } from '../src/game/areas';
 import { jobDef, jobHints, jobOpen, jobOutput, production } from '../src/game/economy';
 import { HUNT, huntStep } from '../src/game/hunting';
@@ -38,8 +37,8 @@ function game(): GameState {
 
 const open = (s: GameState, job: string) => jobOpen(s, jobDef(job)!);
 
-/** Scout until something turns up (or give up). */
-function scoutUntilFound(s: GameState, n = 1): string[] {
+/** Let kobolds look around until something turns up (or give up). */
+function searchUntilFound(s: GameState, n = 1): string[] {
   const rand = rng(s);
   const lines: string[] = [];
   const before = s.explore.found.length;
@@ -48,48 +47,53 @@ function scoutUntilFound(s: GameState, n = 1): string[] {
 }
 
 describe('a new game', () => {
-  it('knows only scavenging and scouting among the gathering jobs, and the near tunnels', () => {
+  it('opens scavenging, woodcutting and mining, and knows only the near tunnels', () => {
     const s = game();
     expect(open(s, 'scavenger')).toBe(true);
-    expect(open(s, 'scout')).toBe(true);
-    expect(open(s, 'woodcutter')).toBe(false);
-    expect(open(s, 'miner')).toBe(false);
-    expect(found(s).map((a) => a.id)).toEqual(['near-tunnels']);
-    expect(exploreKinds(s)).toEqual(['wood', 'stone', 'copper']);
+    expect(open(s, 'woodcutter')).toBe(true);
+    expect(open(s, 'miner')).toBe(true);
+    expect(jobDef('scout')).toBeUndefined();
+    expect(found(s).map((a) => a.id)).toEqual(['near-tunnels', 'mushroom-beds']);
+    expect(exploreKinds(s)).toEqual(['wood', 'stone', 'copper', 'farm']);
   });
 
-  it('the first woodland find is the grove, it comes quickly, and it opens woodcutters', () => {
+  it('woodcutters with nowhere to work go looking, and the first find is the grove', () => {
     const s = game();
-    s.crews.scout = { n: 2 };
-    setExploreTarget(s, 'wood');
+    s.crews.woodcutter = { n: 2 };
+    expect(searchers(s, 'wood')).toBeCloseTo(2);
     expect(findCost(s, 'wood')).toBe(EXPLORE.firstCost.wood);
-    const lines = scoutUntilFound(s);
+    const lines = searchUntilFound(s);
     expect(s.explore.found).toContain('grove');
     expect(lines[0]).toMatch(/grove/);
-    expect(open(s, 'woodcutter')).toBe(true);
     expect(findCost(s, 'wood')).toBe(EXPLORE.firstCost.wood * EXPLORE.growth);
   });
 
-  it('the first stone find is the rubble cave, and opens miners', () => {
+  it('miners with nowhere to work find the rubble cave first', () => {
     const s = game();
-    s.crews.scout = { n: 2 };
-    setExploreTarget(s, 'stone');
-    scoutUntilFound(s);
+    s.crews.miner = { n: 2 };
+    searchUntilFound(s);
     expect(s.explore.found).toContain('rubble-cave');
-    expect(open(s, 'miner')).toBe(true);
   });
 
-  it('monsters need monster tracking, and the first find opens hunters', () => {
+  it('hunters need monster tracking, then go looking for grounds themselves', () => {
     const s = game();
     s.stage = 1;
-    expect(setExploreTarget(s, 'monsters')).toBe(false);
-    s.research.done.push('monster-tracking');
-    expect(setExploreTarget(s, 'monsters')).toBe(true);
     expect(open(s, 'hunter')).toBe(false);
-    s.crews.scout = { n: 10 };
-    scoutUntilFound(s);
-    expect(s.explore.found).toContain('bear-caves');
+    s.research.done.push('monster-tracking');
     expect(open(s, 'hunter')).toBe(true);
+    s.crews.hunter = { n: 10 };
+    searchUntilFound(s);
+    expect(s.explore.found).toContain('bear-caves');
+  });
+
+  it('nobody looks while everyone has room to work', () => {
+    const s = game();
+    addArea(s, 'grove');
+    s.crews.woodcutter = { n: 2 };
+    expect(searchers(s, 'wood')).toBe(0);
+    expect(exploreRate(s, 'wood')).toBe(0);
+    s.crews.woodcutter = { n: 100 };
+    expect(searchers(s, 'wood')).toBeGreaterThan(80);
   });
 });
 
@@ -102,7 +106,7 @@ describe('areas', () => {
     s.crews.woodcutter = { n: 100 };
     expect(production(s).wood).toBeCloseTo(6);
     expect(capHint(s, 'wood')).toMatch(/grove outside the hoard gives at most 6 wood a second/);
-    expect(capHint(s, 'wood')).toMatch(/Explore for more woodland/);
+    expect(capHint(s, 'wood')).toMatch(/out looking for more woodland/);
     expect(jobHints(s).woodcutter).toBe(capHint(s, 'wood'));
   });
 
@@ -134,9 +138,8 @@ describe('areas', () => {
     const s = game();
     addArea(s, 'rubble-cave');
     s.research.done.push('ore-sniffing');
-    s.crews.scout = { n: 20 };
-    setExploreTarget(s, 'stone');
-    scoutUntilFound(s);
+    s.crews.miner = { n: 200 };
+    searchUntilFound(s);
     const latest = areaDef(s.explore.found.at(-1)!)!;
     expect(latest.mix!.ore).toBeGreaterThan(0);
   });
@@ -144,47 +147,17 @@ describe('areas', () => {
   it('deeper and better finds wait for a bigger dragon or a deeper warren', () => {
     const s = game();
     for (const id of ['grove', 'mushroom-thicket', 'petrified-grove']) addArea(s, id);
-    expect(nothingNew(s, 'wood')).toMatch(/dragon is bigger/);
-    // nothing new, but the scouts still have work: they push deeper
-    expect(exploreBlocked(s, 'wood')).toBeNull();
+    expect(exploreBlocked(s, 'wood')).toMatch(/dragon is bigger/);
     s.stage = 2;
-    expect(nothingNew(s, 'wood')).toBeNull();
+    expect(exploreBlocked(s, 'wood')).toBeNull();
     for (const id of ['rubble-cave', 'granite-face', 'iron-seam', 'gem-pocket', 'silver-lode']) addArea(s, id);
     s.stage = 3;
-    expect(nothingNew(s, 'stone')).toMatch(/Dig a room past/);
-  });
-
-  it('with nothing new to find, scouts push deeper and every area of that kind doubles', () => {
-    const s = game();
-    for (const id of ['grove', 'mushroom-thicket', 'petrified-grove']) addArea(s, id);
-    const before = kindCap(s, 'wood');
-    const cost = findCost(s, 'wood');
-    s.crews.scout = { n: 20 };
-    setExploreTarget(s, 'wood');
-    s.explore.points.wood = cost - 1e-6;
-    const lines = exploreStep(s, 1, T0, rng(s));
-    expect(lines[0]).toMatch(/pushed deeper/);
-    expect(s.explore.depth?.wood).toBe(1);
-    expect(kindCap(s, 'wood')).toBeCloseTo(before * 2);
-    expect(findCost(s, 'wood')).toBeCloseTo(cost * EXPLORE.growth);
+    expect(exploreBlocked(s, 'stone')).toMatch(/Dig a room past/);
   });
 });
 
-describe('scouts', () => {
-  it('eat meat as provisions once there is a larder, and go at half pace without', () => {
-    const s = game();
-    s.research.done.push('crab-wrangling');
-    s.crews.scout = { n: 10 };
-    setExploreTarget(s, 'copper');
-    s.res.meat = 100;
-    const full = exploreRate(s);
-    exploreStep(s, 100, T0, rng(s));
-    expect(s.res.meat).toBeCloseTo(100 - full * 100 * EXPLORE.meatPerPoint);
-    s.res.meat = 0;
-    expect(exploreRate(s)).toBeCloseTo(full * EXPLORE.hungryPace);
-  });
-
-  it('a named scout gets the story, and sometimes the place is named after them', () => {
+describe('finding places', () => {
+  it('a named kobold on the job gets the story, and sometimes the place is named after them', () => {
     let named = 0;
     for (let seed = 1; seed < 30; seed++) {
       const s = game();
@@ -192,10 +165,9 @@ describe('scouts', () => {
       addArea(s, 'grove');
       s.idle = 1;
       const k = nameKobold(s, 'idle', 'the Bold', 'Was bold.', T0, rng(s))!;
-      k.job = 'scout';
-      s.crews.scout = { n: 20 };
-      setExploreTarget(s, 'wood');
-      scoutUntilFound(s);
+      k.job = 'woodcutter';
+      s.crews.woodcutter = { n: 200 };
+      searchUntilFound(s);
       expect(k.history.some((h) => h.text.startsWith('Was first into'))).toBe(true);
       if (Object.values(s.explore.names).some((n) => n.startsWith(k.name))) named++;
     }

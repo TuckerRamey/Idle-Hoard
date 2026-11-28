@@ -51,7 +51,7 @@ describe('save round trip', () => {
   it('fills in defaults for missing fields (no migration needed for additions)', () => {
     const text = JSON.stringify({ version: SAVE_VERSION, savedAt: T0, state: { res: { copper: 5 } } });
     const s = deserialize(text, T0);
-    expect(s.res).toEqual({ copper: 5, silver: 0, gold: 0, wood: 0, stone: 0, ore: 0, bars: 0, steel: 0, mithril: 0, adamant: 0, meat: 0 });
+    expect(s.res).toEqual({ copper: 5, silver: 0, gold: 0, wood: 0, stone: 0, ore: 0, bars: 0, steel: 0, mithril: 0, adamant: 0, meat: 0, food: 0 });
     expect(s.named).toEqual([]);
     expect(s.research.done).toEqual([]);
     expect(s.dragon.request).toBeNull();

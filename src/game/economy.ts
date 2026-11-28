@@ -3,9 +3,9 @@
 
 import { PIP_ODDITIES, quirkOf, raiseStat } from './chief';
 import { artStep } from './art';
-import { lossStep } from './losses';
+import { lossStep, eatStep, foodNeed } from './losses';
 import { gearStep } from './gear';
-import { areaExtrasStep, capHint, exploreStep, gathered, kindKnown, yardFull } from './areas';
+import { areaExtrasStep, capHint, exploreStep, gathered, yardFull } from './areas';
 import { findStep } from './finds';
 import { huntStep } from './hunting';
 import { MAGIC, magicStep } from './magic';
@@ -41,13 +41,13 @@ export const roomDef = (id: string) => ROOMS.find((r) => r.id === id);
 export const resourceDef = (id: ResourceId) => RESOURCES.find((r) => r.id === id)!;
 export const recipeDef = (id: string) => RECIPES.find((r) => r.id === id);
 
-export const emptyRes = () => ({ copper: 0, silver: 0, gold: 0, wood: 0, stone: 0, ore: 0, bars: 0, steel: 0, mithril: 0, adamant: 0, meat: 0 }) as Record<ResourceId, number>;
+export const emptyRes = () => ({ copper: 0, silver: 0, gold: 0, wood: 0, stone: 0, ore: 0, bars: 0, steel: 0, mithril: 0, adamant: 0, meat: 0, food: 0 }) as Record<ResourceId, number>;
 
 // ---------- what's open ----------
 
-/** A job is open once its research is done and, for jobs that work areas, once the scouts have found one. */
+/** A job is open once its research is done. Gatherers with no area yet go looking for one. */
 export function jobOpen(state: GameState, def: JobDef): boolean {
-  return opened(state, def.requires) && (!def.area || kindKnown(state, def.area));
+  return opened(state, def.requires);
 }
 
 export function resourceOpen(state: GameState, res: ResourceId): boolean {
@@ -225,7 +225,7 @@ function makeProduction(state: GameState): Record<ResourceId, number> {
   for (const def of JOBS) {
     if (!def.produces || !resourceOpen(state, def.produces.resource)) continue;
     if (def.area) {
-      // gatherers work the areas the scouts found, each up to its most
+      // gatherers work the areas found, each up to its most
       for (const [r, n] of Object.entries(gathered(state, def.area))) p[r as ResourceId] += n ?? 0;
     } else p[def.produces.resource] += jobOutput(state, def);
   }
@@ -435,7 +435,7 @@ export interface Flow {
   /** Used per second at full pace (digging, alchemy, the forge, the dragon). */
   out: number;
   /** The biggest single use, for hints. */
-  usedBy: 'digging' | 'alchemy' | 'forge' | 'dragon' | null;
+  usedBy: 'digging' | 'alchemy' | 'forge' | 'dragon' | 'kobolds' | null;
 }
 
 export function flows(state: GameState): Record<ResourceId, Flow> {
@@ -463,6 +463,7 @@ export function flows(state: GameState): Record<ResourceId, Flow> {
     if (state.res[recipe.from] > 0) inn[recipe.to] += alc / recipeRatio(state, recipe);
   }
   if (resourceOpen(state, 'meat') && eatRate(state) > 0) use('meat', eatRate(state), 'dragon');
+  if (state.chief && population(state) > 0) use('food', foodNeed(state), 'kobolds');
   const f = {} as Record<ResourceId, Flow>;
   for (const r of RESOURCES)
     f[r.id] = { held: state.res[r.id], cap: capacity(state, r.id), in: inn[r.id], out: out[r.id], usedBy: out[r.id] > 0 ? (top[r.id]?.by ?? null) : null };
@@ -476,7 +477,7 @@ export function flows(state: GameState): Record<ResourceId, Flow> {
 export function jobHints(state: GameState): Record<string, string> {
   const hints: Record<string, string> = {};
   const f = flows(state);
-  const why = { digging: 'Digging', alchemy: 'The alchemist', forge: 'The forge', dragon: 'The dragon' } as const;
+  const why = { digging: 'Digging', alchemy: 'The alchemist', forge: 'The forge', dragon: 'The dragon', kobolds: 'The warren' } as const;
   for (const def of JOBS) {
     if (!def.produces || !jobOpen(state, def)) continue;
     // an area job with every area full: more kobolds won't help, exploring will
@@ -578,7 +579,8 @@ export function arrivalSeconds(state: GameState): number {
 export function arrive(state: GameState, seconds: number): number {
   if (!state.chief || !(seconds > 0)) return 0;
   const free = beds(state) - population(state);
-  if (free <= 0) {
+  // nobody moves in to a warren that can't feed the kobolds it has
+  if (free <= 0 || (state.res.food < 1 && foodNeed(state) > production(state).food)) {
     state.arrivalProgress = 0;
     return 0;
   }
@@ -590,7 +592,7 @@ export function arrive(state: GameState, seconds: number): number {
   if (n > 0) {
     state.idle += n;
     const job = jobDef(state.newcomerJob);
-    if (state.newcomerJob !== IDLE && state.newcomerJob !== 'scout' && job && jobOpen(state, job)) assign(state, state.newcomerJob, n);
+    if (state.newcomerJob !== IDLE && job && jobOpen(state, job)) assign(state, state.newcomerJob, n);
   }
   return n;
 }
@@ -641,11 +643,13 @@ export interface TickResult {
   /** Crowd kobolds lost on dangerous work, by job, and idle ones who wandered off. */
   died: Record<string, number>;
   wandered: number;
-  /** Areas the scouts found. */
+  /** Kobolds who left for want of food. */
+  starved: number;
+  /** Areas found by kobolds with no room to work. */
   explored: string[];
 }
 
-const emptyResult = (): TickResult => ({ gained: emptyRes(), lost: emptyRes(), newStage: null, dug: [], learned: [], events: [], died: {}, wandered: 0, explored: [] });
+const emptyResult = (): TickResult => ({ gained: emptyRes(), lost: emptyRes(), newStage: null, dug: [], learned: [], events: [], died: {}, wandered: 0, starved: 0, explored: [] });
 
 /** Rates are worked out again at least this often (seconds). */
 const SUBSTEP = 10;
@@ -714,6 +718,9 @@ function step(state: GameState, dt: number, at: number, rand: () => number, r: T
     const known = state.explore.found.length;
     r.events.push(...exploreStep(state, dt, at, rand));
     r.explored.push(...state.explore.found.slice(known));
+    const fed = eatStep(state, dt);
+    r.events.push(...fed.lines);
+    r.starved += fed.left;
     const loss = lossStep(state, dt, at, rand);
     r.events.push(...loss.lines);
     for (const [job, n] of Object.entries(loss.died)) r.died[job] = (r.died[job] ?? 0) + n;
@@ -865,6 +872,7 @@ export function mergeResult(out: TickResult & { arrived?: number }, r: TickResul
   out.events.push(...r.events);
   for (const [job, n] of Object.entries(r.died)) out.died[job] = (out.died[job] ?? 0) + n;
   out.wandered += r.wandered;
+  out.starved += r.starved;
   out.explored.push(...r.explored);
   if (out.arrived !== undefined && r.arrived !== undefined) out.arrived += r.arrived;
 }

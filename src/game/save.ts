@@ -357,6 +357,25 @@ function normalizeProgress(raw: any, current: any): Record<string, number> {
 }
 
 /**
+ * There are no scouts any more: gatherers with no room to work look for more
+ * places themselves. Old saves send their scouts (crowd and named) back to idle.
+ * Works on a copy.
+ */
+function retireScouts(raw: Record<string, any>): Record<string, any> {
+  if (!JSON.stringify(raw).includes('"scout"')) return raw;
+  const r = JSON.parse(JSON.stringify(raw));
+  if (r.crews?.scout) {
+    r.idle = Math.floor(num(r.idle, 0)) + Math.floor(num(r.crews.scout?.n, 0));
+    delete r.crews.scout;
+  }
+  if (r.newcomerJob === 'scout') r.newcomerJob = 'idle';
+  if (Array.isArray(r.named)) for (const k of r.named) if (k && k.job === 'scout') k.job = 'idle';
+  if (r.toolFirst === 'scout') r.toolFirst = null;
+  if (Array.isArray(r.dragon?.boosts)) r.dragon.boosts = r.dragon.boosts.filter((b: any) => b?.job !== 'scout');
+  return r;
+}
+
+/**
  * Quarriers and miners became one Miner job. Old saves move quarriers (crews,
  * named kobolds, talents, tools, orders) over to miners. Works on a copy.
  */
@@ -400,7 +419,7 @@ function mergeQuarriers(raw: Record<string, any>): Record<string, any> {
 export function normalize(raw: unknown, now: number): GameState {
   const base = newGame(now);
   if (!raw || typeof raw !== 'object') throw new SaveError('Save has no game state');
-  const r = mergeQuarriers(raw as Record<string, any>);
+  const r = retireScouts(mergeQuarriers(raw as Record<string, any>));
   const res = { ...base.res };
   for (const d of RESOURCES) res[d.id] = num(r.res?.[d.id], 0);
   const crews = normalizeCrews(r.crews);
@@ -472,6 +491,9 @@ export function normalize(raw: unknown, now: number): GameState {
       wanderAcc: num(r.losses?.wanderAcc, 0),
       died: Math.floor(num(r.losses?.died, 0)),
       wandered: Math.floor(num(r.losses?.wandered, 0)),
+      hungryFor: num(r.losses?.hungryFor, 0),
+      starveAcc: num(r.losses?.starveAcc, 0),
+      starved: Math.floor(num(r.losses?.starved, 0)),
     },
     seed: Number.isInteger(r.seed) ? r.seed : base.seed,
   };
@@ -480,7 +502,7 @@ export function normalize(raw: unknown, now: number): GameState {
   return state;
 }
 
-const KIND_IDS = ['wood', 'stone', 'copper', 'monsters'] as const;
+const KIND_IDS = ['wood', 'stone', 'copper', 'farm', 'monsters'] as const;
 
 function normalizeExplore(v: any): ExploreState {
   const base = newExplore();
@@ -488,6 +510,8 @@ function normalizeExplore(v: any): ExploreState {
   const nums = (o: any) => Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).filter(([, n]) => typeof n === 'number' && Number.isFinite(n) && n >= 0)) as Record<string, number>;
   const found = strList(v.found).filter((id, i, a) => areaDef(id) && a.indexOf(id) === i);
   if (!found.includes('near-tunnels')) found.unshift('near-tunnels');
+  // every warren has somewhere to grow food
+  if (!found.includes('mushroom-beds')) found.push('mushroom-beds');
   const pick = (o: Record<string, number>) => Object.fromEntries(Object.entries(o).filter(([k]) => (KIND_IDS as readonly string[]).includes(k)));
   return {
     target: (KIND_IDS as readonly string[]).includes(v.target) ? v.target : v.target === null ? null : base.target,
@@ -496,7 +520,6 @@ function normalizeExplore(v: any): ExploreState {
     names: Object.fromEntries(Object.entries(v.names && typeof v.names === 'object' ? v.names : {}).filter(([k, n]) => areaDef(k) && typeof n === 'string')) as Record<string, string>,
     bonus: pick(nums(v.bonus)),
     progress: Object.fromEntries(Object.entries(nums(v.progress)).filter(([k]) => areaDef(k))),
-    depth: Object.fromEntries(Object.entries(pick(nums(v.depth))).map(([k, n]) => [k, Math.floor(n)])),
   };
 }
 
