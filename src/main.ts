@@ -19,6 +19,7 @@ import { DragonView } from './ui/dragon-view';
 import { ResearchView } from './ui/research-view';
 import { ForgeView } from './ui/forge-view';
 import { ExploreView } from './ui/explore-view';
+import { areaDef } from './game/areas';
 import { ArtView } from './ui/art-view';
 import { NamedView } from './ui/named-view';
 import { TabsView } from './ui/tabs';
@@ -202,6 +203,10 @@ function showAway(r: AdvanceResult, happened: number) {
   const lost = RESOURCES.filter((x) => r.lost[x.id] >= 1).map((x) => `${formatNumber(r.lost[x.id])} ${x.name.toLowerCase()}`);
   if (lost.length) items.push(`Lost for want of room: ${lost.join(', ')}.`);
   if (r.arrived > 0) items.push(`${r.arrived} new kobold${r.arrived === 1 ? '' : 's'} moved in.`);
+  if (r.explored.length) items.push(`The scouts found ${r.explored.map((id) => (areaDef(id)?.name ?? id).replace(/^\w/, (c) => c.toLowerCase())).join(', ')}.`);
+  const lostJobs = Object.entries(r.died).filter(([, n]) => n > 0);
+  if (lostJobs.length) items.push(`Lost ${lostJobs.map(([job, n]) => `${n} ${job}${n === 1 ? '' : 's'}`).join(' and ')} on dangerous work.`);
+  if (r.wandered > 0) items.push(`${r.wandered} idle kobold${r.wandered === 1 ? '' : 's'} wandered off for want of work.`);
   const dug = new Map<string, number>();
   for (const d of r.dug) dug.set(d.room, d.volume);
   if (dug.size)

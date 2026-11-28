@@ -95,6 +95,8 @@ export interface GameState {
   hunt: HuntState;
   /** Shaman magic: what they work with, mana, and rituals running. */
   magic: MagicState;
+  /** Kobolds lost on dangerous work and wandered off, and the clocks toward the next. */
+  losses: LossState;
   /** Exploring: what the scouts look for, their points toward the next find of each kind, and the areas found. */
   explore: ExploreState;
   /** For the game's own dice (mishaps, requests), so runs replay the same in tests. */
@@ -112,6 +114,20 @@ export interface ExploreState {
   bonus: Partial<Record<'wood' | 'stone' | 'copper' | 'monsters', number>>;
   /** Hunting work toward the next kill on each ground. */
   progress: Record<string, number>;
+}
+
+export interface LossState {
+  /** Toward the next loss on each dangerous job. */
+  acc: Record<string, number>;
+  /** Seconds there have been idle kobolds without a break, and toward the next one wandering off. */
+  idleFor: number;
+  wanderAcc: number;
+  died: number;
+  wandered: number;
+}
+
+export function newLosses(): LossState {
+  return { acc: {}, idleFor: 0, wanderAcc: 0, died: 0, wandered: 0 };
 }
 
 export function newExplore(): ExploreState {
@@ -257,6 +273,7 @@ export function newGame(now: number): GameState {
     hunt: newHunt(),
     magic: newMagic(),
     explore: newExplore(),
+    losses: newLosses(),
     seed: (now % 2_147_483_647) || 1,
   };
 }
