@@ -289,16 +289,43 @@ export function slotBlocked(state: GameState, slot: ForgeSlot): string | null {
   return null;
 }
 
+/**
+ * Slots with an order. Work is split evenly between them, even while one has
+ * nothing to do (an auto order with everyone equipped), so the others work at
+ * a steady pace instead of speeding up and slowing down as tools are needed.
+ */
+function busySlots(state: GameState): ForgeSlot[] {
+  return state.forge.slots.filter((s) => s.order);
+}
+
+/** Tool orders come and go as kobolds arrive and tools wear out, so their use is shown smoothed over about this long. */
+const TOOL_USE_SECONDS = 1800;
+
 /** Let `dt` seconds of forge work happen. Returns how many of each thing was made. */
 export function forgeStep(state: GameState, dt: number): Record<string, number> {
   const made: Record<string, number> = {};
   syncSlots(state);
   wearTools(state, dt);
-  const busy = state.forge.slots.filter((s) => s.order);
+  const toolPaid: Partial<Record<ResourceId, number>> = {};
+  work(state, dt, made, toolPaid);
+  // smooth what tool orders actually used, so the stores don't flicker as tools come and go
+  const k = 1 - Math.exp(-dt / TOOL_USE_SECONDS);
+  const use = (state.forge.toolUse ??= {});
+  for (const r of new Set([...Object.keys(use), ...Object.keys(toolPaid)]) as Set<ResourceId>) {
+    const v = (use[r] ?? 0) + ((toolPaid[r] ?? 0) / Math.max(dt, 1e-9) - (use[r] ?? 0)) * k;
+    if (v < 1e-6) delete use[r];
+    else use[r] = v;
+  }
+  return made;
+}
+
+function work(state: GameState, dt: number, made: Record<string, number>, toolPaid: Partial<Record<ResourceId, number>>) {
+  const busy = busySlots(state);
   const rate = forgeRate(state);
-  if (!busy.length || rate <= 0) return made;
+  if (!busy.length || rate <= 0) return;
   const share = (rate * dt) / busy.length;
   for (const slot of busy) {
+    const isTool = !MATERIALS.some((m) => m.id === slot.order);
     slot.progress += share;
     for (let guard = 0; guard < 100; guard++) {
       const unit = unitFor(state, slot.order);
@@ -317,20 +344,24 @@ export function forgeStep(state: GameState, dt: number): Record<string, number> 
         slot.progress = unit.work;
         break;
       }
+      if (isTool) for (const [r, n] of Object.entries(unit.cost)) toolPaid[r as ResourceId] = (toolPaid[r as ResourceId] ?? 0) + (n ?? 0);
       slot.progress -= unit.work;
       made[unit.label] = (made[unit.label] ?? 0) + 1;
     }
   }
-  return made;
 }
 
-/** Resources per second the forge would use at full pace, for the stores' flows. */
+/**
+ * Resources per second the forge uses, for the stores' flows: smelting and
+ * steel at full pace, and tool orders as they've been using lately.
+ */
 export function forgeUse(state: GameState): Partial<Record<ResourceId, number>> {
-  const use: Partial<Record<ResourceId, number>> = {};
-  const busy = state.forge.slots.filter((s) => s.order);
+  const use: Partial<Record<ResourceId, number>> = { ...(state.forge.toolUse ?? {}) };
+  const busy = busySlots(state);
   const rate = forgeRate(state);
   if (!busy.length || rate <= 0) return use;
   for (const slot of busy) {
+    if (!MATERIALS.some((m) => m.id === slot.order)) continue;
     const unit = unitFor(state, slot.order);
     if (!unit) continue;
     const per = rate / busy.length / unit.work;
@@ -342,7 +373,7 @@ export function forgeUse(state: GameState): Partial<Record<ResourceId, number>> 
 /** Bars and steel per second the forge would make at full pace. */
 export function forgeMakes(state: GameState): Partial<Record<ResourceId, number>> {
   const out: Partial<Record<ResourceId, number>> = {};
-  const busy = state.forge.slots.filter((s) => s.order);
+  const busy = busySlots(state);
   const rate = forgeRate(state);
   for (const slot of busy) {
     const mat = MATERIALS.find((m) => m.id === slot.order);

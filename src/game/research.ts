@@ -133,7 +133,7 @@ export const RESEARCH: ResearchDef[] = [
   {
     id: 'kobold-arithmetic',
     name: 'Kobold arithmetic',
-    description: 'Counting past twenty without taking boots off. Everything +10%.',
+    description: 'Counting past ten without taking boots off. Everything +10%.',
     cost: 15_000,
     resources: { stone: 400 },
     requires: ['alchemy'],

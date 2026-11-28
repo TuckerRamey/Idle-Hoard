@@ -330,7 +330,12 @@ export function normalize(raw: unknown, now: number): GameState {
       events: strList(r.chiefMarks?.events),
       pending: Math.floor(num(r.chiefMarks?.pending, 0)),
     },
-    forge: { slots: normalizeSlots(r.forge?.slots) },
+    forge: {
+      slots: normalizeSlots(r.forge?.slots),
+      toolUse: Object.fromEntries(
+        Object.entries(r.forge?.toolUse && typeof r.forge.toolUse === 'object' ? r.forge.toolUse : {}).filter(([k, v]) => RESOURCES.some((d) => d.id === k) && typeof v === 'number' && Number.isFinite(v) && v >= 0),
+      ),
+    },
     tools: normalizeTools(r.tools),
     seed: Number.isInteger(r.seed) ? r.seed : base.seed,
   };
