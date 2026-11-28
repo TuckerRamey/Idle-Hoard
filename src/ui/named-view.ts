@@ -11,15 +11,22 @@ import {
   lieutenants,
   lieutenantSlots,
   makeLieutenant,
+  EPITHET_MULT,
   moveNamed,
+  personalMult,
+  personalParts,
   standDown,
   type NamedKobold,
 } from '../game/kobolds';
+import { EPITHETS } from '../game/events';
 import { colonyBlocked, coloniesOpen, foundColony } from '../game/colonies';
 import { rng, type GameState } from '../game/state';
 import { timeAgo } from './chronicle';
 import { $, confirmTap, setDisabled, setText } from './dom';
 import { syncOptions } from './hud';
+
+/** ×1.5, ×3.2, ×0.75 */
+export const timesText = (m: number) => `×${m.toFixed(2).replace(/0$/, '').replace(/\.0$/, '')}`;
 
 const jobName = (id: string) => (id === IDLE ? 'Idle' : id === ARTISAN ? 'Artisan' : (JOBS.find((j) => j.id === id)?.name ?? id));
 
@@ -52,12 +59,14 @@ export class NamedView {
   private card(s: GameState, k: NamedKobold, now: number, isOpen: boolean): HTMLLIElement {
     const li = document.createElement('li');
     li.className = 'named';
-    li.innerHTML = `<details><summary><b></b> <span class="desc job"></span></summary><div class="named-body"><div class="desc likes"></div><div class="desc traits"></div><div class="named-controls"><label class="desc">Job <select></select></label><button type="button" class="lt"></button><button type="button" class="art"></button><button type="button" class="colony-btn"></button></div><div class="desc lt-note"></div><ul class="history"></ul></div></details>`;
+    li.innerHTML = `<details><summary><b></b> <span class="desc job"></span></summary><div class="named-body"><div class="desc likes"></div><div class="desc mods"></div><div class="desc traits"></div><div class="named-controls"><label class="desc">Job <select></select></label><button type="button" class="lt"></button><button type="button" class="art"></button><button type="button" class="colony-btn"></button></div><div class="desc lt-note"></div><ul class="history"></ul></div></details>`;
     const det = li.querySelector('details')!;
     det.dataset.id = String(k.id);
     det.open = isOpen;
     li.querySelector('b')!.textContent = `${k.lieutenant ? '★ ' : ''}${fullName(k)}`;
-    li.querySelector('.job')!.textContent = jobName(k.job);
+    const working = k.job !== IDLE && k.job !== ARTISAN;
+    li.querySelector('.job')!.textContent = working ? `${jobName(k.job)} ${timesText(personalMult(k))}` : jobName(k.job);
+    li.querySelector('.mods')!.textContent = working ? modsText(k) : '';
     li.querySelector('.likes')!.textContent = `Loves ${jobName(k.loves).toLowerCase()}, hates ${jobName(k.hates).toLowerCase()}.`;
     const extras = [
       ...(k.epithet ? [`The kobold who ${k.epithet}`] : []),
@@ -67,7 +76,7 @@ export class NamedView {
     ];
     li.querySelector('.traits')!.textContent = extras.join(' · ');
     const sel = li.querySelector('select')!;
-    syncOptions(sel, [[IDLE, 'Idle'], ...JOBS.filter((j) => jobOpen(s, j)).map((j) => [j.id, j.name] as [string, string]), ...(k.job === ARTISAN ? [[ARTISAN, 'Artisan'] as [string, string]] : [])], k.job);
+    syncOptions(sel, [[IDLE, 'Idle'], ...JOBS.filter((j) => jobOpen(s, j)).map((j) => [j.id, `${j.name} ${timesText(personalMult(k, j.id))}`] as [string, string]), ...(k.job === ARTISAN ? [[ARTISAN, 'Artisan'] as [string, string]] : [])], k.job);
     sel.addEventListener('change', () => {
       if (moveNamed(this.getState(), k.id, sel.value)) this.onChange(k, 'job');
     });
@@ -124,4 +133,14 @@ export class NamedView {
     }
     return li;
   }
+}
+
+/** "As a digger: ×1.9 (loves it ×1.5, Shovel-hands ×1.25). ×1.9 of ×3 for an epithet." */
+export function modsText(k: NamedKobold): string {
+  const parts = personalParts(k);
+  const m = personalMult(k);
+  let text = `As a ${jobName(k.job).toLowerCase()}: ${timesText(m)} a crowd kobold's work`;
+  text += parts.length ? ` (${parts.map((p) => `${p.label} ${timesText(p.mult)}`).join(', ')}).` : '.';
+  if (!k.epithet && EPITHETS[k.job]) text += ` ${timesText(m)} of ${timesText(EPITHET_MULT)} to be known as the kobold who ${EPITHETS[k.job]}.`;
+  return text;
 }
