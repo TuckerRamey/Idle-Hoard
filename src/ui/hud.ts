@@ -61,9 +61,10 @@ export function costText(cost: Partial<Record<ResourceId, number>>): string {
 /** The job list, under headings. Digging is done from the Rooms tab. */
 export const JOB_GROUPS: { name: string; jobs: string[] }[] = [
   { name: 'Gathering', jobs: ['scavenger', 'woodcutter', 'quarrier', 'miner'] },
-  { name: 'Making', jobs: ['alchemist', 'blacksmith'] },
-  { name: 'Learning and care', jobs: ['researcher', 'herder'] },
+  { name: 'Care', jobs: ['herder'] },
 ];
+/** Jobs assigned from their own tab: researchers on Research, blacksmiths and the alchemist on Forge. */
+export const JOB_ELSEWHERE: Record<string, string> = { researcher: '#research-jobs', blacksmith: '#forge-jobs', alchemist: '#forge-jobs' };
 
 export function row(html: string): HTMLLIElement {
   const li = document.createElement('li');
@@ -146,8 +147,8 @@ export class Hud {
   }
 
   private buildJobs() {
-    // one "move how many" choice, shown on both the Kobolds and Rooms tabs
-    const switchers = [$('#step'), $('#dig-step')];
+    // one "move how many" choice, shown on every tab that moves kobolds
+    const switchers = [...document.querySelectorAll<HTMLElement>('.step')];
     for (const switcher of switchers)
       for (const n of STEPS) {
         const b = document.createElement('button');
@@ -182,8 +183,10 @@ export class Hud {
       list.append(head);
       for (const id of g.jobs) this.buildJob(list, JOBS.find((j) => j.id === id)!);
     }
-    // anything not in a group goes at the end
-    for (const def of JOBS) if (!JOB_GROUPS.some((g) => g.jobs.includes(def.id))) this.buildJob(list, def);
+    // jobs that belong to another tab are moved there, next to what they work on
+    for (const [id, sel] of Object.entries(JOB_ELSEWHERE)) this.buildJob($(sel), JOBS.find((j) => j.id === id)!);
+    // anything else goes at the end
+    for (const def of JOBS) if (!JOB_GROUPS.some((g) => g.jobs.includes(def.id)) && !JOB_ELSEWHERE[def.id]) this.buildJob(list, def);
   }
 
   private buildJob(list: HTMLElement, def: (typeof JOBS)[number]) {
@@ -326,6 +329,7 @@ export class Hud {
     } else setText(this.popText, `All ${bedCount} beds are taken. Dig the den bigger to make room for more. Appeal ${a}.`);
 
     setText(this.idleCount, `×${s.idle}`);
+    for (const el of document.querySelectorAll<HTMLElement>('.idle-note')) setText(el, `${s.idle} idle`);
     const open = JOBS.filter((j) => jobOpen(s, j) && j.id !== 'digger');
     syncOptions(this.newcomerSelect, [[IDLE, 'Idle (wait for orders)'], ...open.map((j) => [j.id, j.name] as [string, string])], s.newcomerJob);
 
@@ -355,6 +359,11 @@ export class Hud {
         syncOptions(row.extra, animalsOpen(s).map((x) => [x.id, x.name]), s.herd);
         row.extra.title = `The pasture fits ${fit} herders`;
       } else if (row.extra) syncOptions(row.extra, recipesOpen(s).map((x) => [x.id, `${x.name}, ${formatNumber(recipeRatio(s, x))} to 1`]), s.recipe);
+    }
+    // a tab's job block shows once one of its jobs is open
+    for (const sel of new Set(Object.values(JOB_ELSEWHERE))) {
+      const block = $(sel).closest<HTMLElement>('.job-block')!;
+      setHidden(block, Object.entries(JOB_ELSEWHERE).every(([id, x]) => x !== sel || this.jobRows.get(id)!.li.hidden));
     }
     // a heading shows once any job under it is open
     for (const g of JOB_GROUPS) setHidden(this.jobHeads.get(g.name)!, g.jobs.every((id) => this.jobRows.get(id)?.li.hidden ?? true));

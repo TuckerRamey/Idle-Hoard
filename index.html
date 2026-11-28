@@ -78,19 +78,27 @@
         </div>
         <div class="tab-panel" data-tab="rooms">
         <p id="dig-status" class="desc"></p>
-        <div class="step-row"><span class="desc">Move</span> <div id="dig-step" class="step" role="group" aria-label="How many diggers to move at once"></div></div>
+        <div class="step-row"><span class="desc">Move</span> <div id="dig-step" class="step" role="group" aria-label="How many diggers to move at once"></div> <span class="desc idle-note"></span></div>
         <ul id="rooms" class="list"></ul>
         </div>
         <div class="tab-panel" data-tab="stores">
         <ul id="resources" class="list"></ul>
         </div>
         <div class="tab-panel" data-tab="research">
+        <div class="job-block" hidden>
+          <div class="step-row"><span class="desc">Move</span> <div class="step" role="group" aria-label="How many to move at once"></div> <span class="desc idle-note"></span></div>
+          <ul id="research-jobs" class="list"></ul>
+        </div>
         <div id="research-section" hidden>
           <p id="research-status" class="desc"></p>
           <ul id="research" class="list"></ul>
         </div>
         </div>
         <div class="tab-panel" data-tab="forge">
+        <div class="job-block" hidden>
+          <div class="step-row"><span class="desc">Move</span> <div class="step" role="group" aria-label="How many to move at once"></div> <span class="desc idle-note"></span></div>
+          <ul id="forge-jobs" class="list"></ul>
+        </div>
         <div id="forge-section" hidden>
           <p id="forge-status" class="desc"></p>
           <ul id="forge-slots" class="list"></ul>

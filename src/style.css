@@ -106,7 +106,8 @@ button.small { min-width: 36px; justify-content: center; }
 .warn, .hint { color: var(--danger); }
 .hint { font-size: 12px; }
 .hint:empty, .note:empty, .dig:empty, .sub:empty { display: none; }
-.step-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.step-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
+.job-block { margin-bottom: 10px; }
 .step { display: flex; gap: 4px; }
 .step button[aria-pressed='true'] { background: var(--accent); color: #1c1524; border-color: var(--accent); }
 .newcomers { margin-top: 4px; }
