@@ -42,7 +42,9 @@ Things worth checking by hand when reviewing a change:
 - The economy ticks once a second. Income is computed from elapsed wall-clock time, so a hidden tab, a sleeping laptop and a closed game all credit the same way (capped at 24 hours, see `CONFIG` in `src/game/data.ts`).
 - The scene is a 256×144 canvas scaled up with crisp pixels. It wakes up at most 8 times a second (once a second on **Animation: low**), and only redraws if a sprite frame or position actually changed.
 - Everything stops while the tab or window is hidden. No `requestAnimationFrame` loop.
-- The side panel is plain HTML that only rewrites text that changed.
+- The side panel is plain HTML that only rewrites text that changed. Progress bars move with a transform and no transition, so a bar that moves every second costs no layout and doesn't keep the page animating between ticks.
+- A long absence is worked through half an hour of game time at a time, about 25 ms per go, so reopening after a day doesn't freeze a phone; closing part way keeps what's done and credits the rest next time.
+- Inside a tick step (and while the panels update) job outputs, production and the tool split are worked out once and reused (`cached` in `src/game/economy.ts`), and finished research's bonuses are remembered until research changes.
 
 ## Saves
 

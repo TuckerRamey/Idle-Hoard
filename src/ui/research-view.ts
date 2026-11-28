@@ -13,7 +13,7 @@ import {
   type ResearchDef,
 } from '../game/research';
 import type { GameState } from '../game/state';
-import { $, setText } from './dom';
+import { $, setText, setBar } from './dom';
 import { formatDuration, formatNumber } from './format';
 import { row } from './hud';
 
@@ -100,7 +100,7 @@ export class ResearchView {
       const b = this.bars.get(r.id)!;
       const p = researchProgress(s, r.id);
       b.wrap.hidden = p <= 0 && s.research.current !== r.id;
-      b.bar.style.width = `${Math.min(100, (p / r.cost) * 100).toFixed(1)}%`;
+      setBar(b.bar, p / r.cost);
       setText(b.sub, p > 0 ? `${formatNumber(Math.min(p, r.cost))} / ${formatNumber(r.cost)} research` : `${formatNumber(r.cost)} research`);
       setText(b.uses, resourceLine(s, r));
     }

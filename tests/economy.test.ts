@@ -249,7 +249,10 @@ describe('advanceTo (offline progress)', () => {
     const s = game();
     advanceTo(s, T0 - 60_000);
     expect(s.res.copper).toBe(0);
-    expect(s.lastTick).toBe(T0);
+    // and it doesn't stand still until the clock catches up again
+    expect(s.lastTick).toBe(T0 - 60_000);
+    advanceTo(s, T0 - 50_000);
+    expect(s.res.copper).toBeGreaterThan(0);
   });
 });
 

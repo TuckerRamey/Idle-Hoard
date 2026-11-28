@@ -81,7 +81,8 @@ export class Renderer {
       const a = def.animations[op.anim];
       const sx = op.frame * def.frameW;
       const sy = (a?.row ?? 0) * def.frameH;
-      if (!img || !img.complete || img.naturalWidth === 0) {
+      if (img && !img.complete) continue; // still loading; it redraws once it's in, rather than flashing a pink box
+      if (!img || img.naturalWidth === 0) {
         // art missing: draw a box so it's obvious what didn't load
         ctx.fillStyle = '#ff00ff';
         ctx.fillRect(op.x, op.y, def.frameW, def.frameH);

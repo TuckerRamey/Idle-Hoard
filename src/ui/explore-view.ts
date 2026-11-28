@@ -20,7 +20,7 @@ import { resourceDef, resourceOpen, workers } from '../game/economy';
 import type { ResourceId } from '../game/data';
 import { monsterDef } from '../game/hunting';
 import type { GameState } from '../game/state';
-import { $, setText } from './dom';
+import { $, setText, setBar } from './dom';
 import { formatDuration, formatNumber } from './format';
 import { row, syncOptions } from './hud';
 
@@ -68,7 +68,7 @@ export class ExploreView {
       }
     }
     setText(this.status, status);
-    this.bar.style.width = `${pct.toFixed(1)}%`;
+    setBar(this.bar, pct / 100);
 
     // found areas, by kind; rebuilt only when what's found or worked changes
     const sections: { head: string; lines: { name: string; text: string }[] }[] = [];

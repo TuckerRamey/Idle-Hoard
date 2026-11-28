@@ -171,11 +171,25 @@ export type Allocation = Record<string, Partial<Record<ToolTier, number>>>;
  */
 export function toolAllocation(state: GameState): Allocation {
   // asked for many times a tick (every job's output), so remember the last answer while nothing it depends on has changed
+  // inside one tick step the answer is worked out once (like job outputs), skipping even the key
+  if (stepAlloc && stepAlloc.state === state) return stepAlloc.alloc;
   const key = allocKey(state);
-  if (allocCache.state === state && allocCache.key === key) return allocCache.alloc;
-  const alloc = allocate(state);
-  allocCache = { state, key, alloc };
+  let alloc: Allocation;
+  if (allocCache.state === state && allocCache.key === key) alloc = allocCache.alloc;
+  else {
+    alloc = allocate(state);
+    allocCache = { state, key, alloc };
+  }
+  if (stepAlloc === undefined) stepAlloc = { state, alloc };
   return alloc;
+}
+
+/** null outside a tick step; undefined at the start of one, until the first ask. */
+let stepAlloc: { state: GameState; alloc: Allocation } | null | undefined = null;
+
+/** Called by the economy around each tick step: the tool split is reused for the step's length. */
+export function stepAllocCache(on: boolean) {
+  stepAlloc = on ? undefined : null;
 }
 
 let allocCache: { state: GameState | null; key: string; alloc: Allocation } = { state: null, key: '', alloc: {} };

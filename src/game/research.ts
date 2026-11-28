@@ -526,8 +526,16 @@ export function opened(state: GameState, requires: string | undefined): boolean 
 
 /** Every bonus from finished research. */
 export function researchEffects(state: GameState): ResearchEffect[] {
-  return RESEARCH.filter((r) => researched(state, r.id)).flatMap((r) => r.effects ?? []);
+  // asked for dozens of times a tick; research only ever grows, so remember the list until it changes
+  const done = state.research.done;
+  const last = done[done.length - 1];
+  if (effectsCache.done === done && effectsCache.n === done.length && effectsCache.last === last) return effectsCache.effects;
+  const effects = RESEARCH.filter((r) => researched(state, r.id)).flatMap((r) => r.effects ?? []);
+  effectsCache = { done, n: done.length, last, effects };
+  return effects;
 }
+
+let effectsCache: { done: string[] | null; n: number; last: string | undefined; effects: ResearchEffect[] } = { done: null, n: -1, last: undefined, effects: [] };
 
 /** The product of every finished `mult` effect of a kind (that passes `match`). */
 export function researchMult<K extends ResearchEffect['kind']>(
