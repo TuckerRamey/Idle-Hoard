@@ -3,6 +3,7 @@ import type { DragonRequest } from './dragon';
 import type { ArtPiece } from './art';
 import type { ForgeSlot, ToolStock } from './forge';
 import type { NamedKobold } from './kobolds';
+import type { Colony } from './colonies';
 import { ROOMS, type ResourceId } from './data';
 
 export type MotionSetting = 'normal' | 'low';
@@ -10,6 +11,8 @@ export type MotionSetting = 'normal' | 'low';
 export interface Settings {
   /** 'low' animates at about 1 frame per second, for very quiet side screens. */
   motion: MotionSetting;
+  /** Show the next-goal line under the dragon. */
+  goal: boolean;
 }
 
 export interface ChronicleEntry {
@@ -45,8 +48,8 @@ export interface GameState {
   /** Where kobolds who wander in go: a job id, or 'idle'. */
   newcomerJob: string;
   rooms: Record<string, RoomState>;
-  /** The room the diggers are working on, or null. */
-  digging: string | null;
+  /** Crowd diggers working each room, by room id. They add up to the digger crew. */
+  dig: Record<string, number>;
   /** Highest dragon stage reached (index into DRAGON_STAGES). */
   stage: number;
   /** Epoch ms of the last time progress was credited. */
@@ -75,7 +78,10 @@ export interface GameState {
   /** Art on display in the hoard room. */
   art: { pieces: ArtPiece[]; nextId: number };
   /** How many Chief pips each steady source has given, so none is given twice. */
-  chiefMarks: { favor: number; oddities: number; events: string[]; pending: number };
+  chiefMarks: { oddities: number; events: string[]; pending: number };
+  /** Small colonies founded by named kobolds. They run on their own and send tribute. */
+  colonies: Colony[];
+  nextColonyId: number;
   /** The forge's order slots. */
   forge: { slots: ForgeSlot[] };
   /** Tools each job holds, by tier. They stay with the job. */
@@ -99,6 +105,10 @@ export interface DragonState {
   granted: number;
   /** Requests granted ever. */
   favor: number;
+  /** Favors it owes you, to spend on its help. */
+  boons: number;
+  /** Help it's giving right now: a job working faster until `until` (dragon clock seconds). */
+  boosts: { job: string; until: number }[];
   request: DragonRequest | null;
   nextRequestAt: number;
   /** Meat eaten since the last molt, by animal ('jerky' for the alchemist's). */
@@ -119,6 +129,8 @@ export function newDragon(): DragonState {
     content: 0,
     granted: 0,
     favor: 0,
+    boons: 0,
+    boosts: [],
     request: null,
     nextRequestAt: 1_800,
     fed: {},
@@ -143,11 +155,11 @@ export function newGame(now: number): GameState {
     crews: {},
     newcomerJob: 'scavenger',
     rooms,
-    digging: 'den',
+    dig: {},
     stage: 0,
     lastTick: now,
     createdAt: now,
-    settings: { motion: 'normal' },
+    settings: { motion: 'normal', goal: true },
     chief: null,
     chronicle: [],
     arrivalProgress: 0,
@@ -160,7 +172,9 @@ export function newGame(now: number): GameState {
     recipe: 'stone-to-ore',
     dragon: newDragon(),
     art: { pieces: [], nextId: 1 },
-    chiefMarks: { favor: 0, oddities: 0, events: [], pending: 0 },
+    chiefMarks: { oddities: 0, events: [], pending: 0 },
+    colonies: [],
+    nextColonyId: 1,
     forge: { slots: [] },
     tools: {},
     seed: (now % 2_147_483_647) || 1,

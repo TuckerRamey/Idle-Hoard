@@ -29,9 +29,9 @@ describe('save round trip', () => {
     s.res.copper = 123.5;
     s.res.wood = 7;
     s.crews.digger = { n: 4, exp: 1.5 };
+    s.dig = { den: 4 };
     s.idle = 2;
     s.rooms.den = { volume: 123.5 };
-    s.digging = null;
     s.settings.motion = 'low';
     expect(deserialize(serialize(s, T0), T0)).toEqual(s);
   });
@@ -59,7 +59,7 @@ describe('save round trip', () => {
     expect(s.rooms.hoard).toEqual({ volume: 100 });
     expect(s.forge.slots).toEqual([]);
     expect(s.tools).toEqual({});
-    expect(s.digging).toBe('den');
+    expect(s.dig).toEqual({});
     expect(s.newcomerJob).toBe('scavenger');
     expect(s.chief).toBeNull();
     expect(s.chronicle).toEqual([]);

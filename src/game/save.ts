@@ -12,6 +12,7 @@
 import { OLD_QUIRKS, QUIRKS, type Chief } from './chief';
 import { RESOURCES } from './data';
 import type { NamedKobold } from './kobolds';
+import type { Colony } from './colonies';
 import { CHRONICLE_MAX, newDragon, newGame, type ChronicleEntry, type Crew, type DragonState, type GameState, type RoomState } from './state';
 
 export const SAVE_VERSION = 3;
@@ -178,7 +179,59 @@ function normalizeNamed(v: unknown): NamedKobold[] {
         ? k.history.filter((h: any) => h && typeof h.text === 'string').map((h: any) => ({ t: num(h.t, 0), text: String(h.text) }))
         : [],
       lieutenant: k.lieutenant === true,
+      ...(typeof k.artWork === 'number' && k.artWork >= 0 ? { artWork: k.artWork } : {}),
+      ...(Array.isArray(k.talents)
+        ? {
+            talents: k.talents
+              .filter((x: any) => x && typeof x.job === 'string' && typeof x.name === 'string')
+              .map((x: any) => ({ job: x.job, name: x.name, mult: num(x.mult, 1) })),
+          }
+        : {}),
+      ...(typeof k.epithet === 'string' ? { epithet: k.epithet } : {}),
     }));
+}
+
+function normalizeColonies(v: unknown, now: number): Colony[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter((c) => c && typeof c.name === 'string' && c.leader)
+    .map((c) => ({
+      id: Math.floor(num(c.id, 0)),
+      name: c.name,
+      leader: normalizeNamed([c.leader])[0],
+      pop: num(c.pop, 1),
+      founded: num(c.founded, now),
+      history: Array.isArray(c.history)
+        ? c.history.filter((h: any) => h && typeof h.text === 'string').map((h: any) => ({ t: num(h.t, 0), text: String(h.text) }))
+        : [],
+      nextEvent: num(c.nextEvent, 3600),
+      sent: num(c.sent, 0),
+    }))
+    .filter((c) => c.leader);
+}
+
+/** Diggers by room. Older saves had one room being dug: its crew moves there. */
+function normalizeDig(r: any, crews: Record<string, Crew>, rooms: Record<string, RoomState>): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (r.dig && typeof r.dig === 'object')
+    for (const [room, n] of Object.entries(r.dig)) if (rooms[room]) out[room] = Math.floor(num(n, 0));
+  const crewN = crews.digger?.n ?? 0;
+  let sum = Object.values(out).reduce((a, b) => a + b, 0);
+  if (sum < crewN) {
+    const target = typeof r.digging === 'string' && rooms[r.digging] ? r.digging : 'den';
+    out[target] = (out[target] ?? 0) + crewN - sum;
+  }
+  sum = Object.values(out).reduce((a, b) => a + b, 0);
+  if (sum > crewN) {
+    // more on rooms than in the crew: trust the crew, and take the extra off the rooms
+    let extra = sum - crewN;
+    for (const room of Object.keys(out)) {
+      const take = Math.min(extra, out[room]);
+      out[room] -= take;
+      extra -= take;
+    }
+  }
+  return out;
 }
 
 function normalizeDragon(v: any): DragonState {
@@ -199,6 +252,10 @@ function normalizeDragon(v: any): DragonState {
     content: num(v.content, 0),
     granted: Math.floor(num(v.granted, 0)),
     favor: Math.floor(num(v.favor, 0)),
+    boons: Math.min(3, Math.floor(num(v.boons, 0))),
+    boosts: Array.isArray(v.boosts)
+      ? v.boosts.filter((b: any) => b && typeof b.job === 'string' && typeof b.until === 'number').map((b: any) => ({ job: b.job, until: b.until }))
+      : [],
     request,
     nextRequestAt: num(v.nextRequestAt, d.nextRequestAt),
     fed,
@@ -226,19 +283,22 @@ export function normalize(raw: unknown, now: number): GameState {
   const r = raw as Record<string, any>;
   const res = { ...base.res };
   for (const d of RESOURCES) res[d.id] = num(r.res?.[d.id], 0);
+  const crews = normalizeCrews(r.crews);
+  const rooms = normalizeRooms(r.rooms, base.rooms);
   return {
     res,
     totalEarned: num(r.totalEarned, base.totalEarned),
     idle: Math.floor(num(r.idle, 0)),
-    crews: normalizeCrews(r.crews),
+    crews,
     newcomerJob: typeof r.newcomerJob === 'string' ? r.newcomerJob : base.newcomerJob,
-    rooms: normalizeRooms(r.rooms, base.rooms),
-    digging: r.digging === null ? null : typeof r.digging === 'string' ? r.digging : base.digging,
+    rooms,
+    dig: normalizeDig(r, crews, rooms),
     stage: Math.floor(num(r.stage, 0)),
     lastTick: num(r.lastTick, now),
     createdAt: num(r.createdAt, now),
     settings: {
       motion: r.settings?.motion === 'low' ? 'low' : 'normal',
+      goal: r.settings?.goal !== false,
     },
     chief: normalizeChief(r.chief),
     chronicle: normalizeChronicle(r.chronicle),
@@ -263,8 +323,9 @@ export function normalize(raw: unknown, now: number): GameState {
         : [],
       nextId: Math.max(1, Math.floor(num(r.art?.nextId, 1))),
     },
+    colonies: normalizeColonies(r.colonies, now),
+    nextColonyId: Math.max(1, Math.floor(num(r.nextColonyId, 1)), ...normalizeColonies(r.colonies, now).map((c) => c.id + 1)),
     chiefMarks: {
-      favor: Math.floor(num(r.chiefMarks?.favor, 0)),
       oddities: Math.floor(num(r.chiefMarks?.oddities, 0)),
       events: strList(r.chiefMarks?.events),
       pending: Math.floor(num(r.chiefMarks?.pending, 0)),

@@ -3,7 +3,7 @@
 // the canvas when something actually changed.
 
 import { DRAGON_STAGES, JOBS } from '../game/data';
-import { hoardSize, workers } from '../game/economy';
+import { hoardSize, hoardValue, workers } from '../game/economy';
 import { namedIn } from '../game/kobolds';
 import type { GameState, MotionSetting } from '../game/state';
 import { SCENE_W, SPRITES } from './manifest';
@@ -17,6 +17,8 @@ export interface DrawOp {
   flip?: boolean;
 }
 
+/** Silver or gold shows on the pile once it's this share of the hoard's worth. */
+const METAL_SHARE = 0.05;
 /** Most kobolds of one kind drawn at once, to keep the scene readable and cheap. */
 export const MAX_VISIBLE_PER_WORKER = 6;
 const HOARD_X = 160; // centre of the hoard
@@ -72,9 +74,15 @@ export function buildScene(state: GameState, nowMs: number): DrawOp[] {
   }
 
   // Hoard
-  const size = hoardSize(state.res.copper);
+  // the pile grows with the hoard's worth; silver and gold show once they're a real part of it
+  const worth = hoardValue(state);
+  const size = hoardSize(worth);
   const hoard = SPRITES.hoard;
-  ops.push({ sprite: 'hoard', anim: 'sizes', frame: size, x: HOARD_X - hoard.frameW / 2, y: HOARD_BOTTOM - hoard.frameH });
+  const hx = HOARD_X - hoard.frameW / 2;
+  const hy = HOARD_BOTTOM - hoard.frameH;
+  ops.push({ sprite: 'hoard', anim: 'sizes', frame: size, x: hx, y: hy });
+  if (worth > 0 && (state.res.silver * 10) / worth >= METAL_SHARE) ops.push({ sprite: 'metals', anim: 'silver', frame: size, x: hx, y: hy });
+  if (worth > 0 && (state.res.gold * 100) / worth >= METAL_SHARE) ops.push({ sprite: 'metals', anim: 'gold', frame: size, x: hx, y: hy });
   const { rx, ry } = pileShape(size);
   const pileTop = HOARD_BOTTOM - 1 - ry;
 

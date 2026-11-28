@@ -1,11 +1,12 @@
 // The dragon's part of the panel once it hatches: how it feels, what it
 // craves, what it wants right now, and what its next molt needs.
 
-import { animalName, dismissRequest, grantRequest, mood, moltNeeds, DIET, refineRates, sizeCap, SIZE } from '../game/dragon';
+import { animalName, boostLeft, dismissRequest, FAVOR, favorJobs, favorName, grantRequest, mood, moltNeeds, DIET, refineRates, sizeCap, SIZE, useFavor } from '../game/dragon';
 import { hoardValue, resourceDef, resourceOpen } from '../game/economy';
 import { rng, type GameState } from '../game/state';
 import { $, setDisabled, setText } from './dom';
 import { formatDuration, formatNumber } from './format';
+import { syncOptions } from './hud';
 
 export class DragonView {
   private box = $('#dragon');
@@ -17,6 +18,11 @@ export class DragonView {
   private grant = $<HTMLButtonElement>('#request-grant');
   private dismiss = $<HTMLButtonElement>('#request-dismiss');
   private molt = $('#molt-needs');
+  private favor = $('#dragon-favor');
+  private favorText = $('#favor-text');
+  private favorJob = $<HTMLSelectElement>('#favor-job');
+  private favorUse = $<HTMLButtonElement>('#favor-use');
+  private boosts = $('#dragon-boosts');
   private moltKey = '';
 
   constructor(
@@ -27,6 +33,10 @@ export class DragonView {
       const s = this.getState();
       const line = grantRequest(s, Date.now(), rng(s));
       if (line) this.onLine(line);
+    });
+    this.favorUse.addEventListener('click', () => {
+      // what you just asked for shows in the panel; it doesn't need a chronicle line
+      if (useFavor(this.getState(), this.favorJob.value)) this.onLine('');
     });
     this.dismiss.addEventListener('click', () => {
       const line = dismissRequest(this.getState());
@@ -63,6 +73,21 @@ export class DragonView {
     if (rates.copper > 0) size += ` It eats ${formatNumber(rates.copper * 3600)} copper an hour and sheds silver${rates.silver > 0 ? `, and ${formatNumber(rates.silver * 3600)} silver an hour into gold` : ''}. Hoard worth ${formatNumber(hoardValue(s))} copper.`;
     else if (s.stage > 0) size += ` Once it's fed and content, it grows and turns copper into silver.`;
     setText(this.sizeEl, size);
+
+    this.favor.hidden = d.boons < 1;
+    if (d.boons > 0) {
+      const jobs = favorJobs(s);
+      setText(this.favorText, `It owes you ${d.boons === 1 ? 'a favor' : `${d.boons} favors`} (it remembers up to ${FAVOR.max}). Ask, and it helps one job work twice as fast for an hour.`);
+      syncOptions(this.favorJob, jobs.map((j) => [j, favorName(j)]), jobs.includes(this.favorJob.value) ? this.favorJob.value : (jobs[0] ?? ''));
+      setDisabled(this.favorUse, jobs.length === 0);
+    }
+    setText(
+      this.boosts,
+      d.boosts
+        .filter((b) => boostLeft(s, b.job) > 0)
+        .map((b) => `${favorName(b.job)}: ${formatDuration(boostLeft(s, b.job))} left.`)
+        .join(' '),
+    );
 
     const r = d.request;
     this.req.hidden = !r;

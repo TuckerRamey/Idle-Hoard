@@ -22,7 +22,9 @@ import {
 } from './data';
 import { dragonAppeal, dragonJobMult, dragonStep, eatRate, moodMult } from './dragon';
 import { forgeMakes, forgeStep, forgeUse, toolMults } from './forge';
-import { addHistory, crewLift, fullName, nameKobold, namedIn, personalMult } from './kobolds';
+import { addHistory, addTalent, crewLift, fullName, nameKobold, namedIn, personalMult, takeDigger } from './kobolds';
+import { digFinds, epithetStep, talentStep } from './events';
+import { colonyStep } from './colonies';
 import { ODDITIES } from './oddities';
 import { addResearch, MISHAPS, MISHAP_HOURS, opened, researchDef, researchEffect, researchEffects, researchMult, researchShortOf } from './research';
 import { rng, type Crew, type GameState } from './state';
@@ -92,6 +94,32 @@ export function veteranLabel(hours: number): string {
  * Returns how many actually moved.
  */
 export function assign(state: GameState, jobId: string, k: number): number {
+  // diggers are put on a room with assignDig; taking them off here takes them from the busiest rooms
+  if (jobId === 'digger') {
+    if (k > 0) return 0;
+    const m = moveCrew(state, jobId, k);
+    for (let i = 0; i < -m; i++) takeDigger(state);
+    return m;
+  }
+  return moveCrew(state, jobId, k);
+}
+
+/** Put idle kobolds to digging a room (k > 0), or send some of its diggers back to idle (k < 0). */
+export function assignDig(state: GameState, roomId: string, k: number): number {
+  const def = roomDef(roomId);
+  if (!def || !Number.isFinite(k) || k === 0) return 0;
+  if (k > 0) {
+    if (!roomOpen(state, def)) return 0;
+    const m = moveCrew(state, 'digger', k);
+    state.dig[roomId] = (state.dig[roomId] ?? 0) + m;
+    return m;
+  }
+  const m = moveCrew(state, 'digger', -Math.min(Math.floor(-k), state.dig[roomId] ?? 0));
+  state.dig[roomId] = (state.dig[roomId] ?? 0) + m;
+  return m;
+}
+
+function moveCrew(state: GameState, jobId: string, k: number): number {
   const def = jobDef(jobId);
   if (!def || !Number.isFinite(k) || k === 0) return 0;
   const c = { ...crew(state, jobId) };
@@ -190,11 +218,40 @@ export function alchemyRate(state: GameState): number {
   return def && recipeDef(state.recipe) ? jobOutput(state, def) : 0;
 }
 
-/** Dig work per second, or 0 if nothing is being dug. */
-export function digRate(state: GameState): number {
-  if (!state.digging || !roomDef(state.digging)) return 0;
+/** Crowd diggers on a room. */
+export function diggersIn(state: GameState, roomId: string): number {
+  return state.dig[roomId] ?? 0;
+}
+
+/** Is the hoard room full while copper is still coming in? Then the scavengers dig it bigger. */
+export function hoardFull(state: GameState): boolean {
+  const income = production(state).copper;
+  // "full" means less room left than a few seconds of copper (the dragon nibbling at it doesn't count)
+  return state.res.copper > 0 && income > 0 && capacity(state, 'copper') - state.res.copper < Math.max(1, income * 10);
+}
+
+/** Dig work per second the scavengers put into a full hoard room. */
+export function scavengerDig(state: GameState): number {
+  const dig = jobDef('digger');
+  if (!dig?.digs || !hoardFull(state) || digBlocked(state, 'hoard') === 'full') return 0;
+  return workers(state, 'scavenger') * dig.digs * globalMultiplier(state);
+}
+
+/** Dig work per second going into each room: its diggers' share of the crew, plus scavengers in a full hoard. */
+export function digRates(state: GameState): Record<string, number> {
+  const out: Record<string, number> = {};
   const def = jobDef('digger');
-  return def ? jobOutput(state, def) : 0;
+  let crowd = 0;
+  for (const [room, n] of Object.entries(state.dig)) if (n > 0 && roomDef(room)) crowd += n;
+  const total = def && crowd > 0 ? jobOutput(state, def) : 0;
+  if (total > 0) for (const [room, n] of Object.entries(state.dig)) if (n > 0 && roomDef(room)) out[room] = (total * n) / crowd;
+  const sc = scavengerDig(state);
+  if (sc > 0) out.hoard = (out.hoard ?? 0) + sc;
+  return out;
+}
+
+export function digRate(state: GameState, roomId: string): number {
+  return digRates(state)[roomId] ?? 0;
 }
 
 export function offlineCap(_state: GameState): number {
@@ -272,10 +329,9 @@ export function recipeRatio(state: GameState, recipe: RecipeDef): number {
   return Math.max(1, ratio * researchMult(state, 'alchemyMult'));
 }
 
-/** Why the current dig can't go on: a support that's run out, 'full' at the size limit, or null. */
-export function digBlocked(state: GameState): ResourceId | 'full' | null {
-  if (!state.digging) return null;
-  const v = roomVolume(state, state.digging);
+/** Why a room can't be dug further: a support that's run out, 'full' at the size limit, or null. */
+export function digBlocked(state: GameState, roomId: string): ResourceId | 'full' | null {
+  const v = roomVolume(state, roomId);
   if (v >= maxVolume(state) - 1e-9) return 'full';
   for (const s of supportsFor(v, state)) if (state.res[s.resource] < s.perPace * 0.01) return s.resource;
   return null;
@@ -289,15 +345,6 @@ export function volumeMilestone(v: number): number {
     for (const x of steps) if (base * x > v + 1e-9) return base * x;
     base *= 10;
   }
-}
-
-export function setDigging(state: GameState, roomId: string | null): boolean {
-  if (roomId !== null) {
-    const def = roomDef(roomId);
-    if (!def || !roomOpen(state, def)) return false;
-  }
-  state.digging = roomId;
-  return true;
 }
 
 export function setRecipe(state: GameState, id: string): boolean {
@@ -327,11 +374,13 @@ export function flows(state: GameState): Record<ResourceId, Flow> {
     out[res] += n;
     if (!top[res] || n > top[res].n) top[res] = { by, n };
   };
-  const paces = digRate(state) / DIG.workPerPace;
-  const vol = state.digging ? roomVolume(state, state.digging) : 0;
-  // a dig stalled for one support uses none of the others either
-  const blocked = digBlocked(state);
-  if (paces > 0 && blocked !== 'full') for (const s of supportsFor(vol, state)) if (!blocked || blocked === s.resource) use(s.resource, paces * s.perPace, 'digging');
+  for (const [room, rate] of Object.entries(digRates(state))) {
+    const paces = rate / DIG.workPerPace;
+    // a dig stalled for one support uses none of the others either
+    const blocked = digBlocked(state, room);
+    if (paces > 0 && blocked !== 'full')
+      for (const s of supportsFor(roomVolume(state, room), state)) if (!blocked || blocked === s.resource) use(s.resource, paces * s.perPace, 'digging');
+  }
   for (const [res, n] of Object.entries(forgeUse(state))) use(res as ResourceId, n ?? 0, 'forge');
   for (const [res, n] of Object.entries(forgeMakes(state))) inn[res as ResourceId] += n ?? 0;
   const recipe = recipeDef(state.recipe);
@@ -375,9 +424,15 @@ export function jobHints(state: GameState): Record<string, string> {
   }
   if (workers(state, 'herder') > herdersFit(state) && herdersFit(state) > 0)
     hints.herder = `The pasture only fits ${herdersFit(state)} herders. Dig it bigger, or the rest just stand about.`;
-  if (workers(state, 'digger') > 0 && !state.digging) hints.digger = 'Nothing to dig. Pick a room below.';
-  else if (state.digging && workers(state, 'digger') === 0) hints.digger = `The ${roomDef(state.digging)!.name.toLowerCase()} is waiting for diggers.`;
-  else if (state.digging && population(state) >= beds(state) && state.digging !== 'den') hints.digger = 'Every bed is taken. Dig the den bigger to fit more kobolds.';
+  if (hoardFull(state) && workers(state, 'scavenger') > 0) {
+    const b = digBlocked(state, 'hoard');
+    hints.scavenger =
+      b === 'full'
+        ? 'The hoard room is full and as big as it can be dug, so the extra copper is lost.'
+        : b
+          ? `The hoard room is full. The scavengers would dig it bigger, but there's no ${resourceDef(b).name.toLowerCase()} to hold the ceiling up.`
+          : 'The hoard room is full, so the scavengers are digging it bigger until there is room again.';
+  }
   if (workers(state, 'researcher') > 0 && !state.research.current) hints.researcher = 'Nothing being researched. Pick something below.';
   else if (workers(state, 'researcher') > 0 && state.research.current) {
     const cur = researchDef(state.research.current);
@@ -515,13 +570,16 @@ export function tick(state: GameState, seconds: number, t = state.lastTick): Tic
       r.lost[res.id] += made - kept;
     }
     alchemy(state, alchemyRate(state) * dt);
-    dig(state, digRate(state) * dt, r);
+    for (const [room, rate] of Object.entries(digRates(state))) dig(state, room, rate * dt, r, rand, at);
     forgeStep(state, dt);
     research(state, dt, at, rand, r);
     const before = state.stage;
     r.events.push(...dragonStep(state, dt, at, rand));
     r.events.push(...artStep(state, dt, at, rand));
     r.events.push(...oddityPips(state));
+    r.events.push(...talentStep(state, dt, at, rand));
+    r.events.push(...epithetStep(state, at));
+    r.events.push(...colonyStep(state, dt, at, rand));
     for (const c of Object.values(state.crews)) if (c.n > 0) c.exp += (dt / 3600) * expRate;
     const s = stageFor(hoardValue(state));
     if (s > state.stage) state.stage = s;
@@ -541,10 +599,10 @@ function alchemy(state: GameState, input: number) {
   store(state, recipe.to, use / ratio);
 }
 
-function dig(state: GameState, work: number, r: TickResult) {
+function dig(state: GameState, roomId: string, work: number, r: TickResult, rand: () => number, t: number) {
   // supports change at set volumes, so dig up to each one in turn
-  for (let guard = 0; guard < 20 && work > 1e-9 && state.digging; guard++) {
-    const def = roomDef(state.digging);
+  for (let guard = 0; guard < 20 && work > 1e-9; guard++) {
+    const def = roomDef(roomId);
     if (!def) return;
     const room = (state.rooms[def.id] ??= { volume: def.start });
     const max = maxVolume(state);
@@ -560,6 +618,8 @@ function dig(state: GameState, work: number, r: TickResult) {
     work -= paces * DIG.workPerPace;
     const mark = volumeMilestone(before);
     if (room.volume >= mark - 1e-6) r.dug.push({ room: def.id, volume: mark });
+    const found = digFinds(state, def, paces, rand, t);
+    if (found) r.events.push(found);
     if (paces < want - 1e-9) return; // ran out of supports part way
   }
 }
@@ -587,6 +647,7 @@ function research(state: GameState, dt: number, t: number, rand: () => number, r
     k.traits.push(m.trait);
     text = `${m.text.replaceAll('{kobold}', 'A researcher')} From now on they are ${fullName(k)}.`;
   }
+  if (m.talent && addTalent(k, m.talent)) text += ` It left them better at ${jobDef(m.talent.job)?.name.toLowerCase() ?? m.talent.job} work for good.`;
   const e = m.effect;
   if (e?.kind === 'research') {
     const cur = state.research.current ? researchDef(state.research.current) : undefined;
@@ -595,8 +656,11 @@ function research(state: GameState, dt: number, t: number, rand: () => number, r
         r.learned.push(done.id);
         r.events.push(done.doneText);
       }
-  } else if (e?.kind === 'dig' && state.digging) {
-    dig(state, e.work, r);
+  } else if (e?.kind === 'dig') {
+    // the crater goes to whichever room has the most diggers, or the den
+    let room = 'den';
+    for (const [id, n] of Object.entries(state.dig)) if (n > (state.dig[room] ?? 0)) room = id;
+    dig(state, room, e.work, r, rand, t);
   } else if (e?.kind === 'oddity') {
     const rec = state.oddities[e.id];
     if (rec) rec.count++;

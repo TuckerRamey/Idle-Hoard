@@ -222,6 +222,28 @@ dragon('adult-dragon.png', 64, 48);
   save('hoard.png', s);
 }
 
+// ---------- metals: 112x40 frames, same sizes as the hoard; row 0 = silver coins, row 1 = gold ----------
+// Drawn over the copper pile, so only the coins are painted; the rest is clear.
+{
+  const FW = 112, FH = 40, N = 6;
+  const s = sheet(FW * N, FH * 2);
+  const metals = [['#c9ced6', '#8f97a3', '#f2f4f7'], ['#e8b830', '#a87d16', '#fff0a0']];
+  metals.forEach(([base, shade, hi], row) => {
+    for (let f = 0; f < N; f++) {
+      const c = cell(s, f * FW, row * FH, FW, FH);
+      const r = rng(300 + row * 10 + f);
+      const rx = 10 + f * 9, ry = 3 + f * 6;
+      for (let i = 0; i < 6 + f * 14; i++) {
+        const a = r() * Math.PI, d = Math.sqrt(r());
+        const x = FW / 2 + Math.cos(a) * rx * d * 0.9, y = FH - 2 - Math.sin(a) * ry * d * 0.9;
+        c.put(x, y, base);
+        c.put(x + 1, y, r() < 0.5 ? shade : hi);
+      }
+    }
+  });
+  save('metals.png', s);
+}
+
 // ---------- kobolds: 12x12 frames; row 0 = walk (4), 1 = carry (4), 2 = work (4) ----------
 // The chief variant wears a cape and a little crown, and row 2 is a pointing
 // "directing" pose instead of swinging a pick.

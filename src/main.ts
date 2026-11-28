@@ -1,8 +1,10 @@
 import './style.css';
 import type { Chief } from './game/chief';
 import { CONFIG, DRAGON_STAGES, JOBS, RESOURCES, ROOMS } from './game/data';
-import { advanceTo, beds, offlineCap, population, roomCapacity, stageFor, workers } from './game/economy';
-import { happen, happeningChance } from './game/happenings';
+import { advanceTo, beds, hoardValue, offlineCap, population, roomCapacity, stageFor, workers, type AdvanceResult } from './game/economy';
+import { awayHappenings, happen, happeningChance } from './game/happenings';
+import { nextGoal } from './game/goals';
+import { ColoniesView } from './ui/colonies-view';
 import { browserStore, exportSave, importSave, load, write } from './game/save';
 import { addChronicle, newGame, type GameState } from './game/state';
 import { Renderer } from './render/renderer';
@@ -17,8 +19,6 @@ import { ResearchView } from './ui/research-view';
 import { ForgeView } from './ui/forge-view';
 import { ArtView } from './ui/art-view';
 import { NamedView } from './ui/named-view';
-import { animalName } from './game/dragon';
-import { fullName } from './game/kobolds';
 import { researchDef } from './game/research';
 
 const TICK_MS = 1000;
@@ -45,45 +45,42 @@ function firstOnJobs() {
   for (const def of JOBS) if (workers(state, def.id) > 0) tellOnce(def.firstText);
 }
 
+// The chronicle is for things that happen, not for what you just did: moving
+// kobolds, picking research or a herd, making lieutenants and so on get no line.
 const hud = new Hud(getState, (e) => {
-  if (e.kind === 'assign') firstOnJobs();
-  else if (e.kind === 'dig' && e.room) {
-    const room = ROOMS.find((r) => r.id === e.room);
-    if (room) tell(`{chief} set the diggers to work on the ${room.name.toLowerCase()}.`);
-  } else if (e.kind === 'herd') tell(`{chief} had the pasture switched over to ${animalName(e.animal)}. The new herd will take half an hour to settle.`);
+  if (e.kind === 'assign' || e.kind === 'dig') firstOnJobs();
   refresh();
 });
 const dragonView = new DragonView(getState, (line) => {
-  tell(line);
+  if (line) tell(line);
   refresh();
   save();
 });
-const researchView = new ResearchView(getState, (id) => {
-  const def = id ? researchDef(id) : undefined;
-  if (def) tell(`{chief} told the researchers to work on ${def.name.toLowerCase()}.`);
-  refresh();
-});
+const researchView = new ResearchView(getState, () => refresh());
 const forgeView = new ForgeView(getState, () => {
   refresh();
   save();
 });
-const namedView = new NamedView(getState, (k, what) => {
-  if (what === 'lieutenant') tell(`{chief} made ${fullName(k)} a lieutenant.`);
-  else if (what === 'stand-down') tell(`${fullName(k)} stepped down as lieutenant.`);
-  else if (what === 'artisan') tell(`${fullName(k)} put down their tools to make art for the hoard room.`);
+const namedView = new NamedView(getState, (_k, _what, line) => {
+  if (line) tell(line);
   refresh();
   save();
 });
 const chiefPanel = new ChiefPanel(
   getState,
   (chief) => foundChief(chief),
-  (stat) => {
-    tell(`{chief} grew in ${stat}.`);
+  () => {
     refresh();
     save();
   },
 );
 const artView = new ArtView(getState);
+const coloniesView = new ColoniesView(getState);
+const goalEl = document.querySelector('#goal') as HTMLElement;
+const awayEl = document.querySelector('#away') as HTMLElement;
+const awayTitle = document.querySelector('#away-title') as HTMLElement;
+const awayList = document.querySelector('#away-list') as HTMLElement;
+document.querySelector('#away-close')!.addEventListener('click', () => (awayEl.hidden = true));
 const chronicle = new ChronicleView(getState);
 const oddities = new OdditiesView(getState);
 const renderer = new Renderer(document.querySelector('#scene') as HTMLCanvasElement, getState);
@@ -95,6 +92,10 @@ function updatePanels() {
   forgeView.update();
   artView.update(Date.now());
   namedView.update(Date.now());
+  coloniesView.update(Date.now());
+  const goal = state.settings.goal ? nextGoal(state) : null;
+  goalEl.hidden = !goal;
+  if (goal && goalEl.textContent !== goal) goalEl.textContent = goal;
 }
 
 function refresh() {
@@ -151,15 +152,12 @@ function creditTime(isReturn: boolean) {
   // research, mishaps and the dragon; after a long absence keep only the latest few
   for (const line of r.events.slice(-12)) tell(line);
   if (r.arrived > 0 || r.dug.length || r.events.length) renderer.invalidate();
-  const made = RESOURCES.filter((x) => r.gained[x.id] >= 1).map((x) => `${formatNumber(r.gained[x.id])} ${x.name.toLowerCase()}`);
-  if (isReturn && r.credited >= CONFIG.awayNoticeSeconds && made.length) {
-    const capped = r.elapsed > r.credited ? ` Only the first ${formatDuration(offlineCap(state))} counted.` : '';
-    const moved = r.arrived > 0 ? ` ${r.arrived} new kobold${r.arrived === 1 ? '' : 's'} moved in.` : '';
-    const lost = RESOURCES.filter((x) => r.lost[x.id] >= 1).map((x) => x.name.toLowerCase());
-    const full = lost.length ? ` Some ${lost.join(' and ')} was lost because there was no room for it.` : '';
-    tell(`While you were away for ${formatDuration(r.elapsed)}, the warren gathered ${made.join(', ')}.${moved}${full}${capped}`);
-    // something silly probably happened while you were gone
-    if (r.credited >= 30 * 60) maybeHappen();
+  if (isReturn && r.credited >= CONFIG.awayNoticeSeconds) {
+    // something silly probably happened while you were gone, more the longer it was
+    const n = awayHappenings(r.credited);
+    let happened = 0;
+    for (let i = 0; i < n; i++) if (maybeHappen()) happened++;
+    showAway(r, happened);
   }
   if (r.newStage === 1) {
     tell(DRAGON_STAGES[1].flavor);
@@ -167,15 +165,49 @@ function creditTime(isReturn: boolean) {
   }
 }
 
-/** A silly happening; a reward can tip the dragon into its next stage. */
-function maybeHappen() {
-  if (!happen(state, Date.now(), Math.random)) return;
-  const s = stageFor(state.totalEarned);
+/** A silly happening; a reward can tip the egg into hatching. */
+function maybeHappen(): boolean {
+  if (!happen(state, Date.now(), Math.random)) return false;
+  const s = stageFor(hoardValue(state));
   if (s > state.stage) {
     state.stage = s;
     tell(DRAGON_STAGES[s].flavor);
   }
   renderer.invalidate();
+  return true;
+}
+
+/** The "while you were away" card: what was gathered, lost, dug, learned and finished. */
+function showAway(r: AdvanceResult, happened: number) {
+  const items: string[] = [];
+  const made = RESOURCES.filter((x) => r.gained[x.id] >= 1).map((x) => `${formatNumber(r.gained[x.id])} ${x.name.toLowerCase()}`);
+  if (made.length) items.push(`Gathered ${made.join(', ')}.`);
+  const lost = RESOURCES.filter((x) => r.lost[x.id] >= 1).map((x) => `${formatNumber(r.lost[x.id])} ${x.name.toLowerCase()}`);
+  if (lost.length) items.push(`Lost for want of room: ${lost.join(', ')}.`);
+  if (r.arrived > 0) items.push(`${r.arrived} new kobold${r.arrived === 1 ? '' : 's'} moved in.`);
+  const dug = new Map<string, number>();
+  for (const d of r.dug) dug.set(d.room, d.volume);
+  if (dug.size)
+    items.push(`Dug out ${[...dug].map(([id, v]) => `the ${ROOMS.find((x) => x.id === id)?.name.toLowerCase() ?? id} to ${formatNumber(v)} cubic paces`).join(', ')}.`);
+  const learned = r.learned.map((id) => researchDef(id)?.name).filter(Boolean);
+  if (learned.length) items.push(`Learned ${learned.join(', ')}.`);
+  const molted = r.events.filter((e) => e.startsWith('The dragon molted')).length;
+  if (molted) items.push('The dragon molted!');
+  const art = r.events.filter((e) => / finished (an|a) /.test(e) && e.includes('hoard room')).length;
+  if (art) items.push(`${art} piece${art === 1 ? '' : 's'} of art finished.`);
+  const other = r.events.length + happened - r.learned.length - molted - art;
+  if (other > 0) items.push(`${other} other thing${other === 1 ? '' : 's'} happened. The chronicle has the stories.`);
+  if (r.elapsed > r.credited) items.push(`Only the first ${formatDuration(offlineCap(state))} counted.`);
+  if (!items.length) return;
+  awayTitle.textContent = `While you were away (${formatDuration(r.elapsed)})`;
+  awayList.replaceChildren(
+    ...items.map((t) => {
+      const li = document.createElement('li');
+      li.textContent = t;
+      return li;
+    }),
+  );
+  awayEl.hidden = false;
 }
 
 // ---------- loops: run only while visible ----------
@@ -184,7 +216,7 @@ let saveTimer: number | undefined;
 
 function tickOnce() {
   creditTime(false);
-  if (Math.random() < happeningChance(TICK_MS / 1000)) maybeHappen();
+  if (Math.random() < happeningChance(state, TICK_MS / 1000)) maybeHappen();
   updatePanels();
   chiefPanel.update();
   chronicle.update(Date.now());
@@ -223,6 +255,17 @@ function showMotion() {
 }
 if (loaded.kind === 'new' && matchMedia('(prefers-reduced-motion: reduce)').matches) state.settings.motion = 'low';
 showMotion();
+const goalBtn = document.querySelector('#goal-toggle') as HTMLButtonElement;
+function showGoalSetting() {
+  goalBtn.textContent = state.settings.goal ? 'Next-goal line: on' : 'Next-goal line: off';
+}
+showGoalSetting();
+goalBtn.addEventListener('click', () => {
+  state.settings.goal = !state.settings.goal;
+  showGoalSetting();
+  updatePanels();
+  save();
+});
 motionBtn.addEventListener('click', () => {
   state.settings.motion = state.settings.motion === 'low' ? 'normal' : 'low';
   showMotion();
@@ -266,6 +309,7 @@ function applyImport(text: string) {
     creditTime(true);
     save();
     showMotion();
+    showGoalSetting();
     refresh();
     saveStatus.textContent = 'Save loaded.';
   } catch (e) {

@@ -31,7 +31,6 @@ const room = (id: string) => ROOMS.find((r) => r.id === id)!;
 function game(): GameState {
   const s = newGame(T0);
   s.chief = { ...chief };
-  s.digging = null;
   s.newcomerJob = 'idle';
   return s;
 }
@@ -163,7 +162,7 @@ describe('digging rooms', () => {
   it('small rooms need only diggers, and grow with every bit of digging', () => {
     const s = game();
     s.crews.digger = { n: 1, exp: 0 };
-    s.digging = 'den';
+    s.dig = { den: s.crews.digger?.n ?? 0 };
     const before = beds(s);
     tick(s, 100);
     expect(s.rooms.den.volume).toBeGreaterThanOrEqual(room('den').start + 100 / DIG.workPerPace);
@@ -175,13 +174,13 @@ describe('digging rooms', () => {
     const s = game();
     s.rooms.den.volume = wood.fromPaces;
     s.crews.digger = { n: 1, exp: 0 };
-    s.digging = 'den';
+    s.dig = { den: s.crews.digger?.n ?? 0 };
     s.res.wood = 10;
     tick(s, 4);
     expect(s.res.wood).toBeCloseTo(10 - (4 / DIG.workPerPace) * wood.perPace, 5);
     tick(s, 1000);
     expect(s.res.wood).toBe(0);
-    expect(digBlocked(s)).toBe('wood');
+    expect(digBlocked(s, 'den')).toBe('wood');
     const vol = s.rooms.den.volume;
     tick(s, 100);
     expect(s.rooms.den.volume).toBe(vol);
@@ -191,7 +190,7 @@ describe('digging rooms', () => {
     const s = game();
     s.rooms.woodpile.volume = 200;
     s.crews.digger = { n: 4, exp: 0 };
-    s.digging = 'woodpile';
+    s.dig = { woodpile: s.crews.digger?.n ?? 0 };
     const hints = jobHints(s);
     expect(hints.woodcutter).toMatch(/run out of mushroom wood.*About \d+ more woodcutters?/);
     expect(flows(s).wood.out).toBeGreaterThan(0);
@@ -202,7 +201,7 @@ describe('digging rooms', () => {
     s.crews.digger = { n: 5, exp: 0 };
     s.crews.woodcutter = { n: 10, exp: 0 };
     s.crews.quarrier = { n: 10, exp: 0 };
-    s.digging = 'hoard';
+    s.dig = { hoard: s.crews.digger?.n ?? 0 };
     const r = advanceTo(s, T0 + 3 * 3600 * 1000);
     expect(r.dug.length).toBeGreaterThan(1);
     expect(s.rooms.hoard.volume).toBeGreaterThan(1000);
@@ -211,17 +210,17 @@ describe('digging rooms', () => {
   it('stops at the size limit until deep delving', () => {
     const s = game();
     s.rooms.den.volume = DIG.maxPaces;
-    s.digging = 'den';
-    expect(digBlocked(s)).toBe('full');
+    s.dig = { den: s.crews.digger?.n ?? 0 };
+    expect(digBlocked(s, 'den')).toBe('full');
     s.research.done.push('deep-delving');
-    expect(digBlocked(s)).not.toBe('full');
+    expect(digBlocked(s, 'den')).not.toBe('full');
   });
 
   it('room capacity grows with volume', () => {
     const s = game();
-    expect(capacity(s, 'copper')).toBe(room('hoard').start * 200);
+    expect(capacity(s, 'copper')).toBe(room('hoard').start * 1000);
     s.rooms.hoard.volume *= 3;
-    expect(capacity(s, 'copper')).toBe(room('hoard').start * 600);
+    expect(capacity(s, 'copper')).toBe(room('hoard').start * 3000);
   });
 
   it('each store holds its own goods, and the metal store splits evenly', () => {

@@ -52,8 +52,25 @@ export const HAPPENINGS: HappeningDef[] = [
   { id: 'wrong-sack', text: '{kobold} hauled home the wrong sack. It was full of silver. Nobody is giving it back.', rewardSeconds: 120, needsJob: 'scavenger' },
 ];
 
-/** Average seconds between happenings while the game is open. */
+/** Average seconds between happenings while the game is open, with 10 kobolds. More kobolds, more happens. */
 export const HAPPENING_EVERY_SECONDS = 10 * 60;
+/** Never more often than this, however big the warren. */
+export const HAPPENING_MIN_SECONDS = 3 * 60;
+/** After an absence: one happening per this many seconds away, up to `HAPPENING_AWAY_MAX`. */
+export const HAPPENING_AWAY_SECONDS = 2 * 3600;
+export const HAPPENING_AWAY_MAX = 4;
+
+/** Average seconds between happenings for a warren this size. */
+export function happeningEvery(state: GameState): number {
+  const scale = Math.sqrt(Math.max(1, population(state) / 10));
+  return Math.max(HAPPENING_MIN_SECONDS, HAPPENING_EVERY_SECONDS / scale);
+}
+
+/** How many happenings to roll after being away this long. */
+export function awayHappenings(seconds: number): number {
+  if (seconds < 30 * 60) return 0;
+  return Math.min(HAPPENING_AWAY_MAX, Math.max(1, Math.floor(seconds / HAPPENING_AWAY_SECONDS)));
+}
 
 export function eligible(state: GameState): HappeningDef[] {
   return HAPPENINGS.filter(
@@ -151,6 +168,6 @@ export function happen(state: GameState, now: number, rand: () => number): Happe
 }
 
 /** Chance of a happening on one tick of `seconds`. */
-export function happeningChance(seconds: number): number {
-  return 1 - Math.exp(-seconds / HAPPENING_EVERY_SECONDS);
+export function happeningChance(state: GameState, seconds: number): number {
+  return 1 - Math.exp(-seconds / happeningEvery(state));
 }

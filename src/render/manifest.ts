@@ -41,6 +41,13 @@ export const SPRITES: Record<string, SpriteDef> = {
     // Not animated: the frame is picked by hoard size (see HOARD_SIZE_THRESHOLDS).
     animations: { sizes: { row: 0, frames: 6, fps: 0 } },
   },
+  metals: {
+    src: art('metals.png'),
+    frameW: 112,
+    frameH: 40,
+    // Silver and gold coins drawn over the pile, the same frame as the hoard's size.
+    animations: { silver: { row: 0, frames: 6, fps: 0 }, gold: { row: 1, frames: 6, fps: 0 } },
+  },
   egg: { src: art('egg.png'), frameW: 16, frameH: 20, animations: { wobble: { row: 0, frames: 4, fps: 2 } } },
   wyrmling: { src: art('wyrmling.png'), frameW: 32, frameH: 24, animations: DRAGON_ANIMS },
   'young-dragon': { src: art('young-dragon.png'), frameW: 48, frameH: 36, animations: DRAGON_ANIMS },

@@ -321,6 +321,8 @@ export interface MishapDef {
   title: string;
   trait: string;
   effect?: { kind: 'research'; fraction: number } | { kind: 'dig'; work: number } | { kind: 'oddity'; id: string };
+  /** A lasting change: the trait makes them better at a job (by `mult`). */
+  talent?: { job: string; mult: number; name: string };
 }
 
 export const MISHAPS: MishapDef[] = [
@@ -328,35 +330,41 @@ export const MISHAPS: MishapDef[] = [
     text: '{kobold} mixed two jars that should not be mixed. The lab is now a crater, which the diggers say counts as digging.',
     title: 'the Crater-maker',
     trait: 'Eyebrows still growing back',
+    talent: { job: 'digger', mult: 2, name: 'Blast-digger: digs like they are still exploding' },
     effect: { kind: 'dig', work: 80 },
   },
   {
     text: '{kobold} tried to teach a rock to glow. It exploded instead, very politely, and the notes are much better for it.',
     title: 'the Singed',
     trait: 'Fireproof whiskers',
+    talent: { job: 'blacksmith', mult: 1.5, name: 'Fireproof whiskers: does not mind the forge' },
     effect: { kind: 'research', fraction: 0.2 },
   },
   {
     text: '{kobold} blew themselves clean out of the lab and landed in the hoard holding a coin nobody has seen before.',
     title: 'the Airborne',
     trait: 'Not afraid of heights any more',
+    talent: { job: 'scavenger', mult: 1.5, name: 'Head for heights: scavenges the high ledges' },
     effect: { kind: 'oddity', id: 'mystery-coin' },
   },
   {
     text: "{kobold}'s experiment fizzed, popped, and left the lab smelling of toast for a week. Morale is up.",
     title: 'Toastmaker',
     trait: 'Smells faintly of toast',
+    talent: { job: 'herder', mult: 1.3, name: 'Toast-scented: the animals follow them anywhere' },
   },
   {
     text: '{kobold} sneezed into a bubbling pot. There was a flash, a bang and a lot of purple smoke. They wrote down whatever just happened.',
     title: 'the Purple',
     trait: 'Slightly purple',
+    talent: { job: 'researcher', mult: 1.3, name: 'Purple insight: sees things others miss' },
     effect: { kind: 'research', fraction: 0.15 },
   },
   {
     text: '{kobold} tested a new kind of lantern. It works, in the sense that it is now on the ceiling.',
     title: 'Lamplighter',
     trait: 'Sees fine in the dark',
+    talent: { job: 'miner', mult: 1.5, name: 'Dark-sighted: sees the ore seams in the dark' },
     effect: { kind: 'oddity', id: 'lanterns' },
   },
 ];

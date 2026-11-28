@@ -35,7 +35,6 @@ const chief: Chief = { name: 'Snik', cunning: 0, voice: 0, nerve: 0, quirk: 'non
 function game(): GameState {
   const s = newGame(T0);
   s.chief = { ...chief };
-  s.digging = null;
   s.newcomerJob = 'idle';
   s.seed = 12345;
   return s;
@@ -49,12 +48,12 @@ describe('rooms measured in volume', () => {
   it('supports change at set volumes: bars from 1,500 paces, and bars need the forge', () => {
     const s = game();
     s.rooms.den.volume = 1_500;
-    s.digging = 'den';
     s.crews.digger = { n: 1, exp: 0 };
+    s.dig = { den: s.crews.digger?.n ?? 0 };
     s.res.wood = 100;
     s.res.stone = 100;
     expect(DIG.supports.find((x) => x.resource === 'bars')!.fromPaces).toBe(1_500);
-    expect(digBlocked(s)).toBe('bars');
+    expect(digBlocked(s, 'den')).toBe('bars');
     tick(s, 60);
     expect(s.rooms.den.volume).toBe(1_500);
   });
@@ -62,8 +61,8 @@ describe('rooms measured in volume', () => {
   it('a dig crossing a support threshold starts paying there', () => {
     const s = game();
     s.rooms.den.volume = 140;
-    s.digging = 'den';
     s.crews.digger = { n: 1, exp: 0 };
+    s.dig = { den: s.crews.digger?.n ?? 0 };
     s.res.wood = 100;
     tick(s, 40); // 20 paces: 10 free, 10 with wood
     expect(s.rooms.den.volume).toBeCloseTo(160);
@@ -403,7 +402,7 @@ describe('a long absence with everything going', () => {
       researcher: { n: 4, exp: 0 },
       herder: { n: 3, exp: 0 },
     };
-    s.digging = 'lair';
+    s.dig = { lair: s.crews.digger?.n ?? 0 };
     const pop = population(s);
     const r = advanceTo(s, T0 + 24 * 3600 * 1000);
     expect(population(s)).toBeGreaterThanOrEqual(pop);

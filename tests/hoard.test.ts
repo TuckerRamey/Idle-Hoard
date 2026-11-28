@@ -2,7 +2,7 @@
 // refining, art in the hoard room, and the Chief growing.
 import { describe, expect, it } from 'vitest';
 import { ART, ART_MATERIALS, artisans, canBecomeArtisan, display, displaySlots, makeArtisan } from '../src/game/art';
-import { MAX_PIPS, PIP_FAVOR, spendPip, type Chief } from '../src/game/chief';
+import { MAX_PIPS, spendPip, type Chief } from '../src/game/chief';
 import { DRAGON_STAGES } from '../src/game/data';
 import { grantRequest, MOLTS, moltNeeds, REFINE, SIZE, sizeCap } from '../src/game/dragon';
 import { capacity, hoardValue, resourceOpen, stageFor, tick } from '../src/game/economy';
@@ -16,7 +16,6 @@ const chief: Chief = { name: 'Snik', cunning: 1, voice: 1, nerve: 1, quirk: 'non
 function game(): GameState {
   const s = newGame(T0);
   s.chief = { ...chief };
-  s.digging = null;
   s.newcomerJob = 'idle';
   s.seed = 12345;
   return s;
@@ -184,14 +183,13 @@ describe('the Chief grows', () => {
     expect(spendPip(s, 'voice')).toBe(false);
   });
 
-  it('every so many requests granted earns a pip', () => {
+  it('granted requests no longer earn pips', () => {
     const s = fed();
     s.res.wood = 1e6;
-    s.dragon.favor = PIP_FAVOR - 1;
+    s.dragon.favor = 9;
     s.dragon.request = { kind: 'give', resource: 'wood', amount: 1, text: 'x', until: 1e12 };
-    const line = grantRequest(s, T0, rng(s))!;
-    expect(line).toMatch(/grow/);
-    expect(s.chiefMarks.pending).toBe(1);
+    grantRequest(s, T0, rng(s));
+    expect(s.chiefMarks.pending).toBe(0);
   });
 
   it('every five kinds of oddity makes the Chief more cunning', () => {

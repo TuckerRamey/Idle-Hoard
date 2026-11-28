@@ -133,3 +133,13 @@ select { max-width: 100%; font: inherit; color: var(--text); background: var(--b
 .chief-grow { margin-top: 8px; }
 .grow-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
 .named-controls .art[hidden] { display: none; }
+
+/* list 4: away card, goal line, the dragon's favor, colonies */
+.away { margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--accent); border-radius: 8px; background: var(--bg); }
+.away ul { margin: 6px 0 8px; padding-left: 18px; font-size: 13px; }
+.away li { margin: 2px 0; }
+.goal { margin-top: 6px; font-size: 13px; color: var(--accent); }
+.favor { margin: 6px 0; display: grid; gap: 4px; }
+.favor-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.favor-row select { max-width: 100%; }
+.colony summary { cursor: pointer; }
