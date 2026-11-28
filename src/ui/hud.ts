@@ -146,20 +146,23 @@ export class Hud {
   }
 
   private buildJobs() {
-    const switcher = $('#step');
-    for (const n of STEPS) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'small';
-      b.textContent = n === Infinity ? 'All' : String(n);
-      b.setAttribute('aria-pressed', String(n === this.step));
-      b.addEventListener('click', () => {
-        this.step = n;
-        switcher.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-        this.update();
-      });
-      switcher.append(b);
-    }
+    // one "move how many" choice, shown on both the Kobolds and Rooms tabs
+    const switchers = [$('#step'), $('#dig-step')];
+    for (const switcher of switchers)
+      for (const n of STEPS) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'small';
+        b.dataset.step = String(n);
+        b.textContent = n === Infinity ? 'All' : String(n);
+        b.setAttribute('aria-pressed', String(n === this.step));
+        b.addEventListener('click', () => {
+          this.step = n;
+          for (const sw of switchers) sw.querySelectorAll<HTMLElement>('button').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.step === String(n))));
+          this.update();
+        });
+        switcher.append(b);
+      }
 
     const list = $('#jobs');
     const idle = row(`<div class="row-main"><b>Idle</b> <span class="count"></span><div class="desc newcomers"><label for="newcomer-job">Newcomers go to</label> <select id="newcomer-job"></select></div></div>`);

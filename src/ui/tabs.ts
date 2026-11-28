@@ -7,7 +7,7 @@ import { canPromote } from '../game/kobolds';
 import type { GameState } from '../game/state';
 import { $ } from './dom';
 
-export type TabId = 'kobolds' | 'rooms' | 'stores' | 'research' | 'forge' | 'warren';
+export type TabId = 'kobolds' | 'rooms' | 'stores' | 'research' | 'forge' | 'chief' | 'warren';
 
 const TABS: { id: TabId; name: string }[] = [
   { id: 'kobolds', name: 'Kobolds' },
@@ -15,6 +15,7 @@ const TABS: { id: TabId; name: string }[] = [
   { id: 'stores', name: 'Stores' },
   { id: 'research', name: 'Research' },
   { id: 'forge', name: 'Forge' },
+  { id: 'chief', name: 'Chief' },
   { id: 'warren', name: 'Warren' },
 ];
 
@@ -30,7 +31,9 @@ function newsKey(s: GameState, tab: TabId): string {
     case 'forge':
       return `${s.art.pieces.length}|${s.forge.slots.filter((x) => !x.order).length}`;
     case 'warren':
-      return `${s.colonies.length}|${s.colonies.reduce((a, c) => a + c.history.length, 0)}|${Object.keys(s.oddities).length}|${document.querySelector('#chief-grow')?.hasAttribute('hidden') ? '' : 'grow'}`;
+      return `${s.colonies.length}|${s.colonies.reduce((a, c) => a + c.history.length, 0)}|${Object.keys(s.oddities).length}`;
+    case 'chief':
+      return document.querySelector('#chief-grow')?.hasAttribute('hidden') ? '' : 'grow';
     default:
       return '';
   }

@@ -5,7 +5,7 @@ import { workers } from '../game/economy';
 import type { GameState } from '../game/state';
 import { $, setText } from './dom';
 import { formatDuration, formatNumber } from './format';
-import { row, syncOptions } from './hud';
+import { costText, row, syncOptions } from './hud';
 
 const NOTHING = '';
 
@@ -52,7 +52,10 @@ export class ForgeView {
         }),
       );
     }
-    const options: [string, string][] = [[NOTHING, 'Nothing'], ...orderOptions(s).map((o): [string, string] => [o.id, o.name])];
+    const options: [string, string][] = [[NOTHING, 'Nothing'], ...orderOptions(s).map((o): [string, string] => {
+      const u = unitFor(s, o.id);
+      return [o.id, u ? `${o.name} (${costText(u.cost)})` : o.name];
+    })];
     s.forge.slots.forEach((slot, i) => {
       const r = this.rows[i];
       syncOptions(r.select, options, slot.order ?? NOTHING);
@@ -64,6 +67,8 @@ export class ForgeView {
       if (!slot.order) sub = 'Idle.';
       else if (blocked) sub = blocked;
       else if (unit) sub = `Making ${unit.label}.${share > 0 ? ` Next in about ${formatDuration(Math.max(1, (unit.work - slot.progress) / share))}.` : ''}`;
+      // what each one costs, and how many an hour at this pace
+      if (unit) sub += ` Each uses ${costText(unit.cost)}${share > 0 ? `; about ${formatNumber((share / unit.work) * 3600)} an hour` : ''}.`;
       setText(r.sub, sub);
       r.sub.classList.toggle('warn', !!blocked);
     });

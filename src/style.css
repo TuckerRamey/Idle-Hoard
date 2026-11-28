@@ -15,7 +15,7 @@ body { font: 14px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif; }
 
 .layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 12px; max-width: 1200px; margin: 0 auto; }
 @media (min-width: 860px) {
-  .layout { grid-template-columns: minmax(0, 1.8fr) minmax(300px, 1fr); align-items: start; }
+  .layout { grid-template-columns: minmax(0, 1.65fr) minmax(320px, 1fr); align-items: start; }
 }
 
 #scene {
