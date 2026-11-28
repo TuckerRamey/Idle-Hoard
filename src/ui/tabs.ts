@@ -1,13 +1,13 @@
 // The tabbed panel: copper, the dragon and the goal stay pinned above; the
 // rest is split into tabs. A tab only shows once it has something in it, a
 // dot marks one with news you haven't looked at, and the chosen tab is
-// remembered in this browser.
+// remembered in this browser. Settings has no tab: the gear by the copper opens it.
 
 import { canPromote } from '../game/kobolds';
 import type { GameState } from '../game/state';
 import { $ } from './dom';
 
-export type TabId = 'kobolds' | 'rooms' | 'stores' | 'research' | 'forge' | 'chief' | 'warren';
+export type TabId = 'kobolds' | 'rooms' | 'stores' | 'research' | 'forge' | 'chief' | 'colonies' | 'oddities' | 'settings';
 
 const TABS: { id: TabId; name: string }[] = [
   { id: 'kobolds', name: 'Kobolds' },
@@ -16,7 +16,10 @@ const TABS: { id: TabId; name: string }[] = [
   { id: 'research', name: 'Research' },
   { id: 'forge', name: 'Forge' },
   { id: 'chief', name: 'Chief' },
-  { id: 'warren', name: 'Warren' },
+  { id: 'colonies', name: 'Colonies' },
+  { id: 'oddities', name: 'Oddities' },
+  // opened from the gear by the copper, so it has no tab of its own
+  { id: 'settings', name: 'Settings' },
 ];
 
 const STORE_KEY = 'idle-hoard-tab';
@@ -30,8 +33,10 @@ function newsKey(s: GameState, tab: TabId): string {
       return `${s.research.done.length}|${s.research.current ? '' : 'idle'}`;
     case 'forge':
       return `${s.art.pieces.length}|${s.forge.slots.filter((x) => !x.order).length}`;
-    case 'warren':
-      return `${s.colonies.length}|${s.colonies.reduce((a, c) => a + c.history.length, 0)}|${Object.keys(s.oddities).length}`;
+    case 'colonies':
+      return `${s.colonies.length}|${s.colonies.reduce((a, c) => a + c.history.length, 0)}`;
+    case 'oddities':
+      return `${Object.keys(s.oddities).length}`;
     case 'chief':
       return document.querySelector('#chief-grow')?.hasAttribute('hidden') ? '' : 'grow';
     default:
@@ -60,7 +65,7 @@ export class TabsView {
     } catch {
       /* no storage: start on the first tab */
     }
-    this.active = TABS.some((t) => t.id === saved) ? (saved as TabId) : 'kobolds';
+    this.active = saved !== 'settings' && TABS.some((t) => t.id === saved) ? (saved as TabId) : 'kobolds';
     for (const t of TABS) {
       const panel = document.querySelector<HTMLElement>(`.tab-panel[data-tab="${t.id}"]`)!;
       panel.id = `tab-${t.id}`;
@@ -79,7 +84,14 @@ export class TabsView {
     }
   }
 
+  /** The gear opens settings; pressing it again goes back where you were. */
+  toggleSettings() {
+    this.choose(this.active === 'settings' ? this.before : 'settings');
+  }
+  private before: TabId = 'kobolds';
+
   choose(id: TabId) {
+    if (id === 'settings' && this.active !== 'settings') this.before = this.active;
     this.active = id;
     this.news.delete(id);
     try {
@@ -105,7 +117,8 @@ export class TabsView {
       if (t.id === active) this.news.delete(t.id);
       const b = this.buttons.get(t.id)!;
       const on = t.id === active;
-      if (b.hidden !== !shown.includes(t.id)) b.hidden = !shown.includes(t.id);
+      const showBtn = shown.includes(t.id) && t.id !== 'settings';
+      if (b.hidden !== !showBtn) b.hidden = !showBtn;
       b.setAttribute('aria-selected', String(on));
       b.classList.toggle('on', on);
       b.classList.toggle('news', this.news.has(t.id));
@@ -115,5 +128,6 @@ export class TabsView {
       const hide = !!s.chief && !on;
       if (panel.classList.contains('off') !== hide) panel.classList.toggle('off', hide);
     }
+    document.querySelector('#settings-open')?.setAttribute('aria-pressed', String(active === 'settings'));
   }
 }

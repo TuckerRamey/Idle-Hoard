@@ -22,7 +22,7 @@
         </section>
         <header class="totals">
           <div><span id="copper" class="big">0</span> <span class="unit">copper</span></div>
-          <div id="rate" class="rate">0 / s</div>
+          <div class="totals-right"><span id="rate" class="rate">0 / s</span> <button type="button" id="settings-open" class="small gear" aria-label="Settings and save" title="Settings and save">⚙</button></div>
         </header>
 
         <div class="growth">
@@ -120,17 +120,21 @@
           </div>
         </section>
         </div>
-        <div class="tab-panel" data-tab="warren">
+        <div class="tab-panel" data-tab="colonies">
         <div id="colonies-section" hidden>
           <h2>Colonies</h2>
           <p id="colonies-status" class="desc"></p>
           <ul id="colonies" class="list"></ul>
         </div>
-        <details id="oddities-section" class="oddities" hidden>
+        </div>
+        <div class="tab-panel" data-tab="oddities">
+        <details id="oddities-section" class="oddities" open hidden>
           <summary>Oddities shelf · <span id="oddities-count">0</span></summary>
           <ul id="oddities" class="list"></ul>
         </details>
-        <details class="settings">
+        </div>
+        <div class="tab-panel" data-tab="settings">
+        <details class="settings" open>
           <summary>Settings and save</summary>
           <button id="motion"></button>
           <button id="goal-toggle"></button>

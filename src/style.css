@@ -158,3 +158,6 @@ select { max-width: 100%; font: inherit; color: var(--text); background: var(--b
 .tab-panel.off { display: none; }
 .tab-panel { padding-top: 4px; }
 .named .mods { margin-top: 2px; }
+.totals-right { display: flex; align-items: center; gap: 8px; }
+.gear { padding: 2px 8px; font-size: 15px; line-height: 1.2; }
+.tab-panel[data-tab="settings"] .settings { margin-top: 8px; border-top: 0; }
