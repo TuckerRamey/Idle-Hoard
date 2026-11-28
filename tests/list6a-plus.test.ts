@@ -102,9 +102,9 @@ describe('old saves', () => {
     expect(back.named[0].loves).toBe('miner');
     expect(back.named[0].hates).toBe('digger');
     expect(back.named[0].talents![0].job).toBe('miner');
-    expect(back.tools.miner.stone).toEqual({ n: 8, wear: 0.25 });
-    expect(back.tools.miner.iron!.n).toBe(2);
-    expect(back.tools.quarrier).toBeUndefined();
-    expect(back.forge.slots[0].order).toBe('tool:miner');
+    expect(back.rack.stone).toEqual({ n: 8, wear: 0.25 });
+    expect(back.rack.iron!.n).toBe(2);
+    expect(back.forge.slots[0].order).toBe('auto');
+    expect(back.toolFirst).toBe('miner');
   });
 });

@@ -3,7 +3,7 @@
 
 import { huntableMonsters, huntHint, setQuarry } from '../game/hunting';
 import { shamanHint } from '../game/magic';
-import { toolSummary } from '../game/forge';
+import { toolTag } from '../game/forge';
 import { DIG, DRAGON_STAGES, GEMS, IDLE, JOBS, RESOURCES, ROOMS, type ResourceId } from '../game/data';
 import { animalsOpen, setHerd, STATS, worthRate } from '../game/dragon';
 import {
@@ -102,7 +102,6 @@ export function syncOptions(sel: HTMLSelectElement, opts: [string, string][], va
 interface JobRow {
   li: HTMLLIElement;
   count: HTMLElement;
-  tools: HTMLElement;
   rate: HTMLElement;
   hint: HTMLElement;
   down: HTMLButtonElement;
@@ -204,7 +203,7 @@ export class Hud {
   private buildJob(list: HTMLElement, def: (typeof JOBS)[number]) {
     {
       const li = row(
-        `<div class="row-main"><b></b> <span class="count"></span><div class="desc"></div><div class="sub"></div><div class="desc tools"></div><div class="hint"></div></div><div class="job-buttons"><button type="button" class="small down">−</button><button type="button" class="small up">+</button></div>`,
+        `<div class="row-main"><b></b> <span class="count"></span><div class="desc"></div><div class="sub"></div><div class="hint"></div></div><div class="job-buttons"><button type="button" class="small down">−</button><button type="button" class="small up">+</button></div>`,
       );
       li.querySelector('b')!.textContent = def.name;
       li.querySelector('.desc')!.textContent = def.description;
@@ -212,7 +211,7 @@ export class Hud {
       const up = li.querySelector<HTMLButtonElement>('.up')!;
       down.addEventListener('click', () => this.move(def.id, -1));
       up.addEventListener('click', () => this.move(def.id, 1));
-      const r: JobRow = { li, count: li.querySelector('.count')!, rate: li.querySelector('.sub')!, tools: li.querySelector('.tools')!, hint: li.querySelector('.hint')!, down, up };
+      const r: JobRow = { li, count: li.querySelector('.count')!, rate: li.querySelector('.sub')!, hint: li.querySelector('.hint')!, down, up };
       if (def.id === 'herder' || def.id === 'alchemist' || def.id === 'hunter') {
         const wrap = document.createElement('div');
         wrap.className = 'desc newcomers';
@@ -370,17 +369,18 @@ export class Hud {
       setText(row.count, `×${c.n}${stars ? ` + ${stars} named` : ''}`);
       const each = perKobold(s, def);
       const what = def.produces ? resName(def.produces.resource) : def.digs ? 'digging' : def.researches ? 'research' : def.smiths ? 'forge work' : def.hunts ? 'hunting' : def.channels ? 'mana' : 'turned over';
-      setText(row.tools, toolSummary(s, def.id));
+      const tag = toolTag(s, def.id);
+      const withTag = (text: string) => (tag ? `${text} · ${tag}` : text);
       const total = jobOutput(s, def);
       if (def.id === 'miner' && oreShare(s) > 0) {
         // stone and ore, in a steady split
         const sp = minerSplit(s);
         const parts = (x: number) => [sp.stone > 0 ? `${formatNumber(x * sp.stone)} stone` : '', `${formatNumber(x * sp.ore)} iron ore`].filter(Boolean).join(' and ');
-        setText(row.rate, workers(s, def.id) > 0 ? `${parts(total)} / s (${sp.yardFull ? 'ore only while the stone yard is full' : `${Math.round(oreShare(s) * 100)}% comes out as ore`})` : `${parts(each)} / s each`);
+        setText(row.rate, withTag(workers(s, def.id) > 0 ? `${parts(total)} / s (${sp.yardFull ? 'ore only while the stone yard is full' : `${Math.round(oreShare(s) * 100)}% comes out as ore`})` : `${parts(each)} / s each`));
       } else if (def.channels) {
         // mana comes slowly: per hour reads better
-        setText(row.rate, workers(s, def.id) > 0 ? `${formatNumber(total * 3600)} mana an hour (${formatNumber(each * 3600)} each)` : `${formatNumber(each * 3600)} mana an hour each`);
-      } else setText(row.rate, workers(s, def.id) > 0 ? `${formatNumber(total)} ${what} / s (${formatNumber(each)} each)` : `${formatNumber(each)} ${what} / s each`);
+        setText(row.rate, withTag(workers(s, def.id) > 0 ? `${formatNumber(total * 3600)} mana an hour (${formatNumber(each * 3600)} each)` : `${formatNumber(each * 3600)} mana an hour each`));
+      } else setText(row.rate, withTag(workers(s, def.id) > 0 ? `${formatNumber(total)} ${what} / s (${formatNumber(each)} each)` : `${formatNumber(each)} ${what} / s each`));
       const note = def.id === 'hunter' ? huntHint(s) : def.id === 'shaman' ? shamanHint(s) : null;
       setText(row.hint, hints[def.id] ?? note ?? '');
       row.hint.classList.toggle('info', !hints[def.id] && !!note && !note.startsWith('Out of'));

@@ -1,7 +1,9 @@
-// The forge: one row per anvil, each with an order and how it's going.
+// The forge: one row per anvil, each with an order and how it's going, then
+// the tool rack and a table of which jobs have what, with a star to put one
+// job first in line.
 
-import { forgeOpen, forgeRate, orderOptions, setOrder, slotBlocked, smithsFit, syncSlots, unitFor } from '../game/forge';
-import { workers } from '../game/economy';
+import { bestTier, forgeOpen, forgeRate, orderOptions, rackCount, setOrder, setToolFirst, slotBlocked, smithsFit, spareTools, syncSlots, TIERS, toolAllocation, toolJobs, toolLine, unitFor } from '../game/forge';
+import { jobDef, workers } from '../game/economy';
 import type { GameState } from '../game/state';
 import { $, setText } from './dom';
 import { formatDuration, formatNumber } from './format';
@@ -14,6 +16,9 @@ export class ForgeView {
   private list = $('#forge-slots');
   private status = $('#forge-status');
   private rows: { select: HTMLSelectElement; bar: HTMLElement; sub: HTMLElement }[] = [];
+  private toolsStatus = $('#tools-status');
+  private toolsList = $('#tools-table');
+  private toolRows = new Map<string, { li: HTMLLIElement; line: HTMLElement; star: HTMLButtonElement }>();
 
   constructor(
     private getState: () => GameState,
@@ -32,7 +37,6 @@ export class ForgeView {
     if (smiths === 0) status = 'Put some kobolds on the blacksmith job to start.';
     else status = `${formatNumber(rate)} forge work / s${busy > 1 ? `, split between ${busy} anvils` : ''}.`;
     if (smiths > smithsFit(s)) status += ` The forge only fits ${smithsFit(s)} blacksmiths. Dig it bigger.`;
-    status += ' Only the best tools the forge knows are made; older ones are used until they wear out.';
     setText(this.status, status);
 
     if (this.rows.length !== s.forge.slots.length) {
@@ -72,5 +76,42 @@ export class ForgeView {
       setText(r.sub, sub);
       r.sub.classList.toggle('warn', !!blocked);
     });
+    this.updateTools(s);
+  }
+
+  private updateTools(s: GameState) {
+    const alloc = toolAllocation(s);
+    const spare = spareTools(s, alloc);
+    const tier = bestTier(s);
+    const spareText = [...TIERS].reverse().filter((t) => spare[t.id]).map((t) => `${formatNumber(spare[t.id]!)} ${t.name.toLowerCase()}`).join(', ');
+    let status = rackCount(s) === 0 ? 'The rack is empty. Set an anvil to Tools.' : spareText ? `Rack: ${spareText} spare.` : 'Rack: every tool is in use, none spare.';
+    if (tier) status += ` The forge makes ${tier.name.toLowerCase()} tools, and keeps making them while there's metal and wood. Spares replace worn-out tools at once.`;
+    status += s.toolFirst ? ` ${jobDef(s.toolFirst)?.name ?? s.toolFirst}s get tools first.` : ' Tools are shared out evenly. Star a job to put it first in line.';
+    setText(this.toolsStatus, status);
+
+    // only jobs with someone working, plus the starred one, so the table stays short
+    const jobs = toolJobs(s).filter((j) => workers(s, j) > 0 || s.toolFirst === j);
+    for (const job of jobs) {
+      if (this.toolRows.has(job)) continue;
+      const li = row(`<div class="row-main"><b></b><div class="sub"></div></div><button type="button" class="small star" aria-pressed="false">★</button>`);
+      const name = `${jobDef(job)!.name}s`;
+      li.querySelector('b')!.textContent = name;
+      const star = li.querySelector<HTMLButtonElement>('.star')!;
+      star.addEventListener('click', () => {
+        const st = this.getState();
+        if (setToolFirst(st, st.toolFirst === job ? null : job)) this.onChange(-1, null);
+      });
+      this.toolRows.set(job, { li, line: li.querySelector('.sub')!, star });
+    }
+    const want = jobs.map((j) => this.toolRows.get(j)!.li);
+    if (want.length !== this.toolsList.children.length || want.some((li, i) => this.toolsList.children[i] !== li)) this.toolsList.replaceChildren(...want);
+    for (const job of jobs) {
+      const r = this.toolRows.get(job)!;
+      setText(r.line, toolLine(s, job, alloc));
+      const first = s.toolFirst === job;
+      r.star.setAttribute('aria-pressed', String(first));
+      r.star.title = first ? 'First in line for tools. Click to share evenly again.' : 'Put this job first in line for tools';
+      r.star.setAttribute('aria-label', `${jobDef(job)!.name}s: ${r.star.title}`);
+    }
   }
 }

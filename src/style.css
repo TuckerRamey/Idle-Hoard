@@ -166,3 +166,5 @@ select { max-width: 100%; font: inherit; color: var(--text); background: var(--b
 .tab-panel[data-tab="settings"] .settings { margin-top: 8px; border-top: 0; }
 .tab:hover:not(:disabled), .tab:focus { background: none; }
 .metals { margin-top: 2px; }
+
+button.star[aria-pressed='true'], button.star[aria-pressed='true']:hover:not(:disabled) { background: var(--accent); color: #1c1524; border-color: var(--accent); }

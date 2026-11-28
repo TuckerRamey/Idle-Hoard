@@ -83,8 +83,10 @@ export interface GameState {
   nextColonyId: number;
   /** The forge's order slots, and what tool orders have been using lately (per second, smoothed). */
   forge: { slots: ForgeSlot[]; toolUse: Partial<Record<ResourceId, number>> };
-  /** Tools each job holds, by tier. They stay with the job. */
-  tools: Record<string, Partial<Record<'stone' | 'iron' | 'steel' | 'mithril' | 'adamant', ToolStock>>>;
+  /** The tool rack every job takes from, by tier: in use and spare alike. */
+  rack: Partial<Record<'stone' | 'iron' | 'steel' | 'mithril' | 'adamant', ToolStock>>;
+  /** The job first in line for tools, or null to share them out evenly. */
+  toolFirst: string | null;
   /** Gems on the hoard, by kind. Treasure: never spent, worth adds to the hoard. */
   gems: Record<string, number>;
   /** Things only ever found, never made (mithril, adamant), once the first turns up. */
@@ -231,7 +233,8 @@ export function newGame(now: number): GameState {
     colonies: [],
     nextColonyId: 1,
     forge: { slots: [], toolUse: {} },
-    tools: {},
+    rack: {},
+    toolFirst: null,
     gems: {},
     discovered: [],
     hunt: newHunt(),

@@ -1,7 +1,8 @@
 // The forge: blacksmiths smelt ore into bars, make steel, and make tools.
-// Every job has its own tool. Tools come in tiers; the best go to named
-// kobolds first, then the crew, and anyone left over works bare-handed.
-// Tools wear out with use. When kobolds move, their tools stay with the job.
+// Tools go on one shared rack that every job takes from. They come in tiers;
+// the best are handed out first (to the starred job, if any, then shared out
+// evenly), named kobolds get theirs before the crew, and anyone left over
+// works bare-handed. Tools in use wear out; spares wait on the rack for good.
 
 import type { ResourceId } from './data';
 import { capacity, jobDef, jobOpen, jobOutput, resourceDef, resourceOpen, roomCapacity, roomDef, roomOpen, workers } from './economy';
@@ -33,7 +34,7 @@ export const TIERS: TierDef[] = [
   { id: 'adamant', name: 'Adamant', mult: 2.2, work: 200, cost: { adamant: 1, mithril: 1 }, requires: 'adamant-working' },
 ];
 
-/** Each job's own tool. Never shared. */
+/** What each job calls its tools, for the chronicle. The rack itself only holds "tools". */
 export const TOOL_NAMES: Record<string, string> = {
   scavenger: 'sacks',
   woodcutter: 'axes',
@@ -74,7 +75,7 @@ export interface ToolStock {
 }
 
 export interface ForgeSlot {
-  /** 'auto', 'smelt', 'steel', 'tool:<job>', or null for an empty slot. */
+  /** 'auto' (tools), 'smelt', 'steel', or null for an empty slot. */
   order: string | null;
   progress: number;
 }
@@ -108,10 +109,8 @@ export interface OrderOption {
 
 export function orderOptions(state: GameState): OrderOption[] {
   if (!forgeOpen(state)) return [];
-  const tier = bestTier(state);
-  const out: OrderOption[] = [{ id: 'auto', name: 'Tools for whoever needs them most' }];
+  const out: OrderOption[] = [{ id: 'auto', name: 'Tools' }];
   for (const m of MATERIALS) if (opened(state, m.requires)) out.push({ id: m.id, name: m.name });
-  if (tier) for (const job of toolJobs(state)) out.push({ id: `tool:${job}`, name: `${tier.name} ${TOOL_NAMES[job]} for ${jobDef(job)!.name.toLowerCase()}s` });
   return out;
 }
 
@@ -136,35 +135,93 @@ export function setOrder(state: GameState, slot: number, order: string | null): 
 
 // ---------- tools ----------
 
-export function toolStock(state: GameState, job: string, tier: ToolTier): ToolStock {
-  return state.tools[job]?.[tier] ?? { n: 0, wear: 0 };
+const tierDef = (id: ToolTier) => TIERS.find((t) => t.id === id)!;
+const tierMult = (id: ToolTier) => tierDef(id).mult;
+const bestFirst = [...TIERS].reverse();
+
+export function rackStock(state: GameState, tier: ToolTier): ToolStock {
+  return state.rack[tier] ?? { n: 0, wear: 0 };
 }
 
-export function toolCount(state: GameState, job: string): number {
-  let n = 0;
-  for (const t of TIERS) n += toolStock(state, job, t.id).n;
-  return n;
+/** Every tool on the rack, in use or spare. */
+export function rackCount(state: GameState): number {
+  return TIERS.reduce((a, t) => a + rackStock(state, t.id).n, 0);
 }
 
-export function addTool(state: GameState, job: string, tier: ToolTier, n = 1) {
-  const byTier = (state.tools[job] ??= {});
-  const s = (byTier[tier] ??= { n: 0, wear: 0 });
+export function addTool(state: GameState, tier: ToolTier, n = 1) {
+  const s = (state.rack[tier] ??= { n: 0, wear: 0 });
   s.n += n;
 }
 
-/** Who holds what in a job: tool tiers handed out best first, with counts in use. */
-export function toolsInUse(state: GameState, job: string): { tier: ToolTier; n: number }[] {
-  let left = workers(state, job);
-  const out: { tier: ToolTier; n: number }[] = [];
-  for (const t of [...TIERS].reverse()) {
-    const n = Math.min(left, toolStock(state, job, t.id).n);
-    if (n > 0) out.push({ tier: t.id, n });
-    left -= n;
+/** Put one job first in line for tools, or null to share them out evenly. */
+export function setToolFirst(state: GameState, job: string | null): boolean {
+  if (job !== null && !toolJobs(state).includes(job)) return false;
+  state.toolFirst = job;
+  return true;
+}
+
+export type Allocation = Record<string, Partial<Record<ToolTier, number>>>;
+
+/**
+ * Who holds what. The best tier is handed out first, then the next, and so on.
+ * Within a tier, the starred job is served first, and the rest are shared out
+ * in proportion to how many kobolds each job still has without one.
+ */
+export function toolAllocation(state: GameState): Allocation {
+  const need = new Map<string, number>();
+  for (const job of toolJobs(state)) {
+    const n = workers(state, job);
+    if (n > 0) need.set(job, n);
+  }
+  const out: Allocation = {};
+  const give = (job: string, tier: ToolTier, n: number) => {
+    if (n <= 0) return;
+    (out[job] ??= {})[tier] = (out[job][tier] ?? 0) + n;
+    need.set(job, need.get(job)! - n);
+  };
+  for (const t of bestFirst) {
+    let left = rackStock(state, t.id).n;
+    const first = state.toolFirst;
+    if (left > 0 && first && (need.get(first) ?? 0) > 0) {
+      const n = Math.min(left, need.get(first)!);
+      give(first, t.id, n);
+      left -= n;
+    }
+    const jobs = [...need].filter(([, n]) => n > 0);
+    const total = jobs.reduce((a, [, n]) => a + n, 0);
+    if (left <= 0 || total === 0) continue;
+    if (left >= total) {
+      for (const [job, n] of jobs) give(job, t.id, n);
+      continue;
+    }
+    // largest remainder, so whole tools add up to what's on the rack
+    const shares = jobs.map(([job, n]) => ({ job, exact: (left * n) / total }));
+    let handed = 0;
+    for (const x of shares) handed += Math.floor(x.exact);
+    const extra = [...shares].sort((a, b) => b.exact - Math.floor(b.exact) - (a.exact - Math.floor(a.exact)));
+    const bonus = new Set(extra.slice(0, left - handed).map((x) => x.job));
+    for (const x of shares) give(x.job, t.id, Math.floor(x.exact) + (bonus.has(x.job) ? 1 : 0));
   }
   return out;
 }
 
-const tierMult = (id: ToolTier) => TIERS.find((t) => t.id === id)!.mult;
+/** Who holds what in a job: tool tiers, best first, with counts in use. */
+export function toolsInUse(state: GameState, job: string, alloc = toolAllocation(state)): { tier: ToolTier; n: number }[] {
+  const mine = alloc[job] ?? {};
+  return bestFirst.filter((t) => (mine[t.id] ?? 0) > 0).map((t) => ({ tier: t.id, n: mine[t.id]! }));
+}
+
+/** Tools on the rack nobody is using, by tier. */
+export function spareTools(state: GameState, alloc = toolAllocation(state)): Partial<Record<ToolTier, number>> {
+  const out: Partial<Record<ToolTier, number>> = {};
+  for (const t of TIERS) {
+    let used = 0;
+    for (const job of Object.keys(alloc)) used += alloc[job][t.id] ?? 0;
+    const n = rackStock(state, t.id).n - used;
+    if (n > 0) out[t.id] = n;
+  }
+  return out;
+}
 
 /**
  * Tool multipliers for a job: one for each named kobold (in namedIn order,
@@ -181,28 +238,42 @@ export function toolMults(state: GameState, job: string): { named: number[]; cre
   return { named, crew: sum / crewN };
 }
 
-/** "10 steel, 10 iron, 5 bare" for a job row, or '' when nobody has a tool. */
-export function toolSummary(state: GameState, job: string): string {
+/** A short tag for a job row: "steel tools", "steel tools, 4 without", or '' when nobody has one. */
+export function toolTag(state: GameState, job: string): string {
   const inUse = toolsInUse(state, job);
   const total = workers(state, job);
   if (!inUse.length || total === 0) return '';
-  const used = inUse.reduce((a, u) => a + u.n, 0);
-  const parts = inUse.map((u) => `${u.n} ${TIERS.find((t) => t.id === u.tier)!.name.toLowerCase()}`);
-  if (total > used) parts.push(`${total - used} bare`);
-  return `${TOOL_NAMES[job][0].toUpperCase()}${TOOL_NAMES[job].slice(1)}: ${parts.join(', ')}`;
+  const bare = total - inUse.reduce((a, u) => a + u.n, 0);
+  return `${tierDef(inUse[0].tier).name.toLowerCase()} tools${bare > 0 ? `, ${bare} without` : ''}`;
+}
+
+/** The forge's Tools table line for a job: "steel for all 12", or "steel for 5 of 12; 4 on iron, 3 without". */
+export function toolLine(state: GameState, job: string, alloc = toolAllocation(state)): string {
+  const total = workers(state, job);
+  if (total === 0) return 'Nobody working.';
+  const inUse = toolsInUse(state, job, alloc);
+  const bare = total - inUse.reduce((a, u) => a + u.n, 0);
+  if (!inUse.length) return `None yet, ${total} without.`;
+  const top = inUse[0];
+  const name = (id: ToolTier) => tierDef(id).name.toLowerCase();
+  if (top.n === total) return `${tierDef(top.tier).name} for all ${total}.`;
+  const rest = [...inUse.slice(1).map((u) => `${u.n} on ${name(u.tier)}`), ...(bare > 0 ? [`${bare} without`] : [])];
+  return `${tierDef(top.tier).name} for ${top.n} of ${total}; ${rest.join(', ')}.`;
 }
 
 function wearTools(state: GameState, dt: number) {
-  for (const job of Object.keys(state.tools)) {
-    for (const u of toolsInUse(state, job)) {
-      const s = state.tools[job][u.tier]!;
-      s.wear += (u.n * dt) / FORGE.toolLifeSeconds;
-      while (s.wear >= 1 && s.n > 0) {
-        s.wear -= 1;
-        s.n -= 1;
-      }
-      if (s.n === 0) s.wear = 0;
+  const alloc = toolAllocation(state);
+  for (const t of TIERS) {
+    const s = state.rack[t.id];
+    if (!s) continue;
+    let used = 0;
+    for (const job of Object.keys(alloc)) used += alloc[job][t.id] ?? 0;
+    s.wear += (used * dt) / FORGE.toolLifeSeconds;
+    while (s.wear >= 1 && s.n > 0) {
+      s.wear -= 1;
+      s.n -= 1;
     }
+    if (s.n === 0) s.wear = 0;
   }
 }
 
@@ -221,22 +292,6 @@ export function forgeRate(state: GameState): number {
   const n = workers(state, 'blacksmith');
   if (n === 0) return 0;
   return jobOutput(state, def) * Math.min(1, smithsFit(state) / n);
-}
-
-/** The job an automatic order would make tools for: the most kobolds short of the best tier. */
-export function autoJob(state: GameState): string | null {
-  const tier = bestTier(state);
-  if (!tier) return null;
-  let best: string | null = null;
-  let most = 0;
-  for (const job of toolJobs(state)) {
-    const short = workers(state, job) - toolStock(state, job, tier.id).n;
-    if (short > most) {
-      most = short;
-      best = job;
-    }
-  }
-  return best;
 }
 
 interface Unit {
@@ -265,15 +320,14 @@ export function unitFor(state: GameState, order: string | null): Unit | null {
       },
     };
   }
-  const job = order === 'auto' ? autoJob(state) : order.startsWith('tool:') ? order.slice(5) : null;
-  const tier = bestTier(state);
-  if (!job || !tier || !TOOL_NAMES[job]) return null;
+  const tier = order === 'auto' ? bestTier(state) : undefined;
+  if (!tier) return null;
   return {
     work: tier.work,
     cost: tier.cost,
-    label: `${tier.name.toLowerCase()} ${TOOL_NAMES[job]}`,
+    label: `${tier.name.toLowerCase()} tools`,
     make: () => {
-      addTool(state, job, tier.id);
+      addTool(state, tier.id);
       return true;
     },
   };
@@ -287,22 +341,21 @@ function canPay(state: GameState, cost: Partial<Record<ResourceId, number>>): bo
 export function slotBlocked(state: GameState, slot: ForgeSlot): string | null {
   if (!slot.order) return null;
   const unit = unitFor(state, slot.order);
-  if (!unit) return slot.order === 'auto' ? 'Everyone has the best tools there are.' : 'Nothing to make.';
+  if (!unit) return 'Nothing to make.';
   const short = (Object.entries(unit.cost) as [ResourceId, number][]).filter(([r, n]) => state.res[r] < n).map(([r]) => resourceDef(r).name.toLowerCase());
   if (short.length) return `Waiting for ${short.join(' and ')}.`;
   return null;
 }
 
 /**
- * Slots with an order. Work is split evenly between them, even while one has
- * nothing to do (an auto order with everyone equipped), so the others work at
- * a steady pace instead of speeding up and slowing down as tools are needed.
+ * Slots with an order. Work is split evenly between them, even while one is
+ * waiting on materials, so the others work at a steady pace.
  */
 function busySlots(state: GameState): ForgeSlot[] {
   return state.forge.slots.filter((s) => s.order);
 }
 
-/** Tool orders come and go as kobolds arrive and tools wear out, so their use is shown smoothed over about this long. */
+/** Tool orders stall and restart as materials come and go, so their use is shown smoothed over about this long. */
 const TOOL_USE_SECONDS = 1800;
 
 /** Let `dt` seconds of forge work happen. Returns how many of each thing was made. */

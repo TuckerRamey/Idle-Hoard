@@ -10,7 +10,8 @@
 // `normalize` fills in defaults.
 
 import { OLD_QUIRKS, QUIRKS, type Chief } from './chief';
-import { RESOURCES } from './data';
+import { JOBS, RESOURCES } from './data';
+import type { ToolStock } from './forge';
 import type { NamedKobold } from './kobolds';
 import type { Colony } from './colonies';
 import { CHRONICLE_MAX, newDragon, newGame, newHunt, newMagic, type ChronicleEntry, type Crew, type DragonState, type GameState, type HuntState, type MagicState, type RoomState } from './state';
@@ -149,19 +150,49 @@ function normalizeRooms(v: unknown, base: Record<string, RoomState>): Record<str
 
 function normalizeSlots(v: unknown): GameState['forge']['slots'] {
   if (!Array.isArray(v)) return [];
-  return v.map((x) => ({ order: typeof x?.order === 'string' ? x.order : null, progress: num(x?.progress, 0) }));
+  return v.map((x) => {
+    const order = typeof x?.order === 'string' ? x.order : null;
+    if (order?.startsWith('tool:')) return { order: 'auto', progress: 0 };
+    return { order, progress: num(x?.progress, 0) };
+  });
 }
 
-function normalizeTools(v: unknown): GameState['tools'] {
-  const out: GameState['tools'] = {};
-  if (!v || typeof v !== 'object') return out;
-  for (const [job, tiers] of Object.entries(v as Record<string, any>)) {
-    if (!tiers || typeof tiers !== 'object') continue;
-    out[job] = {};
-    for (const t of ['stone', 'iron', 'steel', 'mithril', 'adamant'] as const)
-      if (tiers[t]) out[job][t] = { n: Math.floor(num(tiers[t].n, 0)), wear: Math.min(1, num(tiers[t].wear, 0)) };
-  }
+const TOOL_TIERS = ['stone', 'iron', 'steel', 'mithril', 'adamant'] as const;
+
+function normalizeStock(v: any): ToolStock | null {
+  if (!v || typeof v !== 'object') return null;
+  const n = Math.max(0, Math.floor(num(v.n, 0)));
+  return n > 0 ? { n, wear: Math.min(0.999, Math.max(0, num(v.wear, 0))) } : null;
+}
+
+/**
+ * The tool rack. Old saves kept tools per job; those all go onto the one
+ * rack, tier by tier, with their wear added up.
+ */
+function normalizeRack(rack: unknown, legacy: unknown): GameState['rack'] {
+  const out: GameState['rack'] = {};
+  const add = (tier: (typeof TOOL_TIERS)[number], st: ToolStock | null) => {
+    if (!st) return;
+    const s = (out[tier] ??= { n: 0, wear: 0 });
+    s.n += st.n;
+    s.wear += st.wear;
+    while (s.wear >= 1 && s.n > 1) {
+      s.wear -= 1;
+      s.n -= 1;
+    }
+  };
+  if (rack && typeof rack === 'object') for (const t of TOOL_TIERS) add(t, normalizeStock((rack as any)[t]));
+  if (legacy && typeof legacy === 'object')
+    for (const tiers of Object.values(legacy as Record<string, any>)) if (tiers && typeof tiers === 'object') for (const t of TOOL_TIERS) add(t, normalizeStock(tiers[t]));
   return out;
+}
+
+/** Old saves could order tools for one job; that job goes first in line instead. */
+function legacyToolFirst(r: any): string | null {
+  if (typeof r.toolFirst === 'string') return r.toolFirst;
+  if (!Array.isArray(r.forge?.slots)) return null;
+  const sl = r.forge.slots.find((x: any) => typeof x?.order === 'string' && x.order.startsWith('tool:'));
+  return sl ? sl.order.slice(5) : null;
 }
 
 function normalizeNamed(v: unknown): NamedKobold[] {
@@ -392,7 +423,8 @@ export function normalize(raw: unknown, now: number): GameState {
         Object.entries(r.forge?.toolUse && typeof r.forge.toolUse === 'object' ? r.forge.toolUse : {}).filter(([k, v]) => RESOURCES.some((d) => d.id === k) && typeof v === 'number' && Number.isFinite(v) && v >= 0),
       ),
     },
-    tools: normalizeTools(r.tools),
+    rack: normalizeRack(r.rack, r.tools),
+    toolFirst: ((j) => (j && JOBS.some((d) => d.id === j) ? j : null))(legacyToolFirst(r)),
     gems: Object.fromEntries(Object.entries(r.gems && typeof r.gems === 'object' ? r.gems : {}).filter(([, v]) => typeof v === 'number' && Number.isFinite(v) && v > 0)) as Record<string, number>,
     discovered: strList(r.discovered),
     hunt: normalizeHunt(r.hunt),

@@ -58,7 +58,8 @@ describe('save round trip', () => {
     expect(s.crews).toEqual({});
     expect(s.rooms.hoard).toEqual({ volume: 100 });
     expect(s.forge.slots).toEqual([]);
-    expect(s.tools).toEqual({});
+    expect(s.rack).toEqual({});
+    expect(s.toolFirst).toBeNull();
     expect(s.dig).toEqual({});
     expect(s.newcomerJob).toBe('scavenger');
     expect(s.chief).toBeNull();
