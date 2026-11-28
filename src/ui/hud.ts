@@ -2,8 +2,8 @@
 // text that changed are written, so it costs next to nothing.
 
 import { toolSummary } from '../game/forge';
-import { DIG, DRAGON_STAGES, IDLE, JOBS, RESOURCES, ROOMS, type ResourceId } from '../game/data';
-import { animalsOpen, setHerd } from '../game/dragon';
+import { DIG, DRAGON_STAGES, GEMS, IDLE, JOBS, RESOURCES, ROOMS, type ResourceId } from '../game/data';
+import { animalsOpen, setHerd, worthRate } from '../game/dragon';
 import {
   appeal,
   arrivalSeconds,
@@ -17,7 +17,6 @@ import {
   flows,
   herdersFit,
   hoardValue,
-  incomePerSecond,
   jobHints,
   jobOpen,
   jobOutput,
@@ -34,6 +33,7 @@ import {
   setRecipe,
   storeGoods,
   supportsFor,
+  digYields,
   recipeRatio,
   workPerPace,
   workers,
@@ -61,9 +61,10 @@ export function costText(cost: Partial<Record<ResourceId, number>>): string {
 /** The job list, under headings. Digging is done from the Rooms tab. */
 export const JOB_GROUPS: { name: string; jobs: string[] }[] = [
   { name: 'Gathering', jobs: ['scavenger', 'woodcutter', 'quarrier', 'miner'] },
-  { name: 'Making', jobs: ['alchemist', 'blacksmith'] },
-  { name: 'Learning and care', jobs: ['researcher', 'herder'] },
+  { name: 'Care', jobs: ['herder'] },
 ];
+/** Jobs assigned from their own tab: researchers on Research, blacksmiths and the alchemist on Forge. */
+export const JOB_ELSEWHERE: Record<string, string> = { researcher: '#research-jobs', blacksmith: '#forge-jobs', alchemist: '#forge-jobs' };
 
 export function row(html: string): HTMLLIElement {
   const li = document.createElement('li');
@@ -106,6 +107,8 @@ interface JobRow {
 export class Hud {
   private copper = $('#copper');
   private rate = $('#rate');
+  private worthUnit = $('#worth-unit');
+  private metals = $('#metals');
   private stageName = $('#stage-name');
   private stageBar = $<HTMLDivElement>('#stage-bar > div');
   private stageText = $('#stage-text');
@@ -143,23 +146,30 @@ export class Hud {
       this.resRows.set(r.id, { li, amount: li.querySelector('.amount')!, rate: li.querySelector('.res-rate')!, note: li.querySelector('.note')! });
       list.append(li);
     }
+    // gems: treasure, only ever found
+    this.gemRow = row(`<div class="row-main"><div class="res-line"><b>Gems</b><span class="amount"></span></div><div class="sub note"></div></div>`);
+    list.append(this.gemRow);
   }
+  private gemRow!: HTMLLIElement;
 
   private buildJobs() {
-    const switcher = $('#step');
-    for (const n of STEPS) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'small';
-      b.textContent = n === Infinity ? 'All' : String(n);
-      b.setAttribute('aria-pressed', String(n === this.step));
-      b.addEventListener('click', () => {
-        this.step = n;
-        switcher.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-        this.update();
-      });
-      switcher.append(b);
-    }
+    // one "move how many" choice, shown on every tab that moves kobolds
+    const switchers = [...document.querySelectorAll<HTMLElement>('.step')];
+    for (const switcher of switchers)
+      for (const n of STEPS) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'small';
+        b.dataset.step = String(n);
+        b.textContent = n === Infinity ? 'All' : String(n);
+        b.setAttribute('aria-pressed', String(n === this.step));
+        b.addEventListener('click', () => {
+          this.step = n;
+          for (const sw of switchers) sw.querySelectorAll<HTMLElement>('button').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.step === String(n))));
+          this.update();
+        });
+        switcher.append(b);
+      }
 
     const list = $('#jobs');
     const idle = row(`<div class="row-main"><b>Idle</b> <span class="count"></span><div class="desc newcomers"><label for="newcomer-job">Newcomers go to</label> <select id="newcomer-job"></select></div></div>`);
@@ -179,8 +189,10 @@ export class Hud {
       list.append(head);
       for (const id of g.jobs) this.buildJob(list, JOBS.find((j) => j.id === id)!);
     }
-    // anything not in a group goes at the end
-    for (const def of JOBS) if (!JOB_GROUPS.some((g) => g.jobs.includes(def.id))) this.buildJob(list, def);
+    // jobs that belong to another tab are moved there, next to what they work on
+    for (const [id, sel] of Object.entries(JOB_ELSEWHERE)) this.buildJob($(sel), JOBS.find((j) => j.id === id)!);
+    // anything else goes at the end
+    for (const def of JOBS) if (!JOB_GROUPS.some((g) => g.jobs.includes(def.id)) && !JOB_ELSEWHERE[def.id]) this.buildJob(list, def);
   }
 
   private buildJob(list: HTMLElement, def: (typeof JOBS)[number]) {
@@ -268,8 +280,14 @@ export class Hud {
 
   update() {
     const s = this.getState();
-    setText(this.copper, formatNumber(s.res.copper));
-    setText(this.rate, `${formatNumber(incomePerSecond(s))} / s`);
+    // the hoard's worth, with what it's made of underneath once there's more than copper
+    setText(this.copper, formatNumber(hoardValue(s)));
+    const metals = RESOURCES.filter((r) => r.value && resourceOpen(s, r.id)).map((r) => `${formatNumber(s.res[r.id])} ${r.name.toLowerCase()}`);
+    const gemCount = Object.values(s.gems).reduce((a, n) => a + n, 0);
+    if (gemCount > 0) metals.push(`${formatNumber(gemCount)} gem${gemCount === 1 ? '' : 's'}`);
+    setText(this.worthUnit, metals.length > 1 ? 'worth' : 'copper');
+    setText(this.metals, metals.length > 1 ? metals.join(' · ') : '');
+    setText(this.rate, `${formatNumber(worthRate(s))} / s`);
 
     setText(this.stageName, DRAGON_STAGES[s.stage].name);
     const hatchAt = DRAGON_STAGES[1].threshold ?? 0;
@@ -289,6 +307,13 @@ export class Hud {
   }
 
   private updateResources(s: GameState) {
+    const kinds = GEMS.filter((g) => (s.gems[g.id] ?? 0) > 0);
+    setHidden(this.gemRow, kinds.length === 0);
+    if (kinds.length) {
+      const worth = kinds.reduce((a, g) => a + g.value * s.gems[g.id], 0);
+      setText(this.gemRow.querySelector<HTMLElement>('.amount')!, `${formatNumber(worth)} worth`);
+      setText(this.gemRow.querySelector<HTMLElement>('.note')!, `${kinds.map((g) => `${s.gems[g.id]} ${g.name.toLowerCase()}`).join(', ')}. Kept on the hoard; they take no room.`);
+    }
     const f = flows(s);
     for (const r of RESOURCES) {
       const row = this.resRows.get(r.id)!;
@@ -299,7 +324,7 @@ export class Hud {
       const net = fl.in - fl.out;
       setText(row.rate, fl.in === 0 && fl.out === 0 ? '' : `${net >= 0 ? '+' : '−'}${formatNumber(Math.abs(net))} / s`);
       row.rate.classList.toggle('warn', net < 0);
-      const by = fl.usedBy === 'digging' ? 'Digging' : fl.usedBy === 'alchemy' ? 'The alchemist' : 'The dragon';
+      const by = fl.usedBy === 'digging' ? 'Digging' : fl.usedBy === 'alchemy' ? 'The alchemist' : fl.usedBy === 'forge' ? 'The forge' : 'The dragon';
       let note = '';
       if (fl.held >= fl.cap && fl.in > 0 && net >= 0) note = 'Full. Anything more is lost until the room is dug bigger.';
       else if (fl.out > 0 && net < 0)
@@ -323,6 +348,7 @@ export class Hud {
     } else setText(this.popText, `All ${bedCount} beds are taken. Dig the den bigger to make room for more. Appeal ${a}.`);
 
     setText(this.idleCount, `×${s.idle}`);
+    for (const el of document.querySelectorAll<HTMLElement>('.idle-note')) setText(el, `${s.idle} idle`);
     const open = JOBS.filter((j) => jobOpen(s, j) && j.id !== 'digger');
     syncOptions(this.newcomerSelect, [[IDLE, 'Idle (wait for orders)'], ...open.map((j) => [j.id, j.name] as [string, string])], s.newcomerJob);
 
@@ -353,6 +379,11 @@ export class Hud {
         row.extra.title = `The pasture fits ${fit} herders`;
       } else if (row.extra) syncOptions(row.extra, recipesOpen(s).map((x) => [x.id, `${x.name}, ${formatNumber(recipeRatio(s, x))} to 1`]), s.recipe);
     }
+    // a tab's job block shows once one of its jobs is open
+    for (const sel of new Set(Object.values(JOB_ELSEWHERE))) {
+      const block = $(sel).closest<HTMLElement>('.job-block')!;
+      setHidden(block, Object.entries(JOB_ELSEWHERE).every(([id, x]) => x !== sel || this.jobRows.get(id)!.li.hidden));
+    }
     // a heading shows once any job under it is open
     for (const g of JOB_GROUPS) setHidden(this.jobHeads.get(g.name)!, g.jobs.every((id) => this.jobRows.get(id)?.li.hidden ?? true));
   }
@@ -381,7 +412,6 @@ export class Hud {
       if (def.holds === 'beds') holds = `${cap} beds, ${population(s)} taken`;
       else if (def.holds === 'herders') holds = `Fits ${cap} herders, ${workers(s, 'herder')} working`;
       else if (def.holds === 'smiths') holds = `Fits ${cap} blacksmiths, ${workers(s, 'blacksmith')} working`;
-      else if (def.holds === 'dragon') holds = s.stage === 0 ? 'Waiting for the dragon to hatch' : `The dragon grows into it`;
       else {
         const goods = storeGoods(s, def.id);
         holds = goods.length ? `Holds ${goods.map((g) => `${formatNumber(f[g.id].cap)} ${resName(g.id)}`).join(', ')}` : '';
@@ -402,6 +432,8 @@ export class Hud {
       const blocked = digging ? digBlocked(s, def.id) : null;
       const supports = supportsFor(vol, s);
       const uses = supports.length ? ` Uses ${supports.map((x) => `${formatNumber(x.perPace)} ${resName(x.resource)}`).join(' and ')} per cubic pace to hold the ceiling up.` : '';
+      const yields = Object.keys(digYields(vol, s)).map((r) => resName(r as ResourceId));
+      const turnsUp = yields.length ? ` Turning up ${yields.join(' and ')} as it goes.` : '';
       const nextTier = DIG.supports.find((x) => x.fromPaces > vol);
       const later = nextTier ? ` From ${formatNumber(nextTier.fromPaces)} paces it also needs ${resName(nextTier.resource)}.` : '';
       let dig = '';
@@ -409,7 +441,7 @@ export class Hud {
         if (blocked === 'full') dig = `As big as it can be dug for now.`;
         else if (blocked) dig = `Stalled: out of ${resName(blocked)}.${resourceOpen(s, blocked) ? '' : ' It has to be researched first.'}${uses}`;
         else if (paces <= 0) dig = `Waiting for diggers.${uses}${later}`;
-        else dig = `Growing by about ${formatNumber(paces * 3600)} cubic paces an hour${def.id === 'hoard' && scav > 0 ? ', with the scavengers helping while it is full' : ''}.${uses}${later}`;
+        else dig = `Growing by about ${formatNumber(paces * 3600)} cubic paces an hour${def.id === 'hoard' && scav > 0 ? ', with the scavengers helping while it is full' : ''}.${turnsUp}${uses}${later}`;
       }
       setText(row.dig, dig);
       row.dig.classList.toggle('warn', digging && !!blocked);

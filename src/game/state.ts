@@ -81,11 +81,14 @@ export interface GameState {
   /** Small colonies founded by named kobolds. They run on their own and send tribute. */
   colonies: Colony[];
   nextColonyId: number;
-  /** The forge's order slots. */
   /** The forge's order slots, and what tool orders have been using lately (per second, smoothed). */
   forge: { slots: ForgeSlot[]; toolUse: Partial<Record<ResourceId, number>> };
   /** Tools each job holds, by tier. They stay with the job. */
-  tools: Record<string, Partial<Record<'stone' | 'iron' | 'steel', ToolStock>>>;
+  tools: Record<string, Partial<Record<'stone' | 'iron' | 'steel' | 'mithril' | 'adamant', ToolStock>>>;
+  /** Gems on the hoard, by kind. Treasure: never spent, worth adds to the hoard. */
+  gems: Record<string, number>;
+  /** Things only ever found, never made (mithril, adamant), once the first turns up. */
+  discovered: string[];
   /** For the game's own dice (mishaps, requests), so runs replay the same in tests. */
   seed: number;
 }
@@ -114,7 +117,7 @@ export interface DragonState {
   /** Meat eaten since the last molt, by animal ('jerky' for the alchemist's). */
   fed: Record<string, number>;
   traits: string[];
-  /** Cubic paces. It grows into its lair while content. */
+  /** Cubic paces. It grows into the hoard room while content, taking up space there. */
   size: number;
 }
 
@@ -149,7 +152,7 @@ export function newGame(now: number): GameState {
   const rooms: Record<string, RoomState> = {};
   for (const r of ROOMS) rooms[r.id] = { volume: r.start };
   return {
-    res: { copper: 0, silver: 0, gold: 0, wood: 0, stone: 0, ore: 0, bars: 0, steel: 0, meat: 0 },
+    res: { copper: 0, silver: 0, gold: 0, wood: 0, stone: 0, ore: 0, bars: 0, steel: 0, mithril: 0, adamant: 0, meat: 0 },
     totalEarned: 0,
     idle: 0,
     crews: {},
@@ -177,6 +180,8 @@ export function newGame(now: number): GameState {
     nextColonyId: 1,
     forge: { slots: [], toolUse: {} },
     tools: {},
+    gems: {},
+    discovered: [],
     seed: (now % 2_147_483_647) || 1,
   };
 }

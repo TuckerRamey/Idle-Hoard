@@ -3,6 +3,7 @@
 
 import { PIP_ODDITIES, quirkOf, raiseStat } from './chief';
 import { artStep } from './art';
+import { findStep } from './finds';
 import {
   ATTRACTION,
   CONFIG,
@@ -11,6 +12,7 @@ import {
   HOARD_SIZE_THRESHOLDS,
   IDLE,
   JOBS,
+  GEMS,
   RECIPES,
   RESOURCES,
   ROOMS,
@@ -33,7 +35,7 @@ export const roomDef = (id: string) => ROOMS.find((r) => r.id === id);
 export const resourceDef = (id: ResourceId) => RESOURCES.find((r) => r.id === id)!;
 export const recipeDef = (id: string) => RECIPES.find((r) => r.id === id);
 
-export const emptyRes = () => ({ copper: 0, silver: 0, gold: 0, wood: 0, stone: 0, ore: 0, bars: 0, steel: 0, meat: 0 }) as Record<ResourceId, number>;
+export const emptyRes = () => ({ copper: 0, silver: 0, gold: 0, wood: 0, stone: 0, ore: 0, bars: 0, steel: 0, mithril: 0, adamant: 0, meat: 0 }) as Record<ResourceId, number>;
 
 // ---------- what's open ----------
 
@@ -43,6 +45,7 @@ export function jobOpen(state: GameState, def: JobDef): boolean {
 
 export function resourceOpen(state: GameState, res: ResourceId): boolean {
   const def = resourceDef(res);
+  if (def.foundOnly) return state.discovered.includes(res);
   return opened(state, def.requires) && state.stage >= (def.minStage ?? 0);
 }
 
@@ -256,7 +259,6 @@ export function roomVolume(state: GameState, roomId: string): number {
 
 /** What a room holds: cubic paces of goods, or beds, herders or smiths. */
 export function roomCapacity(state: GameState, def: RoomDef, volume = roomVolume(state, def.id)): number {
-  if (def.holds === 'dragon') return 0;
   if (def.holds === 'goods') return volume;
   let m = 1;
   if (def.holds === 'beds') m *= storageMult(state) * researchMult(state, 'bedsMult');
@@ -279,10 +281,13 @@ export function capacity(state: GameState, res: ResourceId): number {
     // one shared pile: what's held, plus however much more fits in the space left
     let used = 0;
     for (const g of storeGoods(state, 'hoard')) used += state.res[g.id] / g.perPace;
-    const free = Math.max(0, roomVolume(state, 'hoard') * mult - used);
+    // the dragon sleeps on the pile and takes up room as it grows
+    const free = Math.max(0, roomVolume(state, 'hoard') * mult - state.dragon.size - used);
     return Math.floor(state.res[res] + free * def.perPace + 1e-9);
   }
-  const share = roomVolume(state, room.id) / Math.max(1, storeGoods(state, room.id).length);
+  // rare finds (mithril, adamant) keep a small corner and don't crowd out the rest
+  if (def.foundOnly) return Math.max(10, Math.floor(roomVolume(state, room.id) * 0.05 * def.perPace * mult));
+  const share = roomVolume(state, room.id) / Math.max(1, storeGoods(state, room.id).filter((g) => !g.foundOnly).length);
   return Math.floor(share * def.perPace * mult);
 }
 
@@ -299,6 +304,16 @@ export function herdersFit(state: GameState): number {
 export function supportsFor(volume: number, state?: GameState) {
   const m = state ? researchMult(state, 'supportsMult') : 1;
   return DIG.supports.filter((s) => volume >= s.fromPaces).map((s) => ({ ...s, perPace: s.perPace * m }));
+}
+
+/** What each cubic pace dug turns up in a room this big (only goods the warren knows). */
+export function digYields(volume: number, state: GameState): Partial<Record<ResourceId, number>> {
+  let step: (typeof DIG.yields)[number] | undefined;
+  for (const y of DIG.yields) if (volume >= y.fromPaces) step = y;
+  const out: Partial<Record<ResourceId, number>> = {};
+  if (!step) return out;
+  for (const [res, n] of Object.entries(step.give)) if (resourceOpen(state, res as ResourceId)) out[res as ResourceId] = n;
+  return out;
 }
 
 /** The biggest a room can be dug. */
@@ -369,6 +384,7 @@ export function flows(state: GameState): Record<ResourceId, Flow> {
     const blocked = digBlocked(state, room);
     if (paces > 0 && blocked !== 'full')
       for (const s of supportsFor(roomVolume(state, room), state)) if (!blocked || blocked === s.resource) use(s.resource, paces * s.perPace, 'digging');
+    if (paces > 0 && !blocked) for (const [res, n] of Object.entries(digYields(roomVolume(state, room), state))) inn[res as ResourceId] += paces * (n ?? 0);
   }
   for (const [res, n] of Object.entries(forgeUse(state))) use(res as ResourceId, n ?? 0, 'forge');
   for (const [res, n] of Object.entries(forgeMakes(state))) inn[res as ResourceId] += n ?? 0;
@@ -437,10 +453,11 @@ export function jobHints(state: GameState): Record<string, string> {
 
 // ---------- kobolds coming to the hoard ----------
 
-/** The hoard's worth in copper: copper, silver and gold together. */
+/** The hoard's worth in copper: copper, silver, gold and gems together. */
 export function hoardValue(state: GameState): number {
   let v = 0;
   for (const r of RESOURCES) if (r.value) v += state.res[r.id] * r.value;
+  for (const g of GEMS) v += (state.gems[g.id] ?? 0) * g.value;
   return v;
 }
 
@@ -566,6 +583,7 @@ export function tick(state: GameState, seconds: number, t = state.lastTick): Tic
     r.events.push(...artStep(state, dt, at, rand));
     r.events.push(...oddityPips(state));
     r.events.push(...talentStep(state, dt, at, rand));
+    r.events.push(...findStep(state, dt, at, rand));
     r.events.push(...epithetStep(state, at));
     r.events.push(...colonyStep(state, dt, at, rand));
     const s = stageFor(hoardValue(state));
@@ -603,6 +621,8 @@ function dig(state: GameState, roomId: string, work: number, r: TickResult, rand
     if (paces <= 1e-9) return; // stalled for supports, or full
     for (const x of sup) state.res[x.resource] = Math.max(0, state.res[x.resource] - paces * x.perPace);
     const before = room.volume;
+    // deeper rooms turn up stone, then ore too
+    for (const [res, n] of Object.entries(digYields(room.volume, state))) store(state, res as ResourceId, paces * (n ?? 0));
     room.volume += paces;
     work -= paces * wpp;
     const mark = volumeMilestone(before);

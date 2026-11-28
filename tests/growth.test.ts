@@ -172,6 +172,11 @@ describe('research', () => {
       };
       for (const q of r.requires) walk(q);
       learn(s, ...need);
+      // projects that need something found first open once it has been
+      for (const id of [...need, r.id]) {
+        const f = researchDef(id)!.found;
+        if (f) s.discovered.push(f);
+      }
       for (const res of Object.keys(r.resources ?? {})) expect(resourceOpen(s, res as ResourceId), `${r.id} uses ${res}`).toBe(true);
     }
   });
@@ -345,7 +350,7 @@ describe('the dragon', () => {
     const s = hatched();
     const m = MOLTS[0];
     expect(moltNeeds(s)!.every((n) => n.met)).toBe(false);
-    s.rooms.lair = { volume: m.lair };
+    s.rooms.hoard = { volume: m.hoard };
     s.res.copper = m.value;
     s.dragon.granted = m.granted;
     s.dragon.content = m.contentHours * 3600 - 5;
@@ -398,12 +403,12 @@ describe('a long absence with everything going', () => {
       researcher: { n: 4 },
       herder: { n: 3 },
     };
-    s.dig = { lair: s.crews.digger?.n ?? 0 };
+    s.dig = { hoard: s.crews.digger?.n ?? 0 };
     const pop = population(s);
     const r = advanceTo(s, T0 + 24 * 3600 * 1000);
     expect(population(s)).toBeGreaterThanOrEqual(pop);
     for (const v of Object.values(s.res)) expect(Number.isFinite(v) && v >= 0).toBe(true);
     expect(r.events.length).toBeGreaterThan(0);
-    expect(s.rooms.lair.volume).toBeGreaterThan(50);
+    expect(s.rooms.hoard.volume).toBeGreaterThan(50);
   });
 });

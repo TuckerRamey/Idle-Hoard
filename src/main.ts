@@ -85,6 +85,7 @@ document.querySelector('#away-close')!.addEventListener('click', () => (awayEl.h
 const chronicle = new ChronicleView(getState);
 const oddities = new OdditiesView(getState);
 const tabs = new TabsView(getState);
+document.querySelector('#settings-open')!.addEventListener('click', () => tabs.toggleSettings());
 const renderer = new Renderer(document.querySelector('#scene') as HTMLCanvasElement, getState);
 
 function updatePanels() {

@@ -3,7 +3,7 @@
 // src/render/manifest.ts if it needs a new sprite).
 
 export type SpriteId = string;
-export type ResourceId = 'copper' | 'silver' | 'gold' | 'wood' | 'stone' | 'ore' | 'bars' | 'steel' | 'meat';
+export type ResourceId = 'copper' | 'silver' | 'gold' | 'wood' | 'stone' | 'ore' | 'bars' | 'steel' | 'mithril' | 'adamant' | 'meat';
 
 export interface ResourceDef {
   id: ResourceId;
@@ -18,6 +18,8 @@ export interface ResourceDef {
   requires?: string;
   /** Dragon stage that uncovers it (the dragon makes silver, then gold). */
   minStage?: number;
+  /** Only found, never made: it's known once the first one turns up. */
+  foundOnly?: boolean;
 }
 
 export const RESOURCES: ResourceDef[] = [
@@ -29,7 +31,29 @@ export const RESOURCES: ResourceDef[] = [
   { id: 'ore', name: 'Iron ore', store: 'metals', perPace: 40, requires: 'ore-sniffing' },
   { id: 'bars', name: 'Iron bars', store: 'metals', perPace: 80, requires: 'smithing' },
   { id: 'steel', name: 'Steel', store: 'metals', perPace: 80, requires: 'steelmaking' },
+  { id: 'mithril', name: 'Mithril', store: 'metals', perPace: 80, foundOnly: true },
+  { id: 'adamant', name: 'Adamant', store: 'metals', perPace: 80, foundOnly: true },
   { id: 'meat', name: 'Meat', store: 'larder', perPace: 30, requires: 'crab-wrangling' },
+];
+
+/** Gems: treasure on the hoard, only ever found. Each adds its worth to the hoard. */
+export interface GemDef {
+  id: string;
+  name: string;
+  /** Worth in copper. */
+  value: number;
+  rarity: 'common' | 'uncommon' | 'rare' | 'very rare';
+}
+
+export const GEMS: GemDef[] = [
+  { id: 'quartz', name: 'Quartz', value: 50, rarity: 'common' },
+  { id: 'amber', name: 'Amber', value: 80, rarity: 'common' },
+  { id: 'garnet', name: 'Garnet', value: 400, rarity: 'uncommon' },
+  { id: 'amethyst', name: 'Amethyst', value: 500, rarity: 'uncommon' },
+  { id: 'sapphire', name: 'Sapphire', value: 3_000, rarity: 'rare' },
+  { id: 'emerald', name: 'Emerald', value: 4_000, rarity: 'rare' },
+  { id: 'ruby', name: 'Ruby', value: 20_000, rarity: 'very rare' },
+  { id: 'star-diamond', name: 'Star diamond', value: 50_000, rarity: 'very rare' },
 ];
 
 /** How a job's kobolds move around the cave. Purely visual. */
@@ -166,8 +190,8 @@ export interface RoomDef {
   id: string;
   name: string;
   description: string;
-  /** Goods (see ResourceDef.store), or paces per bed / herder / smith, or the dragon's lair. */
-  holds: 'goods' | 'beds' | 'herders' | 'smiths' | 'dragon';
+  /** Goods (see ResourceDef.store), or paces per bed / herder / smith. */
+  holds: 'goods' | 'beds' | 'herders' | 'smiths';
   /** For beds, herders and smiths: cubic paces each one needs. */
   pacesEach?: number;
   /** Which list it shows in. */
@@ -184,7 +208,7 @@ export const ROOMS: RoomDef[] = [
   {
     id: 'hoard',
     name: 'Hoard room',
-    description: 'Where the copper and the dragon live. A bigger room holds more and draws more kobolds.',
+    description: 'Where the dragon sleeps on its hoard. The dragon takes up room as it grows; the rest holds copper, silver and gold.',
     holds: 'goods',
     group: 'living',
     start: 100,
@@ -197,15 +221,6 @@ export const ROOMS: RoomDef[] = [
     pacesEach: 10,
     group: 'living',
     start: 40,
-  },
-  {
-    id: 'lair',
-    name: 'Lair',
-    description: 'Where the dragon sleeps. It grows into its lair like a goldfish: each molt needs a bigger one.',
-    holds: 'dragon',
-    group: 'living',
-    minStage: 1,
-    start: 50,
   },
   {
     id: 'pasture',
@@ -277,6 +292,16 @@ export const DIG = {
     { fromPaces: 500, resource: 'stone' as ResourceId, perPace: 1 },
     { fromPaces: 1_500, resource: 'bars' as ResourceId, perPace: 0.4 },
   ],
+  /**
+   * What digging turns up once a room is past each size: about half of what
+   * that depth's supports cost, so a deep dig is cheaper but never free.
+   * Each step replaces the one before.
+   */
+  yields: [
+    { fromPaces: 150, give: { stone: 0.5 } },
+    { fromPaces: 500, give: { stone: 0.5, ore: 0.5 } },
+    { fromPaces: 1_500, give: { stone: 0.6, ore: 0.8 } },
+  ] as { fromPaces: number; give: Partial<Record<ResourceId, number>> }[],
   /** Without deep delving, no room can be dug past this. */
   maxPaces: 4_000,
 };

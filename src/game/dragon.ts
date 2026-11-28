@@ -2,9 +2,9 @@
 // wants to talk to, and how it molts into its next stage. Growth comes from
 // how the warren looks after it, not from a number filling up.
 
-import { DRAGON_STAGES, type ResourceId } from './data';
+import { DRAGON_STAGES, RESOURCES, type ResourceId } from './data';
 import { artAppeal } from './art';
-import { capacity, hoardValue, jobDef, jobOpen, production, resourceOpen, roomVolume, store, workers } from './economy';
+import { capacity, hoardValue, incomePerSecond, jobDef, jobOpen, production, resourceOpen, roomVolume, store, workers } from './economy';
 import { fullName, GIFTS, lieutenants, canName, nameOrCredit, findNamed, addHistory, type NamedKobold } from './kobolds';
 import { opened, researchEffect } from './research';
 import type { GameState } from './state';
@@ -267,15 +267,16 @@ export interface MoltDef {
   pieces: number;
   /** The stage this molt leaves. */
   from: number;
-  lair: number;
+  /** Cubic paces the hoard room must be dug to: the dragon needs room to grow into. */
+  hoard: number;
   granted: number;
   contentHours: number;
   lieutenants: number;
 }
 
 export const MOLTS: MoltDef[] = [
-  { from: 1, lair: 1_000, value: 10_000, pieces: 0, granted: 2, contentHours: 12, lieutenants: 0 },
-  { from: 2, lair: 3_000, value: 200_000, pieces: 3, granted: 4, contentHours: 24, lieutenants: 1 },
+  { from: 1, hoard: 1_500, value: 10_000, pieces: 0, granted: 2, contentHours: 12, lieutenants: 0 },
+  { from: 2, hoard: 4_000, value: 200_000, pieces: 3, granted: 4, contentHours: 24, lieutenants: 1 },
 ];
 
 /** A trait the dragon gets at a molt, from what it ate most. */
@@ -293,8 +294,8 @@ export const SIZE = {
   hatch: 20,
   /** Cubic paces gained per hour while fed and content. */
   growPerHour: 20,
-  /** It can fill this much of its lair... */
-  lairShare: 0.5,
+  /** It can fill this much of the hoard room... */
+  hoardShare: 0.5,
   /** ...up to this many paces at each stage (egg, wyrmling, young, adult). */
   capByStage: [0, 600, 2_000, 8_000],
 };
@@ -314,9 +315,9 @@ export const REFINE = {
   stageMult: 2,
 };
 
-/** How big the dragon can grow right now: part of its lair, up to its stage's limit. */
+/** How big the dragon can grow right now: part of the hoard room, up to its stage's limit. */
 export function sizeCap(state: GameState): number {
-  return Math.min(roomVolume(state, 'lair') * SIZE.lairShare, SIZE.capByStage[state.stage] ?? 0);
+  return Math.min(roomVolume(state, 'hoard') * SIZE.hoardShare, SIZE.capByStage[state.stage] ?? 0);
 }
 
 /** Is the dragon content enough to grow and refine? Only once it eats meat. */
@@ -359,9 +360,9 @@ export interface MoltNeed {
 export function moltNeeds(state: GameState): MoltNeed[] | null {
   const m = MOLTS.find((x) => x.from === state.stage);
   if (!m) return null;
-  const lair = roomVolume(state, 'lair');
+  const room = roomVolume(state, 'hoard');
   const needs: MoltNeed[] = [
-    { label: `Lair dug to ${m.lair} cubic paces`, have: Math.floor(lair), need: m.lair, met: lair >= m.lair },
+    { label: `Hoard room dug to ${m.hoard.toLocaleString('en-US')} cubic paces`, have: Math.floor(room), need: m.hoard, met: room >= m.hoard },
     { label: `A hoard worth ${m.value.toLocaleString('en-US')} copper`, have: Math.floor(hoardValue(state)), need: m.value, met: hoardValue(state) >= m.value },
     { label: `${m.granted} of its requests granted`, have: state.dragon.granted, need: m.granted, met: state.dragon.granted >= m.granted },
     {
@@ -503,4 +504,12 @@ export function dragonJobMult(state: GameState, job: string): number {
   let m = boostLeft(state, job) > 0 ? FAVOR.mult : 1;
   for (const tr of state.dragon.traits) if (DRAGON_TRAITS[tr]?.job === job) m *= DRAGON_TRAITS[tr].mult ?? 1;
   return m;
+}
+
+/** How fast the hoard's worth grows, in copper a second: what comes in, plus what the dragon's refining adds. */
+export function worthRate(state: GameState): number {
+  const r = refineRates(state);
+  const silver = RESOURCES.find((x) => x.id === 'silver')!.value ?? 10;
+  const gold = RESOURCES.find((x) => x.id === 'gold')!.value ?? 100;
+  return incomePerSecond(state) + r.copper * (silver / REFINE.copperPerSilver - 1) + r.silver * (gold / REFINE.silverPerGold - silver);
 }

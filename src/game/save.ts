@@ -140,7 +140,10 @@ function normalizeCrews(v: unknown): Record<string, Crew> {
 function normalizeRooms(v: unknown, base: Record<string, RoomState>): Record<string, RoomState> {
   const out: Record<string, RoomState> = { ...base };
   if (!v || typeof v !== 'object') return out;
-  for (const [k, r] of Object.entries(v as Record<string, any>)) out[k] = { volume: num(r?.volume, out[k]?.volume ?? 0) };
+  for (const [k, r] of Object.entries(v as Record<string, any>)) if (k !== 'lair') out[k] = { volume: num(r?.volume, out[k]?.volume ?? 0) };
+  // the lair became part of the hoard room: the dragon sleeps on its hoard now
+  const lair = (v as Record<string, any>).lair;
+  if (lair && out.hoard) out.hoard = { volume: out.hoard.volume + num(lair.volume, 0) };
   return out;
 }
 
@@ -155,7 +158,7 @@ function normalizeTools(v: unknown): GameState['tools'] {
   for (const [job, tiers] of Object.entries(v as Record<string, any>)) {
     if (!tiers || typeof tiers !== 'object') continue;
     out[job] = {};
-    for (const t of ['stone', 'iron', 'steel'] as const)
+    for (const t of ['stone', 'iron', 'steel', 'mithril', 'adamant'] as const)
       if (tiers[t]) out[job][t] = { n: Math.floor(num(tiers[t].n, 0)), wear: Math.min(1, num(tiers[t].wear, 0)) };
   }
   return out;
@@ -214,11 +217,15 @@ function normalizeColonies(v: unknown, now: number): Colony[] {
 function normalizeDig(r: any, crews: Record<string, Crew>, rooms: Record<string, RoomState>): Record<string, number> {
   const out: Record<string, number> = {};
   if (r.dig && typeof r.dig === 'object')
-    for (const [room, n] of Object.entries(r.dig)) if (rooms[room]) out[room] = Math.floor(num(n, 0));
+    for (const [k, n] of Object.entries(r.dig)) {
+      const room = k === 'lair' ? 'hoard' : k;
+      if (rooms[room]) out[room] = (out[room] ?? 0) + Math.floor(num(n, 0));
+    }
   const crewN = crews.digger?.n ?? 0;
   let sum = Object.values(out).reduce((a, b) => a + b, 0);
   if (sum < crewN) {
-    const target = typeof r.digging === 'string' && rooms[r.digging] ? r.digging : 'den';
+    const old = r.digging === 'lair' ? 'hoard' : r.digging;
+    const target = typeof old === 'string' && rooms[old] ? old : 'den';
     out[target] = (out[target] ?? 0) + crewN - sum;
   }
   sum = Object.values(out).reduce((a, b) => a + b, 0);
@@ -337,6 +344,8 @@ export function normalize(raw: unknown, now: number): GameState {
       ),
     },
     tools: normalizeTools(r.tools),
+    gems: Object.fromEntries(Object.entries(r.gems && typeof r.gems === 'object' ? r.gems : {}).filter(([, v]) => typeof v === 'number' && Number.isFinite(v) && v > 0)) as Record<string, number>,
+    discovered: strList(r.discovered),
     seed: Number.isInteger(r.seed) ? r.seed : base.seed,
   };
 }

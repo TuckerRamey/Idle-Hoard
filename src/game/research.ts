@@ -48,6 +48,8 @@ export interface ResearchDef {
   resources?: Partial<Record<ResourceId, number>>;
   requires: string[];
   minStage?: number;
+  /** Something that has to have been found first (a ResourceId only ever found, like mithril). */
+  found?: string;
   /** Direct bonuses. Most research instead opens things that name it in `requires`. */
   effects?: ResearchEffect[];
   /** Chronicle line when it's done. */
@@ -312,6 +314,26 @@ export const RESEARCH: ResearchDef[] = [
     effects: [{ kind: 'deepDigging' }],
     doneText: 'Deep delving. The diggers found the bottom of the world, and dug a bit further.',
   },
+  {
+    id: 'mithril-working',
+    name: 'Mithril working',
+    description: 'The forge makes mithril tools, from mithril the miners turn up. Opens once some has been found.',
+    cost: 25_000,
+    resources: { mithril: 3 },
+    requires: ['steelmaking'],
+    found: 'mithril',
+    doneText: 'Mithril tools. Light as a feather and they hum when nobody is looking.',
+  },
+  {
+    id: 'adamant-working',
+    name: 'Adamant working',
+    description: 'The forge makes adamant tools. Opens once a sliver has been found in the deep rooms.',
+    cost: 60_000,
+    resources: { adamant: 2 },
+    requires: ['mithril-working'],
+    found: 'adamant',
+    doneText: 'Adamant tools. Nothing scratches them. The researchers have tried everything, including the dragon.',
+  },
 ];
 
 export interface MishapDef {
@@ -367,6 +389,11 @@ export const MISHAPS: MishapDef[] = [
     talent: { job: 'miner', mult: 1.5, name: 'Dark-sighted: sees the ore seams in the dark' },
     effect: { kind: 'oddity', id: 'lanterns' },
   },
+  {
+    text: '{kobold} spilled a jar of four-leaf moss and rolled around in it to clean up. It did not clean anything up.',
+    title: 'the Mossy',
+    trait: 'Lucky',
+  },
 ];
 
 /** On average, one mishap per researcher per this many hours of work. */
@@ -408,7 +435,12 @@ export function researchEffect<K extends ResearchEffect['kind']>(state: GameStat
 }
 
 export function canResearch(state: GameState, def: ResearchDef): boolean {
-  return !researched(state, def.id) && def.requires.every((r) => researched(state, r)) && state.stage >= (def.minStage ?? 0);
+  return (
+    !researched(state, def.id) &&
+    def.requires.every((r) => researched(state, r)) &&
+    state.stage >= (def.minStage ?? 0) &&
+    (!def.found || state.discovered.includes(def.found))
+  );
 }
 
 export function availableResearch(state: GameState): ResearchDef[] {
