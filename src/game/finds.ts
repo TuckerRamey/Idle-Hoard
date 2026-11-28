@@ -6,6 +6,7 @@
 
 import { GEMS, type GemDef, type ResourceId } from './data';
 import { jobOpen, jobDef, resourceOpen, store, workers } from './economy';
+import { areaLuck } from './areas';
 import { addTool, bestTier, TIERS, TOOL_NAMES } from './forge';
 import { addHistory, fullName, namedIn, type NamedKobold } from './kobolds';
 import { researchEffect } from './research';
@@ -147,7 +148,7 @@ export function findStep(state: GameState, dt: number, t: number, rand: () => nu
     // who found it: a named kobold on the job (with their own luck), or someone from the crew
     const named = namedIn(state, job);
     const k = named.length && rand() < named.length / n ? pick(named, rand) : null;
-    let luck = (k ? luckOf(k, job) : 1) * (researchEffect(state, 'findLuck')?.mult ?? 1);
+    let luck = (k ? luckOf(k, job) : 1) * (researchEffect(state, 'findLuck')?.mult ?? 1) * areaLuck(state, job);
     if (named.some((x) => x.lieutenant)) luck *= WORK_FINDS.lieutenantLuck;
     let rarity = rollRarity(state, luck, rand, job);
     // a shaman's lucky charm: the next few finds are at least uncommon

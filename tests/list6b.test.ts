@@ -5,7 +5,8 @@ import type { Chief } from '../src/game/chief';
 import { DRAGON_STAGES } from '../src/game/data';
 import { dragonAppeal, dragonJobMult, dragonStat, moltNeeds, MOLTS, setHerd, STAT, trainCap } from '../src/game/dragon';
 import { appeal, assign, jobDef, jobOpen, tick } from '../src/game/economy';
-import { HUNT, huntStep, meatOnHand, monsterDef, setQuarry } from '../src/game/hunting';
+import { HUNT, huntStep, meatOnHand, monsterDef } from '../src/game/hunting';
+import { addArea, findable, areaDef } from '../src/game/areas';
 import { nextRaid, RAID, raidStep, raidTarget } from '../src/game/raids';
 import { canResearch, researchDef } from '../src/game/research';
 import { normalize } from '../src/game/save';
@@ -16,6 +17,7 @@ const chief: Chief = { name: 'Snik', cunning: 0, voice: 0, nerve: 0, quirk: 'non
 
 function game(stage = 2): GameState {
   const s = newGame(T0);
+  s.explore.found.push('grove', 'rubble-cave'); // the starting woods and stone, so every gathering job is open
   s.chief = { ...chief };
   s.newcomerJob = 'idle';
   s.seed = 777;
@@ -60,12 +62,15 @@ describe('hunting', () => {
     expect(canResearch(s, def)).toBe(true);
     expect(jobOpen(s, jobDef('hunter')!)).toBe(false);
     s.research.done.push('monster-tracking');
+    expect(jobOpen(s, jobDef('hunter')!)).toBe(false); // the scouts still have to find a hunting ground
+    addArea(s, 'bear-caves');
     expect(jobOpen(s, jobDef('hunter')!)).toBe(true);
   });
 
   it('hunters bring back monster meat and larder meat, and enough kills open farming', () => {
     const s = game(1);
     s.research.done.push('monster-tracking');
+    addArea(s, 'bear-caves');
     s.dragon.hungry = true; // not eating it yet
     s.idle = 20;
     assign(s, 'hunter', 20);
@@ -73,7 +78,7 @@ describe('hunting', () => {
     expect(canResearch(s, farm)).toBe(false);
     const rand = rng(s);
     const lines: string[] = [];
-    for (let i = 0; i < 2_000 && (s.hunt.hunted['cave-bear'] ?? 0) < 25; i++) lines.push(...huntStep(s, 60, T0, rand));
+    for (let i = 0; i < 4_000 && (s.hunt.hunted['cave-bear'] ?? 0) < 25; i++) lines.push(...huntStep(s, 60, T0, rand));
     expect(s.hunt.hunted['cave-bear']).toBe(25);
     expect(s.hunt.meat['cave-bear'].wild).toBe(Math.min(HUNT.maxMeat, 25 * HUNT.meatPerKill));
     expect(lines.some((l) => l.includes('first cave bear'))).toBe(true);
@@ -84,12 +89,14 @@ describe('hunting', () => {
 
   it('deep and dangerous monsters wait for a bigger dragon and a deep room', () => {
     const s = game(2);
-    expect(setQuarry(s, 'basilisk')).toBe(false);
+    s.research.done.push('monster-tracking');
+    const maze = areaDef('basilisk-maze')!;
+    expect(findable(s, maze)).toBe(false);
     s.stage = 3;
-    expect(setQuarry(s, 'basilisk')).toBe(false);
+    expect(findable(s, maze)).toBe(false);
     s.rooms.den.volume = 1_500;
-    expect(setQuarry(s, 'basilisk')).toBe(true);
-    expect(setQuarry(s, 'wyvern')).toBe(false);
+    expect(findable(s, maze)).toBe(true);
+    expect(findable(s, areaDef('wyvern-cliffs')!)).toBe(false);
   });
 
   it('the dragon eats a bite now and then, wild first, training its stat up to the cap', () => {
@@ -209,6 +216,6 @@ describe('the elder and ancient dragon', () => {
     expect(back.dragon.trained.fire).toBe(12);
     expect(back.hunt.hunted.salamander).toBe(3);
     delete raw.hunt;
-    expect(normalize(raw, T0).hunt.quarry).toBe('cave-bear');
+    expect(normalize(raw, T0).hunt.hunted).toEqual({});
   });
 });

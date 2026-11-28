@@ -1,11 +1,12 @@
 // The DOM side panel. Updated once per economy tick, and only the bits of
 // text that changed are written, so it costs next to nothing.
 
-import { huntableMonsters, huntHint, setQuarry } from '../game/hunting';
+import { huntHint } from '../game/hunting';
+import { gathered, yardFull } from '../game/areas';
 import { shamanHint } from '../game/magic';
 import { toolTag } from '../game/forge';
 import { DIG, DRAGON_STAGES, GEMS, IDLE, JOBS, RESOURCES, ROOMS, type ResourceId } from '../game/data';
-import { animalsOpen, setHerd, STATS, worthRate } from '../game/dragon';
+import { animalsOpen, setHerd, worthRate } from '../game/dragon';
 import {
   appeal,
   arrivalSeconds,
@@ -21,8 +22,6 @@ import {
   herdersFit,
   hoardValue,
   jobHints,
-  minerSplit,
-  oreShare,
   jobOpen,
   jobOutput,
   namedInJob,
@@ -52,8 +51,7 @@ export type HudEvent =
   | { kind: 'newcomers'; job: string }
   | { kind: 'dig'; room: string; moved: number }
   | { kind: 'herd'; animal: string }
-  | { kind: 'recipe'; id: string }
-  | { kind: 'quarry'; id: string };
+  | { kind: 'recipe'; id: string };
 
 const STEPS = [1, 5, 20, Infinity];
 const resName = (id: ResourceId) => resourceDef(id).name.toLowerCase();
@@ -68,6 +66,7 @@ export function costText(cost: Partial<Record<ResourceId, number>>): string {
 export const JOB_GROUPS: { name: string; jobs: string[] }[] = [
   { name: 'Gathering', jobs: ['scavenger', 'woodcutter', 'miner'] },
   { name: 'Animals', jobs: ['herder', 'hunter'] },
+  { name: 'Exploring', jobs: ['scout'] },
 ];
 /** Jobs assigned from their own tab: researchers on Research, blacksmiths and the alchemist on Forge. */
 export const JOB_ELSEWHERE: Record<string, string> = { researcher: '#research-jobs', shaman: '#research-jobs', blacksmith: '#forge-jobs', alchemist: '#forge-jobs' };
@@ -212,11 +211,11 @@ export class Hud {
       down.addEventListener('click', () => this.move(def.id, -1));
       up.addEventListener('click', () => this.move(def.id, 1));
       const r: JobRow = { li, count: li.querySelector('.count')!, rate: li.querySelector('.sub')!, hint: li.querySelector('.hint')!, down, up };
-      if (def.id === 'herder' || def.id === 'alchemist' || def.id === 'hunter') {
+      if (def.id === 'herder' || def.id === 'alchemist') {
         const wrap = document.createElement('div');
         wrap.className = 'desc newcomers';
         const label = document.createElement('label');
-        label.textContent = def.id === 'herder' ? 'Raising ' : def.id === 'hunter' ? 'Hunting ' : 'Making ';
+        label.textContent = def.id === 'herder' ? 'Raising ' : 'Making ';
         const sel = document.createElement('select');
         sel.id = `${def.id}-choice`;
         label.htmlFor = sel.id;
@@ -224,9 +223,7 @@ export class Hud {
         li.querySelector('.desc')!.after(wrap);
         sel.addEventListener('change', () => {
           const s = this.getState();
-          if (def.id === 'hunter') {
-            if (setQuarry(s, sel.value)) this.onChange({ kind: 'quarry', id: sel.value });
-          } else if (def.id === 'herder' ? setHerd(s, sel.value) : setRecipe(s, sel.value))
+          if (def.id === 'herder' ? setHerd(s, sel.value) : setRecipe(s, sel.value))
             this.onChange(def.id === 'herder' ? { kind: 'herd', animal: sel.value } : { kind: 'recipe', id: sel.value });
         });
         r.extra = sel;
@@ -368,15 +365,16 @@ export class Hud {
       const stars = namedInJob(s, def.id);
       setText(row.count, `×${c.n}${stars ? ` + ${stars} named` : ''}`);
       const each = perKobold(s, def);
-      const what = def.produces ? resName(def.produces.resource) : def.digs ? 'digging' : def.researches ? 'research' : def.smiths ? 'forge work' : def.hunts ? 'hunting' : def.channels ? 'mana' : 'turned over';
+      const what = def.produces ? resName(def.produces.resource) : def.digs ? 'digging' : def.researches ? 'research' : def.smiths ? 'forge work' : def.hunts ? 'hunting' : def.channels ? 'mana' : def.explores ? 'exploring' : 'turned over';
       const tag = toolTag(s, def.id);
       const withTag = (text: string) => (tag ? `${text} · ${tag}` : text);
       const total = jobOutput(s, def);
-      if (def.id === 'miner' && oreShare(s) > 0) {
-        // stone and ore, in a steady split
-        const sp = minerSplit(s);
-        const parts = (x: number) => [sp.stone > 0 ? `${formatNumber(x * sp.stone)} stone` : '', `${formatNumber(x * sp.ore)} iron ore`].filter(Boolean).join(' and ');
-        setText(row.rate, withTag(workers(s, def.id) > 0 ? `${parts(total)} / s (${sp.yardFull ? 'ore only while the stone yard is full' : `${Math.round(oreShare(s) * 100)}% comes out as ore`})` : `${parts(each)} / s each`));
+      if (def.area && def.produces && workers(s, def.id) > 0) {
+        // what the areas actually give, which can be more than one thing
+        const made = Object.entries(gathered(s, def.area)).filter(([, n]) => (n ?? 0) > 0.0005) as [ResourceId, number][];
+        const parts = made.length ? made.map(([r, n]) => `${formatNumber(n)} ${resName(r)}`).join(', ') : `0 ${what}`;
+        const note = def.id === 'miner' && yardFull(s) ? ' (ore only while the stone yard is full)' : ` (${formatNumber(each)} each)`;
+        setText(row.rate, withTag(`${parts} / s${note}`));
       } else if (def.channels) {
         // mana comes slowly: per hour reads better
         setText(row.rate, withTag(workers(s, def.id) > 0 ? `${formatNumber(total * 3600)} mana an hour (${formatNumber(each * 3600)} each)` : `${formatNumber(each * 3600)} mana an hour each`));
@@ -395,8 +393,6 @@ export class Hud {
         const fit = herdersFit(s);
         syncOptions(row.extra, animalsOpen(s).map((x) => [x.id, x.name]), s.herd);
         row.extra.title = `The pasture fits ${fit} herders`;
-      } else if (row.extra && def.id === 'hunter') {
-        syncOptions(row.extra, huntableMonsters(s).map((m) => [m.id, `${m.plural[0].toUpperCase()}${m.plural.slice(1)} (${STATS.find((x) => x.id === m.stat)!.name})`]), s.hunt.quarry);
       } else if (row.extra) syncOptions(row.extra, recipesOpen(s).map((x) => [x.id, `${x.name}, ${formatNumber(recipeRatio(s, x))} to 1`]), s.recipe);
     }
     // a tab's job block shows once one of its jobs is open

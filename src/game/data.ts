@@ -85,6 +85,10 @@ export interface JobDef {
   hunts?: number;
   /** Mana each kobold draws out of bones and dragon dust per second. */
   channels?: number;
+  /** Exploring points each kobold puts in per second. */
+  explores?: number;
+  /** Works areas of this kind, and only opens once the scouts have found one. */
+  area?: 'wood' | 'stone' | 'copper' | 'monsters';
   /** Research that opens this job. */
   requires?: string;
   sprite: SpriteId;
@@ -99,6 +103,7 @@ export const JOBS: JobDef[] = [
     name: 'Scavenger',
     description: 'Picks copper out of the tunnels.',
     produces: { resource: 'copper', rate: 0.5 },
+    area: 'copper',
     sprite: 'kobold-scavenger',
     motion: { kind: 'haul', lane: 0, speed: 18 },
     firstText: 'A kobold wandered in, drawn by the glitter. {chief} handed them a sack before they could leave.',
@@ -108,6 +113,7 @@ export const JOBS: JobDef[] = [
     name: 'Woodcutter',
     description: 'Fells giant cave mushrooms for timber.',
     produces: { resource: 'wood', rate: 0.5 },
+    area: 'wood',
     sprite: 'kobold-woodcutter',
     motion: { kind: 'haul', lane: 1, speed: 13 },
     firstText: 'The first woodcutter came back with a mushroom twice their size and a very proud face.',
@@ -133,11 +139,21 @@ export const JOBS: JobDef[] = [
   {
     id: 'miner',
     name: 'Miner',
-    description: 'Cuts stone out of the cave walls. Once the researchers can sniff out iron, part of it comes out as iron ore for the forge.',
+    description: 'Cuts stone out of the rock the scouts have found. Iron-bearing ground gives iron ore too, once the researchers can sniff it out.',
     produces: { resource: 'stone', rate: 0.5 },
+    area: 'stone',
     sprite: 'kobold-miner',
     motion: { kind: 'haul', lane: 2, speed: 11 },
     firstText: 'The first miner gets a pick nearly bigger than they are. They love it.',
+  },
+  {
+    id: 'scout',
+    name: 'Scout',
+    description: 'Goes off into the dark to find new places to work. Eats provisions from the larder, once there is one.',
+    explores: 0.1,
+    sprite: 'kobold-scout',
+    motion: { kind: 'haul', lane: 0, speed: 20 },
+    firstText: 'The first scout went off into the dark with a torch and a sandwich. They came back with neither, and a map.',
   },
   {
     id: 'herder',
@@ -152,9 +168,10 @@ export const JOBS: JobDef[] = [
   {
     id: 'hunter',
     name: 'Hunter',
-    description: 'Goes out into the deep caves after monsters. Their meat makes the dragon stronger.',
+    description: 'Hunts monsters on the grounds the scouts have found, best ground first. Their meat makes the dragon stronger.',
     hunts: 0.1,
     requires: 'monster-tracking',
+    area: 'monsters',
     sprite: 'kobold-hunter',
     motion: { kind: 'haul', lane: 1, speed: 15 },
     firstText: 'The first hunter went off into the deep caves with a spear and a very serious face.',

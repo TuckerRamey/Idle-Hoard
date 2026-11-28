@@ -30,6 +30,7 @@ export const ODDITIES: OddityDef[] = [
   { id: 'raid-banners', name: 'Raid banners', description: '{n} banners torn down by the dragon and carried home. The kobolds sleep under them.', stacks: true },
   { id: 'town-bell', name: 'A town bell', description: 'The dragon carried it home from a raid. Somebody rings it whenever it wakes up.', stacks: false, incomeMult: 1.01 },
   { id: 'wizard-hat', name: "A wizard's hat", description: 'Still a little bit magic. It changes colour when the Chief lies.', stacks: false, incomeMult: 1.02 },
+  { id: 'battlefield-weapons', name: 'Battlefield weapons', description: '{n} swords, axes and one very surprised-looking mace, dug out of the old battlefield. Still sharp.', stacks: true },
   { id: 'shed-skins', name: 'Shed dragon skins', description: '{n} of them, each bigger than the last. Kept rolled up beside the hoard like rugs.', stacks: true },
 ];
 

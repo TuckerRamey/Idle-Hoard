@@ -33,6 +33,7 @@ const room = (id: string) => ROOMS.find((r) => r.id === id)!;
 /** A game with a Chief whose stats do nothing, so the numbers are easy to check. */
 function game(): GameState {
   const s = newGame(T0);
+  s.explore.found.push('grove', 'rubble-cave'); // the starting woods and stone, so every gathering job is open
   s.chief = { ...chief };
   s.newcomerJob = 'idle';
   return s;

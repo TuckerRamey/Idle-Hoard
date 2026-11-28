@@ -95,13 +95,30 @@ export interface GameState {
   hunt: HuntState;
   /** Shaman magic: what they work with, mana, and rituals running. */
   magic: MagicState;
+  /** Exploring: what the scouts look for, their points toward the next find of each kind, and the areas found. */
+  explore: ExploreState;
   /** For the game's own dice (mishaps, requests), so runs replay the same in tests. */
   seed: number;
 }
 
+export interface ExploreState {
+  target: 'wood' | 'stone' | 'copper' | 'monsters' | null;
+  points: Partial<Record<'wood' | 'stone' | 'copper' | 'monsters', number>>;
+  /** Area ids, in the order found. */
+  found: string[];
+  /** Areas named after the scout who found them. */
+  names: Record<string, string>;
+  /** Old saves only: extra room per kind, so nothing they made before drops ("the old workings"). */
+  bonus: Partial<Record<'wood' | 'stone' | 'copper' | 'monsters', number>>;
+  /** Hunting work toward the next kill on each ground. */
+  progress: Record<string, number>;
+}
+
+export function newExplore(): ExploreState {
+  return { target: 'wood', points: {}, found: ['near-tunnels'], names: {}, bonus: {}, progress: {} };
+}
+
 export interface HuntState {
-  quarry: string;
-  progress: number;
   hunted: Record<string, number>;
   /** Monster meat in the larder, by monster: wild (hunted) and farmed (raised in the pasture). */
   meat: Record<string, { wild: number; farmed: number }>;
@@ -132,7 +149,7 @@ export function newMagic(): MagicState {
 }
 
 export function newHunt(): HuntState {
-  return { quarry: 'cave-bear', progress: 0, hunted: {}, meat: {}, eatClock: 0 };
+  return { hunted: {}, meat: {}, eatClock: 0 };
 }
 
 export interface DragonState {
@@ -239,6 +256,7 @@ export function newGame(now: number): GameState {
     discovered: [],
     hunt: newHunt(),
     magic: newMagic(),
+    explore: newExplore(),
     seed: (now % 2_147_483_647) || 1,
   };
 }

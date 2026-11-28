@@ -14,7 +14,8 @@ import { JOBS, RESOURCES } from './data';
 import type { ToolStock } from './forge';
 import type { NamedKobold } from './kobolds';
 import type { Colony } from './colonies';
-import { CHRONICLE_MAX, newDragon, newGame, newHunt, newMagic, type ChronicleEntry, type Crew, type DragonState, type GameState, type HuntState, type MagicState, type RoomState } from './state';
+import { areaDef, legacyAreas } from './areas';
+import { CHRONICLE_MAX, newDragon, newExplore, newGame, newHunt, newMagic, type ExploreState, type ChronicleEntry, type Crew, type DragonState, type GameState, type HuntState, type MagicState, type RoomState } from './state';
 
 export const SAVE_VERSION = 3;
 export const SAVE_KEY = 'idle-hoard.save';
@@ -372,7 +373,7 @@ export function normalize(raw: unknown, now: number): GameState {
   for (const d of RESOURCES) res[d.id] = num(r.res?.[d.id], 0);
   const crews = normalizeCrews(r.crews);
   const rooms = normalizeRooms(r.rooms, base.rooms);
-  return {
+  const state: GameState = {
     res,
     totalEarned: num(r.totalEarned, base.totalEarned),
     idle: Math.floor(num(r.idle, 0)),
@@ -429,7 +430,30 @@ export function normalize(raw: unknown, now: number): GameState {
     discovered: strList(r.discovered),
     hunt: normalizeHunt(r.hunt),
     magic: normalizeMagic(r.magic, r.oddities),
+    explore: normalizeExplore(r.explore),
     seed: Number.isInteger(r.seed) ? r.seed : base.seed,
+  };
+  // saves from before areas: find enough for them that nothing they made drops
+  if (!r.explore || typeof r.explore !== 'object') legacyAreas(state);
+  return state;
+}
+
+const KIND_IDS = ['wood', 'stone', 'copper', 'monsters'] as const;
+
+function normalizeExplore(v: any): ExploreState {
+  const base = newExplore();
+  if (!v || typeof v !== 'object') return { ...base, found: [] };
+  const nums = (o: any) => Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).filter(([, n]) => typeof n === 'number' && Number.isFinite(n) && n >= 0)) as Record<string, number>;
+  const found = strList(v.found).filter((id, i, a) => areaDef(id) && a.indexOf(id) === i);
+  if (!found.includes('near-tunnels')) found.unshift('near-tunnels');
+  const pick = (o: Record<string, number>) => Object.fromEntries(Object.entries(o).filter(([k]) => (KIND_IDS as readonly string[]).includes(k)));
+  return {
+    target: (KIND_IDS as readonly string[]).includes(v.target) ? v.target : v.target === null ? null : base.target,
+    points: pick(nums(v.points)),
+    found,
+    names: Object.fromEntries(Object.entries(v.names && typeof v.names === 'object' ? v.names : {}).filter(([k, n]) => areaDef(k) && typeof n === 'string')) as Record<string, string>,
+    bonus: pick(nums(v.bonus)),
+    progress: Object.fromEntries(Object.entries(nums(v.progress)).filter(([k]) => areaDef(k))),
   };
 }
 
@@ -459,8 +483,6 @@ function normalizeHunt(v: any): HuntState {
   for (const [k, m] of Object.entries(v.meat && typeof v.meat === 'object' ? v.meat : {}))
     if (m && typeof m === 'object') meat[k] = { wild: num((m as any).wild, 0), farmed: num((m as any).farmed, 0) };
   return {
-    quarry: typeof v.quarry === 'string' ? v.quarry : base.quarry,
-    progress: num(v.progress, 0),
     hunted: counts(v.hunted),
     meat,
     eatClock: num(v.eatClock, 0),

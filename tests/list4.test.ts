@@ -32,6 +32,7 @@ const chief: Chief = { name: 'Snik', cunning: 0, voice: 0, nerve: 0, quirk: 'non
 
 function game(): GameState {
   const s = newGame(T0);
+  s.explore.found.push('grove', 'rubble-cave'); // the starting woods and stone, so every gathering job is open
   s.chief = { ...chief };
   s.newcomerJob = 'idle';
   s.seed = 4242;

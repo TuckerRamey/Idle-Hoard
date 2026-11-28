@@ -65,6 +65,7 @@ export const SPRITES: Record<string, SpriteDef> = {
   'kobold-blacksmith': { src: art('kobold-blacksmith.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
   'kobold-shaman': { src: art('kobold-shaman.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
   'kobold-hunter': { src: art('kobold-hunter.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
+  'kobold-scout': { src: art('kobold-scout.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
   // Hats for named kobolds, drawn over the kobold at the same spot. One frame per look.
   hats: { src: art('hats.png'), frameW: 12, frameH: 12, animations: { looks: { row: 0, frames: 6, fps: 0 } } },
   // Kobolds with no job yet. They mostly stand about.
