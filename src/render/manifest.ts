@@ -52,6 +52,8 @@ export const SPRITES: Record<string, SpriteDef> = {
   wyrmling: { src: art('wyrmling.png'), frameW: 32, frameH: 24, animations: DRAGON_ANIMS },
   'young-dragon': { src: art('young-dragon.png'), frameW: 48, frameH: 36, animations: DRAGON_ANIMS },
   'adult-dragon': { src: art('adult-dragon.png'), frameW: 64, frameH: 48, animations: DRAGON_ANIMS },
+  'elder-dragon': { src: art('elder-dragon.png'), frameW: 72, frameH: 54, animations: DRAGON_ANIMS },
+  'ancient-dragon': { src: art('ancient-dragon.png'), frameW: 80, frameH: 60, animations: DRAGON_ANIMS },
   'kobold-scavenger': { src: art('kobold-scavenger.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
   'kobold-digger': { src: art('kobold-digger.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
   'kobold-woodcutter': { src: art('kobold-woodcutter.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
@@ -61,6 +63,7 @@ export const SPRITES: Record<string, SpriteDef> = {
   'kobold-herder': { src: art('kobold-herder.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
   'kobold-alchemist': { src: art('kobold-alchemist.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
   'kobold-blacksmith': { src: art('kobold-blacksmith.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
+  'kobold-hunter': { src: art('kobold-hunter.png'), frameW: 12, frameH: 12, animations: KOBOLD_ANIMS },
   // Hats for named kobolds, drawn over the kobold at the same spot. One frame per look.
   hats: { src: art('hats.png'), frameW: 12, frameH: 12, animations: { looks: { row: 0, frames: 6, fps: 0 } } },
   // Kobolds with no job yet. They mostly stand about.

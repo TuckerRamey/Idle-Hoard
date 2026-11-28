@@ -50,6 +50,8 @@ export interface ResearchDef {
   minStage?: number;
   /** Something that has to have been found first (a ResourceId only ever found, like mithril). */
   found?: string;
+  /** Enough of a monster hunted first, so the kobolds know it well enough to keep it. */
+  hunted?: { monster: string; n: number };
   /** Direct bonuses. Most research instead opens things that name it in `requires`. */
   effects?: ResearchEffect[];
   /** Chronicle line when it's done. */
@@ -315,6 +317,46 @@ export const RESEARCH: ResearchDef[] = [
     doneText: 'Deep delving. The diggers found the bottom of the world, and dug a bit further.',
   },
   {
+    id: 'monster-tracking',
+    name: 'Monster tracking',
+    description: 'Opens the hunter job: kobolds go after monsters in the deep caves. Their meat makes the dragon stronger.',
+    cost: 5_000,
+    resources: { meat: 100, wood: 200 },
+    requires: ['crab-wrangling'],
+    minStage: 1,
+    doneText: 'The researchers drew a map of where the monsters live. Then they drew a second map of where they are going to stay well away from.',
+  },
+  {
+    id: 'bear-taming',
+    name: 'Bear taming',
+    description: 'Cave bears can be raised in the pasture. Farmed meat trains the dragon less than wild, but it never stops coming.',
+    cost: 12_000,
+    resources: { meat: 300 },
+    requires: ['monster-tracking'],
+    hunted: { monster: 'cave-bear', n: 25 },
+    doneText: 'A cave bear cub has moved into the pasture. It thinks the herders are its mother.',
+  },
+  {
+    id: 'salamander-pits',
+    name: 'Salamander pits',
+    description: 'Salamanders can be raised in the pasture, in pits of warm coals.',
+    cost: 12_000,
+    resources: { meat: 300, stone: 400 },
+    requires: ['monster-tracking'],
+    hunted: { monster: 'salamander', n: 25 },
+    doneText: 'The salamander pits are lit. The pasture is much warmer, and smells of toast.',
+  },
+  {
+    id: 'eel-ponds',
+    name: 'Eel ponds',
+    description: 'Glow-eels can be raised in the pasture, in ponds that light up the whole cave at night.',
+    cost: 12_000,
+    resources: { meat: 300, wood: 400 },
+    requires: ['monster-tracking'],
+    hunted: { monster: 'glow-eel', n: 25 },
+    doneText: 'The eel ponds are full. Nobody needs a lantern in the pasture any more.',
+  },
+  {
     id: 'mithril-working',
     name: 'Mithril working',
     description: 'The forge makes mithril tools, from mithril the miners turn up. Opens once some has been found.',
@@ -439,7 +481,8 @@ export function canResearch(state: GameState, def: ResearchDef): boolean {
     !researched(state, def.id) &&
     def.requires.every((r) => researched(state, r)) &&
     state.stage >= (def.minStage ?? 0) &&
-    (!def.found || state.discovered.includes(def.found))
+    (!def.found || state.discovered.includes(def.found)) &&
+    (!def.hunted || (state.hunt?.hunted[def.hunted.monster] ?? 0) >= def.hunted.n)
   );
 }
 

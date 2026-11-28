@@ -44,6 +44,7 @@ export const TOOL_NAMES: Record<string, string> = {
   herder: 'crooks',
   alchemist: 'tongs',
   blacksmith: 'hammers',
+  hunter: 'spears',
 };
 
 export interface MaterialDef {

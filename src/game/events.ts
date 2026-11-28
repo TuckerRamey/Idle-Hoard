@@ -162,6 +162,10 @@ export const TALENTS: Record<string, [string, string][]> = {
     ['Fire-proof', 'turned out not to mind the heat of the forge at all'],
     ['True-hammer', 'never missed the anvil, not once'],
   ],
+  hunter: [
+    ['Tracker', 'followed a cave bear for a whole day by the smell of its breakfast'],
+    ['Steady spear', 'brought down a monster with one throw'],
+  ],
 };
 
 /** The epithet a kobold earns for being remarkable at a job. */
@@ -175,6 +179,7 @@ export const EPITHETS: Record<string, string> = {
   herder: 'herds like a dragon',
   alchemist: 'brews like a dragon',
   blacksmith: 'breathes on the forge like a dragon',
+  hunter: 'hunts like a dragon',
 };
 
 /** Let `dt` seconds of work happen: some kobolds find they have a knack for their job. */

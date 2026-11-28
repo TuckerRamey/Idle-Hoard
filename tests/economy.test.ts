@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { STAT } from '../src/game/dragon';
 import { ATTRACTION, CONFIG, DIG, DRAGON_STAGES, HOARD_SIZE_THRESHOLDS, ROOMS } from '../src/game/data';
 import {
   jobDef,
@@ -287,7 +288,8 @@ describe('kobolds coming to the hoard', () => {
     expect(appeal(s)).toBeCloseTo(base + 4 * ATTRACTION.perValueDecade);
     const before = appeal(s);
     s.stage = 2;
-    expect(appeal(s)).toBeCloseTo(before - DRAGON_STAGES[0].appeal + DRAGON_STAGES[2].appeal);
+    // a young dragon's Presence draws kobolds too
+    expect(appeal(s)).toBeCloseTo(before - DRAGON_STAGES[0].appeal + DRAGON_STAGES[2].appeal + STAT.baseByStage[2] * STAT.presenceAppeal);
     const staged = appeal(s);
     s.oddities.kogoat = { count: 1, firstAt: T0 };
     expect(appeal(s)).toBeCloseTo(staged + ATTRACTION.perOddity);

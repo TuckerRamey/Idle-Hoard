@@ -148,10 +148,10 @@ function save(name, s) {
 }
 
 // ---------- dragons: rows 0 = snore (4), 1 = count (4) ----------
-function dragon(name, FW, FH) {
+function dragon(name, FW, FH, colors = {}) {
   const s = sheet(FW * 4, FH * 2);
   const k = FW / 64;
-  const body = '#b8443c', dark = '#7a2a28', belly = '#e3a35a', wing = '#8e3a3a';
+  const { body = '#b8443c', dark = '#7a2a28', belly = '#e3a35a', wing = '#8e3a3a' } = colors;
   for (let row = 0; row < 2; row++)
     for (let f = 0; f < 4; f++) {
       const c = cell(s, f * FW, row * FH, FW, FH);
@@ -196,6 +196,9 @@ function dragon(name, FW, FH) {
 dragon('wyrmling.png', 32, 24);
 dragon('young-dragon.png', 48, 36);
 dragon('adult-dragon.png', 64, 48);
+// older dragons darken, then go bronze with age
+dragon('elder-dragon.png', 72, 54, { body: '#8e2f4a', dark: '#561a30', belly: '#d98f6a', wing: '#6e2440' });
+dragon('ancient-dragon.png', 80, 60, { body: '#a8743a', dark: '#5e3c1c', belly: '#ecd08a', wing: '#7e5426' });
 
 // ---------- hoard: 112x40 frames, row 0 = sizes 0..5 (picked by hoard level) ----------
 {
@@ -281,6 +284,11 @@ function kobold(name, skin, dark, extra, chief = false, load = 'coins') {
         c.rect(3, 0 + bob, 6, 2, '#d8c9a8');
         c.rect(3, 0 + bob, 1, 2, '#a8946c');
         c.put(8, 0 + bob, '#f0e4c8');
+      } else if (row === 1 && load === 'meat') {
+        // carrying a haunch of monster meat over the shoulder
+        c.rect(4, 0 + bob, 5, 2, '#a83a3a');
+        c.put(9, 1 + bob, '#e8e0d0'); // bone
+        c.put(4, 0 + bob, '#d06060');
       } else if (row === 1) {
         // carrying a coin sack overhead
         c.ellipse(6, 1 + bob, 2.5, 1.6, '#b87333');
@@ -311,6 +319,7 @@ kobold('kobold-miner.png', '#6a6a72', '#3c3c44', '#e8b830', false, 'coins');
 kobold('kobold-herder.png', '#8fa060', '#5a6a38', '#d07a40');
 kobold('kobold-alchemist.png', '#9a6ab8', '#5e3e74', '#5ad0a0');
 kobold('kobold-blacksmith.png', '#7a7a80', '#3e3e44', '#e0782a');
+kobold('kobold-hunter.png', '#5e7a4a', '#3a4e2c', '#7a4a2a', false, 'meat'); // leather
 
 // ---------- hats for named kobolds: 12x12 frames, one row of 6 looks ----------
 // Drawn over a kobold's frame at the same spot, so they sit on the head.
