@@ -11,7 +11,6 @@ import {
   exploreKinds,
   exploreRate,
   exploreStep,
-  nothingNew,
   findCost,
   fills,
   found,
@@ -144,29 +143,12 @@ describe('areas', () => {
   it('deeper and better finds wait for a bigger dragon or a deeper warren', () => {
     const s = game();
     for (const id of ['grove', 'mushroom-thicket', 'petrified-grove']) addArea(s, id);
-    expect(nothingNew(s, 'wood')).toMatch(/dragon is bigger/);
-    // nothing new, but the scouts still have work: they push deeper
-    expect(exploreBlocked(s, 'wood')).toBeNull();
+    expect(exploreBlocked(s, 'wood')).toMatch(/dragon is bigger/);
     s.stage = 2;
-    expect(nothingNew(s, 'wood')).toBeNull();
+    expect(exploreBlocked(s, 'wood')).toBeNull();
     for (const id of ['rubble-cave', 'granite-face', 'iron-seam', 'gem-pocket', 'silver-lode']) addArea(s, id);
     s.stage = 3;
-    expect(nothingNew(s, 'stone')).toMatch(/Dig a room past/);
-  });
-
-  it('with nothing new to find, scouts push deeper and every area of that kind doubles', () => {
-    const s = game();
-    for (const id of ['grove', 'mushroom-thicket', 'petrified-grove']) addArea(s, id);
-    const before = kindCap(s, 'wood');
-    const cost = findCost(s, 'wood');
-    s.crews.scout = { n: 20 };
-    setExploreTarget(s, 'wood');
-    s.explore.points.wood = cost - 1e-6;
-    const lines = exploreStep(s, 1, T0, rng(s));
-    expect(lines[0]).toMatch(/pushed deeper/);
-    expect(s.explore.depth?.wood).toBe(1);
-    expect(kindCap(s, 'wood')).toBeCloseTo(before * 2);
-    expect(findCost(s, 'wood')).toBeCloseTo(cost * EXPLORE.growth);
+    expect(exploreBlocked(s, 'stone')).toMatch(/Dig a room past/);
   });
 });
 

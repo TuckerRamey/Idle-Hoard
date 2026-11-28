@@ -496,7 +496,6 @@ function normalizeExplore(v: any): ExploreState {
     names: Object.fromEntries(Object.entries(v.names && typeof v.names === 'object' ? v.names : {}).filter(([k, n]) => areaDef(k) && typeof n === 'string')) as Record<string, string>,
     bonus: pick(nums(v.bonus)),
     progress: Object.fromEntries(Object.entries(nums(v.progress)).filter(([k]) => areaDef(k))),
-    depth: Object.fromEntries(Object.entries(pick(nums(v.depth))).map(([k, n]) => [k, Math.floor(n)])),
   };
 }
 

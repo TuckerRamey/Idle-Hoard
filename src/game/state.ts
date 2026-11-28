@@ -115,8 +115,6 @@ export interface ExploreState {
   bonus: Partial<Record<'wood' | 'stone' | 'copper' | 'monsters', number>>;
   /** Hunting work toward the next kill on each ground. */
   progress: Record<string, number>;
-  /** Times the scouts pushed deeper into each kind, once nothing new could be found. */
-  depth?: Partial<Record<'wood' | 'stone' | 'copper' | 'monsters', number>>;
 }
 
 export interface LossState {
@@ -134,7 +132,7 @@ export function newLosses(): LossState {
 }
 
 export function newExplore(): ExploreState {
-  return { target: 'wood', points: {}, found: ['near-tunnels'], names: {}, bonus: {}, progress: {}, depth: {} };
+  return { target: 'wood', points: {}, found: ['near-tunnels'], names: {}, bonus: {}, progress: {} };
 }
 
 export interface HuntState {

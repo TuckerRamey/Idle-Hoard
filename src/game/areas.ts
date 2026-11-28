@@ -90,8 +90,6 @@ export const EXPLORE = {
   growth: 2.5,
   /** Each area found of a kind is this many times bigger than its listed size for every one found before it. */
   sizeGrowth: 2,
-  /** Once nothing new of a kind can be found, scouts push deeper instead: each push makes all of that kind this much bigger. */
-  depthMult: 2,
   /** Meat eaten per exploring point, once there's a larder. */
   meatPerPoint: 0.1,
   /** Scouts without provisions explore at this pace. */
@@ -113,19 +111,13 @@ export function kindKnown(state: GameState, kind: AreaKind): boolean {
   return state.explore.found.some((id) => areaDef(id)?.kind === kind) || (state.explore.bonus[kind] ?? 0) > 0;
 }
 
-/** Pushes deeper into a kind, once its list ran out. */
-export function depth(state: GameState, kind: AreaKind): number {
-  return state.explore.depth?.[kind] ?? 0;
-}
-
 /**
  * The most an area gives now: per second for gathering, kills an hour for
- * hunting grounds. Later finds of a kind are bigger (twice per find before
- * it), and every push deeper doubles the whole kind.
+ * hunting grounds. Later finds of a kind are bigger: twice per find before it.
  */
 export function areaCap(state: GameState, a: AreaDef): number {
   const i = found(state, a.kind).indexOf(a);
-  return a.cap * EXPLORE.sizeGrowth ** Math.max(0, i) * EXPLORE.depthMult ** depth(state, a.kind);
+  return a.cap * EXPLORE.sizeGrowth ** Math.max(0, i);
 }
 
 /** The name the warren uses for an area: after whoever found it, if they were named. */
@@ -159,21 +151,12 @@ export function setExploreTarget(state: GameState, kind: AreaKind | null): boole
 
 /** Exploring points for the next find of a kind. */
 export function findCost(state: GameState, kind: AreaKind): number {
-  const n = state.explore.found.filter((id) => areaDef(id)?.kind === kind && id !== 'near-tunnels').length + depth(state, kind);
+  const n = state.explore.found.filter((id) => areaDef(id)?.kind === kind && id !== 'near-tunnels').length;
   return EXPLORE.firstCost[kind] * EXPLORE.growth ** n;
 }
 
 /** Why scouts looking for this kind will find nothing, or null. */
 export function exploreBlocked(state: GameState, kind: AreaKind): string | null {
-  if (AREAS.some((a) => a.kind === kind && findable(state, a))) return null;
-  if (kind === 'monsters' && !opened(state, 'monster-tracking')) return 'The scouts need monster tracking to know what to look for.';
-  // nothing new to find: the scouts push deeper into what they know instead
-  if (kindKnown(state, kind)) return null;
-  return nothingNew(state, kind);
-}
-
-/** Why nothing new of a kind can turn up yet (the scouts push deeper meanwhile), or null if something can. */
-export function nothingNew(state: GameState, kind: AreaKind): string | null {
   if (AREAS.some((a) => a.kind === kind && findable(state, a))) return null;
   const left = AREAS.filter((a) => a.kind === kind && !state.explore.found.includes(a.id));
   const what = kind === 'monsters' ? 'hunting grounds' : kind === 'wood' ? 'woodland' : `${kind} areas`;
@@ -349,13 +332,7 @@ export function exploreStep(state: GameState, dt: number, t: number, rand: () =>
   const cost = findCost(state, kind);
   if (ex.points[kind]! < cost) return lines;
   const a = draw(state, kind, rand);
-  if (!a) {
-    ex.points[kind]! -= cost;
-    ex.depth = { ...ex.depth, [kind]: depth(state, kind) + 1 };
-    const what = kind === 'monsters' ? 'hunting grounds' : kind === 'wood' ? 'woodland' : `${kind} areas`;
-    lines.push(`The scouts pushed deeper into the ${what} they know. Every one of them gives twice as much now.`);
-    return lines;
-  }
+  if (!a) return lines;
   ex.points[kind]! -= cost;
   let line = addArea(state, a.id)!;
   const named = namedIn(state, 'scout');

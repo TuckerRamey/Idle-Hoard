@@ -5,8 +5,6 @@
 import {
   areaCap,
   areaMix,
-  depth,
-  nothingNew,
   areaName,
   exploreBlocked,
   exploreKinds,
@@ -66,11 +64,7 @@ export class ExploreView {
       pct = Math.min(100, (have / cost) * 100);
       if (workers(s, 'scout') === 0) status = 'Put some kobolds on scouting to start.';
       else {
-        const eta = formatDuration(Math.max(1, (cost - have) / Math.max(rate, 1e-9)));
-        const none = nothingNew(s, kind);
-        status = none
-          ? `${formatNumber(rate)} exploring / s. ${none.replace(/\.$/, '')}, so the scouts push deeper into what they know: in about ${eta}, every one gives twice as much.`
-          : `${formatNumber(rate)} exploring / s. The next find is about ${eta} away.`;
+        status = `${formatNumber(rate)} exploring / s. The next find is about ${formatDuration(Math.max(1, (cost - have) / Math.max(rate, 1e-9)))} away.`;
         if (resourceOpen(s, 'meat')) status += s.res.meat < 1 ? ' Out of meat for provisions, so the scouts go at half pace.' : ` Provisions: about ${formatNumber(rate * EXPLORE.meatPerPoint * 3600)} meat an hour.`;
       }
     }
@@ -106,7 +100,7 @@ export class ExploreView {
         const cap = f.fills.reduce((t, x) => t + x.cap, 0);
         total = `${formatNumber(used)} of ${formatNumber(cap)} ${unit(k.id)} / s`;
       }
-      sections.push({ kind: k.id, head: `${kindDef(k.id).name} · ${f.fills.filter((x) => x.area).length} found${depth(s, k.id) ? `, ${depth(s, k.id)} deeper` : ''}`, total, lines });
+      sections.push({ kind: k.id, head: `${kindDef(k.id).name} · ${f.fills.filter((x) => x.area).length} found`, total, lines });
     }
     const key = JSON.stringify(sections);
     if (key === this.key) return;
