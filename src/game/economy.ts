@@ -565,7 +565,9 @@ export function appeal(state: GameState): number {
 }
 
 export function arrivalSeconds(state: GameState): number {
-  return Math.max(ATTRACTION.minSeconds, ATTRACTION.secondsPerAppeal / Math.max(1, appeal(state)));
+  // appeal draws them in; a crowded warren puts them off, more and more steeply
+  const crowd = 1 + (population(state) / ATTRACTION.crowdScale) ** 2;
+  return Math.max(ATTRACTION.minSeconds, (ATTRACTION.secondsPerAppeal / Math.max(1, appeal(state))) * crowd);
 }
 
 /**

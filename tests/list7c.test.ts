@@ -34,14 +34,14 @@ function run(s: GameState, hours: number) {
 }
 
 describe('dangerous work', () => {
-  it('loses about one scout for every 10 hours of scouting each', () => {
+  it('loses about one scout for every 4 hours of scouting each', () => {
     const s = game();
     s.crews.scout = { n: 100 };
-    expect(lossesPerHour(s, 'scout')).toBeCloseTo(10);
+    expect(lossesPerHour(s, 'scout')).toBeCloseTo(25);
     const { died, lines } = run(s, 5);
-    // fewer scouts as they're lost, so a little under 50
-    expect(died.scout).toBeGreaterThan(30);
-    expect(died.scout).toBeLessThan(55);
+    // fewer scouts as they're lost, so well under 125: about 100 × (1 − e^−1.25) ≈ 71
+    expect(died.scout).toBeGreaterThan(55);
+    expect(died.scout).toBeLessThan(85);
     expect(s.crews.scout.n).toBe(100 - died.scout);
     expect(s.oddities['memorial-wall'].count).toBe(died.scout);
     expect(s.losses.died).toBe(died.scout);
@@ -54,7 +54,7 @@ describe('dangerous work', () => {
     s.research.done.push('monster-tracking');
     addArea(s, 'bear-caves');
     s.crews.hunter = { n: 10 };
-    expect(lossesPerHour(s, 'hunter')).toBeCloseTo(0.1);
+    expect(lossesPerHour(s, 'hunter')).toBeCloseTo(0.25);
     addArea(s, 'rubble-cave');
     s.crews.miner = { n: 10 };
     expect(lossesPerHour(s, 'miner')).toBe(0);
@@ -86,7 +86,9 @@ describe('dangerous work', () => {
     k.restLeft = LOSSES.restSeconds;
     s.losses.acc = {};
     expect(workers(s, 'scout')).toBe(0);
-    lossStep(s, LOSSES.restSeconds, T0, rng(s));
+    // resting, they aren't out scouting, so nothing can happen to them meanwhile
+    lossStep(s, LOSSES.restSeconds - 1, T0, rng(s));
+    lossStep(s, 1, T0, rng(s));
     expect(workers(s, 'scout')).toBe(1);
   });
 
