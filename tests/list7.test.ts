@@ -11,6 +11,7 @@ import {
   exploreKinds,
   exploreRate,
   exploreStep,
+  nothingNew,
   findCost,
   fills,
   found,
@@ -112,10 +113,11 @@ describe('areas', () => {
     s.crews.woodcutter = { n: 100 };
     const f = fills(s, 'wood').fills;
     expect(f[0].area!.id).toBe('petrified-grove');
-    expect(kindCap(s, 'wood')).toBe(14);
+    // the second find is twice its listed size
+    expect(kindCap(s, 'wood')).toBe(6 + 16);
     const g = gathered(s, 'wood');
-    expect(g.stone).toBeCloseTo(8 * 0.3);
-    expect(g.wood).toBeCloseTo(8 * 0.7 + 6);
+    expect(g.stone).toBeCloseTo(16 * 0.3);
+    expect(g.wood).toBeCloseTo(16 * 0.7 + 6);
   });
 
   it("anything the warren doesn't know yet comes out as the plain thing", () => {
@@ -123,9 +125,9 @@ describe('areas', () => {
     addArea(s, 'collapsed-mine');
     s.crews.scavenger = { n: 200 };
     expect(gathered(s, 'copper').ore ?? 0).toBe(0);
-    expect(gathered(s, 'copper').copper).toBeCloseTo(35);
+    expect(gathered(s, 'copper').copper).toBeCloseTo(15 + 40);
     s.research.done.push('ore-sniffing');
-    expect(gathered(s, 'copper').ore).toBeCloseTo(2);
+    expect(gathered(s, 'copper').ore).toBeCloseTo(4);
   });
 
   it('once the miners can sniff ore, the next stone find has iron in it', () => {
@@ -142,12 +144,29 @@ describe('areas', () => {
   it('deeper and better finds wait for a bigger dragon or a deeper warren', () => {
     const s = game();
     for (const id of ['grove', 'mushroom-thicket', 'petrified-grove']) addArea(s, id);
-    expect(exploreBlocked(s, 'wood')).toMatch(/dragon is bigger/);
-    s.stage = 2;
+    expect(nothingNew(s, 'wood')).toMatch(/dragon is bigger/);
+    // nothing new, but the scouts still have work: they push deeper
     expect(exploreBlocked(s, 'wood')).toBeNull();
+    s.stage = 2;
+    expect(nothingNew(s, 'wood')).toBeNull();
     for (const id of ['rubble-cave', 'granite-face', 'iron-seam', 'gem-pocket', 'silver-lode']) addArea(s, id);
     s.stage = 3;
-    expect(exploreBlocked(s, 'stone')).toMatch(/Dig a room past/);
+    expect(nothingNew(s, 'stone')).toMatch(/Dig a room past/);
+  });
+
+  it('with nothing new to find, scouts push deeper and every area of that kind doubles', () => {
+    const s = game();
+    for (const id of ['grove', 'mushroom-thicket', 'petrified-grove']) addArea(s, id);
+    const before = kindCap(s, 'wood');
+    const cost = findCost(s, 'wood');
+    s.crews.scout = { n: 20 };
+    setExploreTarget(s, 'wood');
+    s.explore.points.wood = cost - 1e-6;
+    const lines = exploreStep(s, 1, T0, rng(s));
+    expect(lines[0]).toMatch(/pushed deeper/);
+    expect(s.explore.depth?.wood).toBe(1);
+    expect(kindCap(s, 'wood')).toBeCloseTo(before * 2);
+    expect(findCost(s, 'wood')).toBeCloseTo(cost * EXPLORE.growth);
   });
 });
 
@@ -198,9 +217,9 @@ describe('hunting grounds', () => {
     const rand = rng(s);
     for (let i = 0; i < 60; i++) huntStep(s, 600, T0, rand); // 10 hours
     const kills = Object.values(s.hunt.hunted).reduce((a, n) => a + n, 0);
-    // at most 5 kills an hour between them, and most hunts succeed
-    expect(kills).toBeLessThanOrEqual(50);
-    expect(kills).toBeGreaterThan(50 * HUNT.success * 0.7);
+    // at most 2 + 3×2 = 8 kills an hour between them (the second ground is twice its size), and most hunts succeed
+    expect(kills).toBeLessThanOrEqual(80);
+    expect(kills).toBeGreaterThan(80 * HUNT.success * 0.7);
     expect(s.hunt.hunted['salamander'] ?? 0).toBeGreaterThan(0); // the deep warrens hold all three
   });
 

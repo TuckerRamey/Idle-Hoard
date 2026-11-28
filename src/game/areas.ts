@@ -87,7 +87,11 @@ export const kindOfJob = (job: string) => KINDS.find((k) => k.job === job)?.id;
 export const EXPLORE = {
   /** Exploring points for the first find of each kind; each one after costs `growth` times the last. */
   firstCost: { wood: 60, stone: 60, copper: 400, monsters: 300 } as Record<AreaKind, number>,
-  growth: 4,
+  growth: 2.5,
+  /** Each area found of a kind is this many times bigger than its listed size for every one found before it. */
+  sizeGrowth: 2,
+  /** Once nothing new of a kind can be found, scouts push deeper instead: each push makes all of that kind this much bigger. */
+  depthMult: 2,
   /** Meat eaten per exploring point, once there's a larder. */
   meatPerPoint: 0.1,
   /** Scouts without provisions explore at this pace. */
@@ -107,6 +111,21 @@ export function found(state: GameState, kind?: AreaKind): AreaDef[] {
 
 export function kindKnown(state: GameState, kind: AreaKind): boolean {
   return state.explore.found.some((id) => areaDef(id)?.kind === kind) || (state.explore.bonus[kind] ?? 0) > 0;
+}
+
+/** Pushes deeper into a kind, once its list ran out. */
+export function depth(state: GameState, kind: AreaKind): number {
+  return state.explore.depth?.[kind] ?? 0;
+}
+
+/**
+ * The most an area gives now: per second for gathering, kills an hour for
+ * hunting grounds. Later finds of a kind are bigger (twice per find before
+ * it), and every push deeper doubles the whole kind.
+ */
+export function areaCap(state: GameState, a: AreaDef): number {
+  const i = found(state, a.kind).indexOf(a);
+  return a.cap * EXPLORE.sizeGrowth ** Math.max(0, i) * EXPLORE.depthMult ** depth(state, a.kind);
 }
 
 /** The name the warren uses for an area: after whoever found it, if they were named. */
@@ -140,12 +159,21 @@ export function setExploreTarget(state: GameState, kind: AreaKind | null): boole
 
 /** Exploring points for the next find of a kind. */
 export function findCost(state: GameState, kind: AreaKind): number {
-  const n = state.explore.found.filter((id) => areaDef(id)?.kind === kind && id !== 'near-tunnels').length;
+  const n = state.explore.found.filter((id) => areaDef(id)?.kind === kind && id !== 'near-tunnels').length + depth(state, kind);
   return EXPLORE.firstCost[kind] * EXPLORE.growth ** n;
 }
 
 /** Why scouts looking for this kind will find nothing, or null. */
 export function exploreBlocked(state: GameState, kind: AreaKind): string | null {
+  if (AREAS.some((a) => a.kind === kind && findable(state, a))) return null;
+  if (kind === 'monsters' && !opened(state, 'monster-tracking')) return 'The scouts need monster tracking to know what to look for.';
+  // nothing new to find: the scouts push deeper into what they know instead
+  if (kindKnown(state, kind)) return null;
+  return nothingNew(state, kind);
+}
+
+/** Why nothing new of a kind can turn up yet (the scouts push deeper meanwhile), or null if something can. */
+export function nothingNew(state: GameState, kind: AreaKind): string | null {
   if (AREAS.some((a) => a.kind === kind && findable(state, a))) return null;
   const left = AREAS.filter((a) => a.kind === kind && !state.explore.found.includes(a.id));
   const what = kind === 'monsters' ? 'hunting grounds' : kind === 'wood' ? 'woodland' : `${kind} areas`;
@@ -199,8 +227,9 @@ export function yardFull(state: GameState): boolean {
 }
 
 /** An area's most, in the job's work units a second (kills an hour become hunting work). */
-function capWork(a: AreaDef): number {
-  return a.kind === 'monsters' ? (a.cap * (a.killWork ?? 1)) / 3600 : a.cap;
+function capWork(state: GameState, a: AreaDef): number {
+  const cap = areaCap(state, a);
+  return a.kind === 'monsters' ? (cap * (a.killWork ?? 1)) / 3600 : cap;
 }
 
 export interface Fill {
@@ -223,7 +252,7 @@ export function fills(state: GameState, kind: AreaKind, work?: number): { fills:
   const out: Fill[] = [];
   const list = found(state, kind).sort((x, y) => AREAS.indexOf(y) - AREAS.indexOf(x));
   for (const a of list) {
-    const cap = capWork(a);
+    const cap = capWork(state, a);
     const used = Math.min(left, cap);
     out.push({ area: a, used, cap });
     left -= used;
@@ -239,7 +268,7 @@ export function fills(state: GameState, kind: AreaKind, work?: number): { fills:
 
 /** The most a kind's areas give in all, per second (or kills an hour for grounds). */
 export function kindCap(state: GameState, kind: AreaKind): number {
-  return found(state, kind).reduce((a, x) => a + x.cap, 0) + (kind === 'monsters' ? 0 : (state.explore.bonus[kind] ?? 0));
+  return found(state, kind).reduce((a, x) => a + areaCap(state, x), 0) + (kind === 'monsters' ? 0 : (state.explore.bonus[kind] ?? 0));
 }
 
 /** What a gathering job makes per second, by resource, after its areas' limits. */
@@ -265,12 +294,14 @@ export function capHint(state: GameState, kind: AreaKind): string | null {
   const each = f.raw / Math.max(1, workers(state, k.job));
   const idle = Math.floor(f.spare / Math.max(1e-9, each));
   const more = `${idle > 0 ? ` About ${idle} of the ${job.name.toLowerCase()}s have nothing to do.` : ''} Explore for more ${what}.`;
-  if (kind === 'monsters') return `Every hunting ground is hunted as much as it can be (${f.fills.reduce((a, x) => a + (x.area?.cap ?? 0), 0)} kills an hour).${more}`;
+  if (kind === 'monsters') return `Every hunting ground is hunted as much as it can be (${formatCap(f.fills.reduce((a, x) => a + (x.area ? areaCap(state, x.area) : 0), 0))} kills an hour).${more}`;
   const one = f.fills.length === 1 && f.fills[0].area;
   const unit = k.base === 'copper' ? 'copper' : k.base === 'wood' ? 'wood' : 'stone';
-  if (one) return `${areaName(state, one)} gives at most ${one.cap} ${unit} a second.${more}`;
-  return `Every ${kind === 'wood' ? 'woodland' : `${kind} area`} found is giving all it can (${kindCap(state, kind)} a second).${more}`;
+  if (one) return `${areaName(state, one)} gives at most ${formatCap(areaCap(state, one))} ${unit} a second.${more}`;
+  return `Every ${kind === 'wood' ? 'woodland' : `${kind} area`} found is giving all it can (${formatCap(kindCap(state, kind))} a second).${more}`;
 }
+
+const formatCap = (n: number) => Math.round(n).toLocaleString('en-US');
 
 // ---------- exploring ----------
 
@@ -318,7 +349,13 @@ export function exploreStep(state: GameState, dt: number, t: number, rand: () =>
   const cost = findCost(state, kind);
   if (ex.points[kind]! < cost) return lines;
   const a = draw(state, kind, rand);
-  if (!a) return lines;
+  if (!a) {
+    ex.points[kind]! -= cost;
+    ex.depth = { ...ex.depth, [kind]: depth(state, kind) + 1 };
+    const what = kind === 'monsters' ? 'hunting grounds' : kind === 'wood' ? 'woodland' : `${kind} areas`;
+    lines.push(`The scouts pushed deeper into the ${what} they know. Every one of them gives twice as much now.`);
+    return lines;
+  }
   ex.points[kind]! -= cost;
   let line = addArea(state, a.id)!;
   const named = namedIn(state, 'scout');

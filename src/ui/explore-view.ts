@@ -3,7 +3,10 @@
 // it is being worked.
 
 import {
+  areaCap,
   areaMix,
+  depth,
+  nothingNew,
   areaName,
   exploreBlocked,
   exploreKinds,
@@ -63,7 +66,11 @@ export class ExploreView {
       pct = Math.min(100, (have / cost) * 100);
       if (workers(s, 'scout') === 0) status = 'Put some kobolds on scouting to start.';
       else {
-        status = `${formatNumber(rate)} exploring / s. The next find is about ${formatDuration(Math.max(1, (cost - have) / Math.max(rate, 1e-9)))} away.`;
+        const eta = formatDuration(Math.max(1, (cost - have) / Math.max(rate, 1e-9)));
+        const none = nothingNew(s, kind);
+        status = none
+          ? `${formatNumber(rate)} exploring / s. ${none.replace(/\.$/, '')}, so the scouts push deeper into what they know: in about ${eta}, every one gives twice as much.`
+          : `${formatNumber(rate)} exploring / s. The next find is about ${eta} away.`;
         if (resourceOpen(s, 'meat')) status += s.res.meat < 1 ? ' Out of meat for provisions, so the scouts go at half pace.' : ` Provisions: about ${formatNumber(rate * EXPLORE.meatPerPoint * 3600)} meat an hour.`;
       }
     }
@@ -82,24 +89,24 @@ export class ExploreView {
         if (k.id === 'monsters') {
           const kills = (x.used * 3600) / (a.killWork ?? 1);
           const who = (a.monsters ?? []).map((m) => monsterDef(m)?.plural ?? m).join(', ');
-          return { name, text: `${formatNumber(kills)} of ${a.cap} kills an hour. ${who[0].toUpperCase()}${who.slice(1)}${a.meatMult ? ', bigger than usual' : ''}.` };
+          return { name, text: `${formatNumber(kills)} of ${formatNumber(areaCap(s, a))} kills an hour. ${who[0].toUpperCase()}${who.slice(1)}${a.meatMult ? ', bigger than usual' : ''}.` };
         }
         const mix = Object.entries(areaMix(s, a)) as [ResourceId, number][];
         const gives = mix.length > 1 ? ` Gives ${mix.map(([r, n]) => `${Math.round(n * 100)}% ${resourceDef(r).name.toLowerCase()}`).join(', ')}.` : '';
         const extra = a.extras?.amber ? ' Amber now and then.' : a.extras?.mana ? ' A little mana for the shamans.' : a.extras?.mithril ? ' Mithril now and then.' : a.extras?.adamant ? ' Adamant, very rarely.' : a.extras?.weapon ? ' Old weapons now and then.' : a.luck ? ' Rare finds three times as likely.' : '';
-        return { name, text: `${formatNumber(x.used)} of ${a.cap} ${unit(k.id)} / s.${gives}${extra}` };
+        return { name, text: `${formatNumber(x.used)} of ${formatNumber(areaCap(s, a))} ${unit(k.id)} / s.${gives}${extra}` };
       });
       let total: string;
       if (k.id === 'monsters') {
         const kills = f.fills.reduce((t, x) => t + (x.area ? (x.used * 3600) / (x.area.killWork ?? 1) : 0), 0);
-        const cap = f.fills.reduce((t, x) => t + (x.area?.cap ?? 0), 0);
-        total = `${formatNumber(kills)} of ${cap} kills an hour`;
+        const cap = f.fills.reduce((t, x) => t + (x.area ? areaCap(s, x.area) : 0), 0);
+        total = `${formatNumber(kills)} of ${formatNumber(cap)} kills an hour`;
       } else {
         const used = f.fills.reduce((t, x) => t + x.used, 0);
         const cap = f.fills.reduce((t, x) => t + x.cap, 0);
         total = `${formatNumber(used)} of ${formatNumber(cap)} ${unit(k.id)} / s`;
       }
-      sections.push({ kind: k.id, head: `${kindDef(k.id).name} · ${f.fills.filter((x) => x.area).length} found`, total, lines });
+      sections.push({ kind: k.id, head: `${kindDef(k.id).name} · ${f.fills.filter((x) => x.area).length} found${depth(s, k.id) ? `, ${depth(s, k.id)} deeper` : ''}`, total, lines });
     }
     const key = JSON.stringify(sections);
     if (key === this.key) return;
