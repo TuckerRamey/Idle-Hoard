@@ -3,6 +3,7 @@
 // to go, Fire how much it brings back, and Presence how many kobolds follow it
 // home. Pure functions over GameState; they return chronicle lines.
 
+import { discoverCrop } from './farms';
 import { GEMS, type ResourceId } from './data';
 import { dragonStat, thriving, type StatId } from './dragon';
 import { MAGIC } from './magic';
@@ -192,6 +193,11 @@ function comeHome(state: GameState, def: RaidDef, rider: NamedKobold | null, ble
   if (got.length) line += ` (${got.join(', ')}${lost ? '; the hoard room was too full for the rest' : ''})`;
   if (n > 0) line += ` ${n === 1 ? 'A kobold' : `${n} kobolds`} followed it home and moved in.`;
   else if (want > 0) line += ' Some kobolds followed it home, but there were no beds, so they went away again.';
+  // farmsteads and villages grow sweet tubers, and the cart was full of them
+  if (def.id === 'farmstead' || def.id === 'village') {
+    const seed = discoverCrop(state, 'sweet-tubers');
+    if (seed) line += ` Some of the cart was sweet tubers, and the farmers kept the best ones for planting. ${seed}`;
+  }
   if (rider) {
     line += ` ${fullName(rider)} rode on its back the whole way.`;
     addHistory(rider, t, `Rode the dragon on a raid on a ${def.name}.`);

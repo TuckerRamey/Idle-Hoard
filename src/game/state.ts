@@ -48,6 +48,8 @@ export interface GameState {
   /** Where kobolds who wander in go: a job id, or 'idle'. */
   newcomerJob: string;
   rooms: Record<string, RoomState>;
+  /** Farm caverns: what each is planted with (by room id), and crops found (besides cave moss and researched ones). */
+  farms: { crops: Record<string, string>; known: string[] };
   /** Crowd diggers working each room, by room id. They add up to the digger crew. */
   dig: Record<string, number>;
   /** Highest dragon stage reached (index into DRAGON_STAGES). */
@@ -105,14 +107,14 @@ export interface GameState {
 }
 
 export interface ExploreState {
-  target: 'wood' | 'stone' | 'copper' | 'farm' | 'monsters' | null;
-  points: Partial<Record<'wood' | 'stone' | 'copper' | 'farm' | 'monsters', number>>;
+  target: 'wood' | 'stone' | 'copper' | 'monsters' | null;
+  points: Partial<Record<'wood' | 'stone' | 'copper' | 'monsters', number>>;
   /** Area ids, in the order found. */
   found: string[];
   /** Areas named after the kobold who found them. */
   names: Record<string, string>;
   /** Old saves only: extra room per kind, so nothing they made before drops ("the old workings"). */
-  bonus: Partial<Record<'wood' | 'stone' | 'copper' | 'farm' | 'monsters', number>>;
+  bonus: Partial<Record<'wood' | 'stone' | 'copper' | 'monsters', number>>;
   /** Hunting work toward the next kill on each ground. */
   progress: Record<string, number>;
 }
@@ -137,7 +139,7 @@ export function newLosses(): LossState {
 }
 
 export function newExplore(): ExploreState {
-  return { target: 'wood', points: {}, found: ['near-tunnels', 'mushroom-beds'], names: {}, bonus: {}, progress: {} };
+  return { target: 'wood', points: {}, found: ['near-tunnels'], names: {}, bonus: {}, progress: {} };
 }
 
 export interface HuntState {
@@ -251,6 +253,7 @@ export function newGame(now: number): GameState {
     crews: {},
     newcomerJob: 'scavenger',
     rooms,
+    farms: { crops: {}, known: [] },
     dig: {},
     stage: 0,
     lastTick: now,

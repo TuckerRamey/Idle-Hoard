@@ -89,7 +89,7 @@ export interface JobDef {
   /** Exploring points each kobold puts in per second. */
   explores?: number;
   /** Works areas of this kind. Those with no room in them go looking for more. */
-  area?: 'wood' | 'stone' | 'copper' | 'farm' | 'monsters';
+  area?: 'wood' | 'stone' | 'copper' | 'monsters';
   /** Research that opens this job. */
   requires?: string;
   sprite: SpriteId;
@@ -122,9 +122,8 @@ export const JOBS: JobDef[] = [
   {
     id: 'farmer',
     name: 'Farmer',
-    description: 'Grows mushrooms and cave moss in the farming caverns. Every kobold eats.',
+    description: 'Grows food in the farm caverns, whatever each one is planted with. Every kobold eats. Farmers with no room in the caverns dig them bigger.',
     produces: { resource: 'food', rate: 0.5 },
-    area: 'farm',
     sprite: 'kobold-herder',
     motion: { kind: 'station', x: 70, y: 100, spacing: 6 },
     firstText: 'The first farmer planted a row of mushrooms and sat down to watch them grow. It may take a while.',
@@ -223,12 +222,14 @@ export interface RoomDef {
   id: string;
   name: string;
   description: string;
-  /** Goods (see ResourceDef.store), or paces per bed / herder / smith. */
-  holds: 'goods' | 'beds' | 'herders' | 'smiths';
+  /** Goods (see ResourceDef.store), or paces per bed / herder / smith / farmer. */
+  holds: 'goods' | 'beds' | 'herders' | 'smiths' | 'farmers';
   /** For beds, herders and smiths: cubic paces each one needs. */
   pacesEach?: number;
   /** Which list it shows in. */
-  group: 'living' | 'work' | 'stores';
+  group: 'living' | 'farms' | 'work' | 'stores';
+  /** Opens once another room has been dug this big (farm caverns open one after another). */
+  after?: { room: string; volume: number };
   /** Research that opens this room. */
   requires?: string;
   /** Dragon stage needed before this room can be dug. */
@@ -236,6 +237,16 @@ export interface RoomDef {
   /** Volume a new game (or a newly opened room) starts with. */
   start: number;
 }
+
+/** Farm caverns, dug one after another: each opens once the one before is this big. */
+const FARM_CAVERNS: { name: string; description: string; after: number; minStage?: number }[] = [
+  { name: 'Mushroom beds', description: 'The first farm cavern. Its size sets how many farmers fit; plant it with any crop the warren knows.', after: 0 },
+  { name: 'Moss hollow', description: 'A second farm cavern, dug off the first. Its size sets how many farmers fit.', after: 100 },
+  { name: 'Root cellar', description: 'A third farm cavern, low and damp. Its size sets how many farmers fit.', after: 200 },
+  { name: 'Long field', description: 'A long cavern dug for farming. Its size sets how many farmers fit.', after: 400, minStage: 1 },
+  { name: 'Glow garden', description: 'A high farm cavern. Its size sets how many farmers fit.', after: 800, minStage: 2 },
+  { name: 'Deep field', description: 'The deepest farm cavern, warm from the rock. Its size sets how many farmers fit.', after: 1_600, minStage: 3 },
+];
 
 export const ROOMS: RoomDef[] = [
   {
@@ -255,6 +266,19 @@ export const ROOMS: RoomDef[] = [
     group: 'living',
     start: 40,
   },
+  ...FARM_CAVERNS.map(
+    (f, i): RoomDef => ({
+      id: `farm-${i + 1}`,
+      name: f.name,
+      description: f.description,
+      holds: 'farmers',
+      pacesEach: 10,
+      group: 'farms',
+      start: i === 0 ? 40 : 10,
+      ...(i > 0 ? { after: { room: `farm-${i}`, volume: f.after } } : {}),
+      ...(f.minStage ? { minStage: f.minStage } : {}),
+    }),
+  ),
   {
     id: 'pasture',
     name: 'Pasture',

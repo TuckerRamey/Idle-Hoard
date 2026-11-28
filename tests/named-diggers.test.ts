@@ -42,6 +42,20 @@ describe('named diggers', () => {
     expect(setNamedRoom(s, k.id, 'nowhere')).toBe(false);
   });
 
+  it('with no room picked, spread over the rooms being dug in step with the crowd', () => {
+    const s = game();
+    s.idle = 90;
+    assignDig(s, 'hoard', 20);
+    assignDig(s, 'den', 20);
+    assignDig(s, 'pasture', 0);
+    assignDig(s, 'woodpile', 40);
+    const rand = rng(s);
+    for (let i = 0; i < 10; i++) nameKobold(s, 'idle', `t${i}`, 'x', T0, rand)!.job = 'digger';
+    expect(namedDiggersIn(s, 'hoard').length).toBe(2);
+    expect(namedDiggersIn(s, 'den').length).toBe(3);
+    expect(namedDiggersIn(s, 'woodpile').length).toBe(5);
+  });
+
   it('keep their room through a save', () => {
     const s = game();
     s.idle = 1;

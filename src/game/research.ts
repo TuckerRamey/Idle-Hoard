@@ -70,7 +70,7 @@ export const RESEARCH: ResearchDef[] = [
   {
     id: 'ore-sniffing',
     name: 'Ore sniffing',
-    description: 'Opens iron ore and the metal store. Miners take ore from iron-bearing ground, and the next stone the scouts find will have iron in it.',
+    description: 'Opens iron ore and the metal store. Miners take ore from iron-bearing ground, and the next stone the miners find will have iron in it.',
     cost: 600,
     resources: { stone: 200 },
     requires: [],
@@ -84,6 +84,15 @@ export const RESEARCH: ResearchDef[] = [
     resources: { wood: 150 },
     requires: [],
     doneText: 'The researchers worked out how to keep crabs. Mostly by asking nicely.',
+  },
+  {
+    id: 'root-farming',
+    name: 'Root farming',
+    description: 'Blindroot can be planted in the farm caverns: a third more food than cave moss.',
+    cost: 1_200,
+    resources: { wood: 100 },
+    requires: [],
+    doneText: 'The researchers grew a blindroot in a bucket in the dark. It is very pale and very proud of itself.',
   },
   {
     id: 'bunk-beds',
@@ -327,7 +336,7 @@ export const RESEARCH: ResearchDef[] = [
   {
     id: 'monster-tracking',
     name: 'Monster tracking',
-    description: 'Scouts can look for monsters, and hunters can work the hunting grounds they find. Monster meat makes the dragon stronger.',
+    description: 'Hunters can look for hunting grounds and work the ones they find. Monster meat makes the dragon stronger.',
     cost: 5_000,
     resources: { meat: 100, wood: 200 },
     requires: ['crab-wrangling'],

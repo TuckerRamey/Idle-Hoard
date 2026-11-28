@@ -5,6 +5,7 @@
 // kobolds add nothing. Scouts find more by exploring. Pure functions over
 // GameState; steps return chronicle lines.
 
+import { CROP_FINDS, discoverCrop } from './farms';
 import type { ResourceId } from './data';
 import { capacity, jobDef, jobOpen, jobOutput, resourceOpen, store, workers } from './economy';
 import { WORK_FINDS } from './finds';
@@ -13,7 +14,7 @@ import { givePiece, piece } from './gear';
 import { opened, researchEffects } from './research';
 import type { GameState } from './state';
 
-export type AreaKind = 'wood' | 'stone' | 'copper' | 'farm' | 'monsters';
+export type AreaKind = 'wood' | 'stone' | 'copper' | 'monsters';
 
 export interface AreaDef {
   id: string;
@@ -62,13 +63,6 @@ export const AREAS: AreaDef[] = [
   { id: 'collapsed-mine', kind: 'copper', name: 'Collapsed mine', cap: 20, mix: { copper: 0.9, ore: 0.1 }, foundText: 'The scouts found a collapsed mine, left by someone long gone, with copper still in the carts.' },
   { id: 'old-battlefield', kind: 'copper', name: 'Old battlefield', cap: 30, mix: { copper: 0.9, steel: 0.1 }, extras: { weapon: 1 / 20000 }, minStage: 1, foundText: 'The scouts found an old battlefield, all rusty armor and dropped purses.' },
   { id: 'drowned-treasury', kind: 'copper', name: 'Drowned treasury', cap: 60, mix: { copper: 0.85, silver: 0.12, gold: 0.03 }, minStage: 4, foundText: 'The scouts found a drowned treasury. Something lives in the water, but it took one look at the dragon and left.' },
-  // farming caverns
-  { id: 'mushroom-beds', kind: 'farm', name: 'The mushroom beds', cap: 4, mix: { food: 1 }, foundText: '' },
-  { id: 'damp-hollow', kind: 'farm', name: 'Damp hollow', cap: 6, mix: { food: 1 }, foundText: 'The scouts found a damp hollow where moss grows thick enough to sleep on. The farmers have other plans for it.' },
-  { id: 'dripping-grotto', kind: 'farm', name: 'Dripping grotto', cap: 8, mix: { food: 1 }, foundText: 'The scouts found a dripping grotto. Everything in it grows, including some things nobody planted.' },
-  { id: 'river-terraces', kind: 'farm', name: 'River terraces', cap: 10, mix: { food: 1 }, minStage: 1, foundText: 'The scouts found an underground river with flat shelves along its banks. Perfect for terraces.' },
-  { id: 'glowcap-gardens', kind: 'farm', name: 'Glowcap gardens', cap: 15, mix: { food: 1 }, minStage: 2, foundText: 'The scouts found a cavern where glowcaps grow in rings. The farmers say it was a garden once.' },
-  { id: 'deep-loam', kind: 'farm', name: 'The deep loam', cap: 25, mix: { food: 1 }, minStage: 3, deep: true, foundText: 'Far below the deepest room, the scouts found a cavern of black, rich earth. Anything would grow here.' },
   // hunting grounds
   { id: 'bear-caves', kind: 'monsters', name: 'The bear caves', cap: 2, monsters: ['cave-bear'], killWork: 1_800, minStage: 1, foundText: 'The scouts found caves that smell of bear. Hunters can go after them now.' },
   { id: 'ember-pits', kind: 'monsters', name: 'The ember pits', cap: 2, monsters: ['salamander'], killWork: 1_800, minStage: 1, foundText: 'The scouts found pits of glowing embers with salamanders basking in them. Hunters can go after them now.' },
@@ -81,16 +75,15 @@ export const AREAS: AreaDef[] = [
 
 export const areaDef = (id: string) => AREAS.find((a) => a.id === id);
 
-/** "woodland", "stone areas", "farming caverns", "hunting grounds". */
+/** "woodland", "stone areas", "hunting grounds". */
 export function kindWords(kind: AreaKind): string {
-  return kind === 'wood' ? 'woodland' : kind === 'monsters' ? 'hunting grounds' : kind === 'farm' ? 'farming caverns' : `${kind} areas`;
+  return kind === 'wood' ? 'woodland' : kind === 'monsters' ? 'hunting grounds' : `${kind} areas`;
 }
 
 export const KINDS: { id: AreaKind; name: string; job: string; base?: ResourceId }[] = [
   { id: 'wood', name: 'Woodland', job: 'woodcutter', base: 'wood' },
   { id: 'stone', name: 'Stone', job: 'miner', base: 'stone' },
   { id: 'copper', name: 'Copper', job: 'scavenger', base: 'copper' },
-  { id: 'farm', name: 'Farming caverns', job: 'farmer', base: 'food' },
   { id: 'monsters', name: 'Monsters', job: 'hunter' },
 ];
 
@@ -99,7 +92,7 @@ export const kindOfJob = (job: string) => KINDS.find((k) => k.job === job)?.id;
 
 export const EXPLORE = {
   /** Exploring points for the first find of each kind; each one after costs `growth` times the last. */
-  firstCost: { wood: 60, stone: 60, copper: 400, farm: 200, monsters: 300 } as Record<AreaKind, number>,
+  firstCost: { wood: 60, stone: 60, copper: 400, monsters: 300 } as Record<AreaKind, number>,
   growth: 2.5,
   /** Each area found of a kind is this many times bigger than its listed size for every one found before it. */
   sizeGrowth: 2,
@@ -363,6 +356,11 @@ export function exploreStep(state: GameState, dt: number, t: number, rand: () =>
         givePiece(who, 'trinket', { tier: 'stone', marks: 1, look: 'keepsake stone', origin: `brought back from ${a.name.replace(/^The /, 'the ')}` }, `Brought back a stone from ${a.name.replace(/^The /, 'the ')} as a keepsake, and has carried it since.`, t);
     }
     lines.push(line);
+    // new woodland past the first sometimes has puffballs growing in it
+    if (kind === 'wood' && state.explore.found.filter((id) => areaDef(id)?.kind === 'wood').length >= 2 && rand() < CROP_FINDS.puffballs) {
+      const seed = discoverCrop(state, 'puffballs');
+      if (seed) lines.push(`The ${job}s came back from ${a.name.replace(/^The /, 'the ')} with a sack of puffballs. ${seed}`);
+    }
   }
   return lines;
 }
@@ -420,7 +418,7 @@ export function areaLuck(state: GameState, job: string): number {
  * room in "the old workings") that nothing they made before drops.
  */
 export function legacyAreas(state: GameState) {
-  for (const id of ['near-tunnels', 'mushroom-beds', 'grove', 'rubble-cave']) addArea(state, id);
+  for (const id of ['near-tunnels', 'grove', 'rubble-cave']) addArea(state, id);
   if (opened(state, 'ore-sniffing')) addArea(state, 'iron-seam');
   if (opened(state, 'monster-tracking') && state.stage >= 1) {
     for (const id of ['bear-caves', 'ember-pits', 'glow-pools']) addArea(state, id);

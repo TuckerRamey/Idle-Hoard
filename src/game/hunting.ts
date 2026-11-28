@@ -4,6 +4,7 @@
 // in the pasture, where it gives a steadier, weaker meat. Pure functions over
 // GameState; they return chronicle lines.
 
+import { CROP_FINDS, discoverCrop } from './farms';
 import { ANIMALS, thriving, trainCap, type StatId } from './dragon';
 import { areaName, fills, found } from './areas';
 import { jobDef, jobOutput, store, workers } from './economy';
@@ -128,6 +129,11 @@ export function huntStep(state: GameState, dt: number, t: number, rand: () => nu
         const k = named.length ? named[Math.floor(rand() * named.length) % named.length] : null;
         if (k) addHistory(k, t, `Was on the hunt that brought down the first ${m.name.toLowerCase()}, in ${areaName(state, g).replace(/^The /, 'the ')}.`);
         lines.push(k ? `${m.firstText} ${fullName(k)} led the hunt.` : m.firstText);
+      }
+      // salamander grounds have fire peppers growing at the edges
+      if (m.id === 'salamander' && rand() < CROP_FINDS.firePeppers) {
+        const seed = discoverCrop(state, 'fire-peppers');
+        if (seed) lines.push(`The hunters came back from ${areaName(state, g).replace(/^The /, 'the ')} with a pouch of red pods that burned their fingers. ${seed}`);
       }
       const farm = farmResearch(m.id);
       if (farm?.hunted && before + 1 === farm.hunted.n)
