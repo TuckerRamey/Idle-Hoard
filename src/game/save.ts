@@ -14,7 +14,8 @@ import { JOBS, RESOURCES } from './data';
 import type { ToolStock } from './forge';
 import type { NamedKobold } from './kobolds';
 import type { Colony } from './colonies';
-import { CHRONICLE_MAX, newDragon, newGame, newHunt, newMagic, type ChronicleEntry, type Crew, type DragonState, type GameState, type HuntState, type MagicState, type RoomState } from './state';
+import { areaDef, legacyAreas } from './areas';
+import { CHRONICLE_MAX, newDragon, newExplore, newGame, newHunt, newMagic, type ExploreState, type ChronicleEntry, type Crew, type DragonState, type GameState, type HuntState, type MagicState, type RoomState } from './state';
 
 export const SAVE_VERSION = 3;
 export const SAVE_KEY = 'idle-hoard.save';
@@ -195,6 +196,25 @@ function legacyToolFirst(r: any): string | null {
   return sl ? sl.order.slice(5) : null;
 }
 
+const GEAR_TIERS = ['stone', 'iron', 'steel', 'mithril', 'adamant'];
+
+function normalizeGear(v: any): NamedKobold['gear'] | null {
+  if (!v || typeof v !== 'object') return null;
+  const out: NonNullable<NamedKobold['gear']> = {};
+  for (const slot of ['tool', 'armor', 'trinket'] as const) {
+    const p = v[slot];
+    if (!p || typeof p !== 'object' || !GEAR_TIERS.includes(p.tier)) continue;
+    out[slot] = {
+      tier: p.tier,
+      marks: Math.max(0, Math.min(3, Math.floor(num(p.marks, 0)))),
+      origin: typeof p.origin === 'string' ? p.origin : '',
+      ...(typeof p.look === 'string' ? { look: p.look } : {}),
+      ...(typeof p.name === 'string' ? { name: p.name } : {}),
+    };
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 function normalizeNamed(v: unknown): NamedKobold[] {
   if (!Array.isArray(v)) return [];
   return v
@@ -223,6 +243,8 @@ function normalizeNamed(v: unknown): NamedKobold[] {
         : {}),
       ...(typeof k.epithet === 'string' ? { epithet: k.epithet } : {}),
       ...(typeof k.room === 'string' ? { room: k.room } : {}),
+      ...(typeof k.restLeft === 'number' && k.restLeft > 0 ? { restLeft: k.restLeft } : {}),
+      ...(normalizeGear(k.gear) ? { gear: normalizeGear(k.gear)! } : {}),
     }));
 }
 
@@ -241,6 +263,17 @@ function normalizeColonies(v: unknown, now: number): Colony[] {
         : [],
       nextEvent: num(c.nextEvent, 3600),
       sent: num(c.sent, 0),
+      ...(c.founder && typeof c.founder === 'object'
+        ? {
+            founder: {
+              pull: Math.max(-2, Math.min(2, Math.round(num(c.founder.pull, 0)))),
+              green: Math.max(-2, Math.min(2, Math.round(num(c.founder.green, 0)))),
+              trade: Math.max(-2, Math.min(2, Math.round(num(c.founder.trade, 0)))),
+              ...(['mining', 'shrine', 'stubborn', 'market'].includes(c.founder.knack) ? { knack: c.founder.knack } : {}),
+            },
+          }
+        : {}),
+      ...(num(c.heirlooms, 0) > 0 ? { heirlooms: Math.floor(num(c.heirlooms, 0)) } : {}),
     }))
     .filter((c) => c.leader);
 }
@@ -372,7 +405,7 @@ export function normalize(raw: unknown, now: number): GameState {
   for (const d of RESOURCES) res[d.id] = num(r.res?.[d.id], 0);
   const crews = normalizeCrews(r.crews);
   const rooms = normalizeRooms(r.rooms, base.rooms);
-  return {
+  const state: GameState = {
     res,
     totalEarned: num(r.totalEarned, base.totalEarned),
     idle: Math.floor(num(r.idle, 0)),
@@ -419,6 +452,9 @@ export function normalize(raw: unknown, now: number): GameState {
     },
     forge: {
       slots: normalizeSlots(r.forge?.slots),
+      commissions: (Array.isArray(r.forge?.commissions) ? r.forge.commissions : [])
+        .filter((c: any) => c && Number.isInteger(c.kobold) && ['tool', 'armor', 'trinket'].includes(c.slot))
+        .map((c: any) => ({ kobold: c.kobold, slot: c.slot })),
       toolUse: Object.fromEntries(
         Object.entries(r.forge?.toolUse && typeof r.forge.toolUse === 'object' ? r.forge.toolUse : {}).filter(([k, v]) => RESOURCES.some((d) => d.id === k) && typeof v === 'number' && Number.isFinite(v) && v >= 0),
       ),
@@ -429,7 +465,37 @@ export function normalize(raw: unknown, now: number): GameState {
     discovered: strList(r.discovered),
     hunt: normalizeHunt(r.hunt),
     magic: normalizeMagic(r.magic, r.oddities),
+    explore: normalizeExplore(r.explore),
+    losses: {
+      acc: Object.fromEntries(Object.entries(r.losses?.acc && typeof r.losses.acc === 'object' ? r.losses.acc : {}).filter(([, n]) => typeof n === 'number' && Number.isFinite(n))) as Record<string, number>,
+      idleFor: num(r.losses?.idleFor, 0),
+      wanderAcc: num(r.losses?.wanderAcc, 0),
+      died: Math.floor(num(r.losses?.died, 0)),
+      wandered: Math.floor(num(r.losses?.wandered, 0)),
+    },
     seed: Number.isInteger(r.seed) ? r.seed : base.seed,
+  };
+  // saves from before areas: find enough for them that nothing they made drops
+  if (!r.explore || typeof r.explore !== 'object') legacyAreas(state);
+  return state;
+}
+
+const KIND_IDS = ['wood', 'stone', 'copper', 'monsters'] as const;
+
+function normalizeExplore(v: any): ExploreState {
+  const base = newExplore();
+  if (!v || typeof v !== 'object') return { ...base, found: [] };
+  const nums = (o: any) => Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).filter(([, n]) => typeof n === 'number' && Number.isFinite(n) && n >= 0)) as Record<string, number>;
+  const found = strList(v.found).filter((id, i, a) => areaDef(id) && a.indexOf(id) === i);
+  if (!found.includes('near-tunnels')) found.unshift('near-tunnels');
+  const pick = (o: Record<string, number>) => Object.fromEntries(Object.entries(o).filter(([k]) => (KIND_IDS as readonly string[]).includes(k)));
+  return {
+    target: (KIND_IDS as readonly string[]).includes(v.target) ? v.target : v.target === null ? null : base.target,
+    points: pick(nums(v.points)),
+    found,
+    names: Object.fromEntries(Object.entries(v.names && typeof v.names === 'object' ? v.names : {}).filter(([k, n]) => areaDef(k) && typeof n === 'string')) as Record<string, string>,
+    bonus: pick(nums(v.bonus)),
+    progress: Object.fromEntries(Object.entries(nums(v.progress)).filter(([k]) => areaDef(k))),
   };
 }
 
@@ -459,8 +525,6 @@ function normalizeHunt(v: any): HuntState {
   for (const [k, m] of Object.entries(v.meat && typeof v.meat === 'object' ? v.meat : {}))
     if (m && typeof m === 'object') meat[k] = { wild: num((m as any).wild, 0), farmed: num((m as any).farmed, 0) };
   return {
-    quarry: typeof v.quarry === 'string' ? v.quarry : base.quarry,
-    progress: num(v.progress, 0),
     hunted: counts(v.hunted),
     meat,
     eatClock: num(v.eatClock, 0),

@@ -2,6 +2,7 @@ import type { Chief } from './chief';
 import type { DragonRequest } from './dragon';
 import type { ArtPiece } from './art';
 import type { ForgeSlot, ToolStock } from './forge';
+import type { Commission } from './gear';
 import type { NamedKobold } from './kobolds';
 import type { Colony } from './colonies';
 import { ROOMS, type ResourceId } from './data';
@@ -82,7 +83,7 @@ export interface GameState {
   colonies: Colony[];
   nextColonyId: number;
   /** The forge's order slots, and what tool orders have been using lately (per second, smoothed). */
-  forge: { slots: ForgeSlot[]; toolUse: Partial<Record<ResourceId, number>> };
+  forge: { slots: ForgeSlot[]; toolUse: Partial<Record<ResourceId, number>>; commissions: Commission[] };
   /** The tool rack every job takes from, by tier: in use and spare alike. */
   rack: Partial<Record<'stone' | 'iron' | 'steel' | 'mithril' | 'adamant', ToolStock>>;
   /** The job first in line for tools, or null to share them out evenly. */
@@ -95,13 +96,46 @@ export interface GameState {
   hunt: HuntState;
   /** Shaman magic: what they work with, mana, and rituals running. */
   magic: MagicState;
+  /** Kobolds lost on dangerous work and wandered off, and the clocks toward the next. */
+  losses: LossState;
+  /** Exploring: what the scouts look for, their points toward the next find of each kind, and the areas found. */
+  explore: ExploreState;
   /** For the game's own dice (mishaps, requests), so runs replay the same in tests. */
   seed: number;
 }
 
+export interface ExploreState {
+  target: 'wood' | 'stone' | 'copper' | 'monsters' | null;
+  points: Partial<Record<'wood' | 'stone' | 'copper' | 'monsters', number>>;
+  /** Area ids, in the order found. */
+  found: string[];
+  /** Areas named after the scout who found them. */
+  names: Record<string, string>;
+  /** Old saves only: extra room per kind, so nothing they made before drops ("the old workings"). */
+  bonus: Partial<Record<'wood' | 'stone' | 'copper' | 'monsters', number>>;
+  /** Hunting work toward the next kill on each ground. */
+  progress: Record<string, number>;
+}
+
+export interface LossState {
+  /** Toward the next loss on each dangerous job. */
+  acc: Record<string, number>;
+  /** Seconds there have been idle kobolds without a break, and toward the next one wandering off. */
+  idleFor: number;
+  wanderAcc: number;
+  died: number;
+  wandered: number;
+}
+
+export function newLosses(): LossState {
+  return { acc: {}, idleFor: 0, wanderAcc: 0, died: 0, wandered: 0 };
+}
+
+export function newExplore(): ExploreState {
+  return { target: 'wood', points: {}, found: ['near-tunnels'], names: {}, bonus: {}, progress: {} };
+}
+
 export interface HuntState {
-  quarry: string;
-  progress: number;
   hunted: Record<string, number>;
   /** Monster meat in the larder, by monster: wild (hunted) and farmed (raised in the pasture). */
   meat: Record<string, { wild: number; farmed: number }>;
@@ -132,7 +166,7 @@ export function newMagic(): MagicState {
 }
 
 export function newHunt(): HuntState {
-  return { quarry: 'cave-bear', progress: 0, hunted: {}, meat: {}, eatClock: 0 };
+  return { hunted: {}, meat: {}, eatClock: 0 };
 }
 
 export interface DragonState {
@@ -232,13 +266,15 @@ export function newGame(now: number): GameState {
     chiefMarks: { oddities: 0, events: [], pending: 0 },
     colonies: [],
     nextColonyId: 1,
-    forge: { slots: [], toolUse: {} },
+    forge: { slots: [], toolUse: {}, commissions: [] },
     rack: {},
     toolFirst: null,
     gems: {},
     discovered: [],
     hunt: newHunt(),
     magic: newMagic(),
+    explore: newExplore(),
+    losses: newLosses(),
     seed: (now % 2_147_483_647) || 1,
   };
 }

@@ -2,6 +2,7 @@
 // wants to talk to, and how it molts into its next stage. Growth comes from
 // how the warren looks after it, not from a number filling up.
 
+import { piece } from './gear';
 import { DRAGON_STAGES, RESOURCES, type ResourceId } from './data';
 import { artAppeal } from './art';
 import { capacity, hoardValue, incomePerSecond, jobDef, jobOpen, production, resourceOpen, roomVolume, store, workers } from './economy';
@@ -154,7 +155,9 @@ export function grantRequest(state: GameState, t: number, rand: () => number): s
     return 'The dragon got what it wanted and purred so loudly the coins rattled.' + pleased(state, t, rand);
   }
   const gift = pick(GIFTS, rand);
-  const story = `Spoke with the dragon and came back with ${gift.name}.`;
+  const k0 = r.namedId !== null ? findNamed(state, r.namedId) : null;
+  const scale = !(k0 && piece(k0, 'armor')) && rand() < 0.4;
+  const story = scale ? 'Spoke with the dragon and came back with one of its old scales, to wear as a breastplate.' : `Spoke with the dragon and came back with ${gift.name}.`;
   let k: NamedKobold | null | undefined = r.namedId !== null ? findNamed(state, r.namedId) : null;
   if (k) addHistory(k, t, story);
   else {
@@ -164,6 +167,13 @@ export function grantRequest(state: GameState, t: number, rand: () => number): s
     if (k) addHistory(k, t, story);
   }
   if (!k) return null;
+  // now and then it gives them something to wear instead
+  if (scale && !piece(k, 'armor')) {
+    // the audience is already in their story; the scale goes straight on
+    (k.gear ??= {}).armor = { tier: 'steel', marks: 1, look: 'scale breastplate', name: 'Dragonscale', origin: 'a gift from the dragon' };
+    state.dragon.request = null;
+    return `${fullName(k)} went to speak with the dragon and came back with one of its old scales, to wear as a breastplate.` + pleased(state, t, rand);
+  }
   k.gifts.push(gift.id);
   state.dragon.request = null;
   return `${fullName(k)} went to speak with the dragon and came back with ${gift.name}, looking very pleased with themselves.` + pleased(state, t, rand);

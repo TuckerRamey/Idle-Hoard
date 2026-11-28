@@ -6,6 +6,8 @@
 
 import { GEMS, type GemDef, type ResourceId } from './data';
 import { jobOpen, jobDef, resourceOpen, store, workers } from './economy';
+import { areaLuck } from './areas';
+import { givePiece, piece, TOOL_LOOK, trinketLuck } from './gear';
 import { addTool, bestTier, TIERS, TOOL_NAMES } from './forge';
 import { addHistory, fullName, namedIn, type NamedKobold } from './kobolds';
 import { researchEffect } from './research';
@@ -97,7 +99,7 @@ function metal(state: GameState, res: ResourceId, n: number, line: string): Foun
 }
 
 /** What turns up, for a job and a rarity. Returns null if nothing fitting can happen now. */
-function findFor(state: GameState, job: string, rarity: Rarity, rand: () => number, t: number): Found | null {
+function findFor(state: GameState, job: string, rarity: Rarity, rand: () => number, t: number, finder: NamedKobold | null = null): Found | null {
   if (rarity === 'common') {
     if (rand() < 0.35) return gem(state, 'common', rand, t);
     if (job === 'scavenger') return metal(state, 'copper', Math.round(50 + rand() * 150) * Math.max(1, state.stage), '{kobold} found a handful of copper in the rubble.');
@@ -122,6 +124,11 @@ function findFor(state: GameState, job: string, rarity: Rarity, rand: () => numb
     if (!TOOL_NAMES[job]) return null;
     const tier = bestTier(state)?.id ?? 'steel';
     const best = TIERS.findIndex((x) => x.id === tier) >= TIERS.findIndex((x) => x.id === 'steel') ? tier : 'steel';
+    // a named finder with no tool of their own keeps it
+    if (finder && !piece(finder, 'tool')) {
+      givePiece(finder, 'tool', { tier: best, marks: 1, origin: 'dwarf-made, found in a sealed niche' }, `Found a dwarf-made ${TOOL_LOOK[job] ?? 'tool'} in a sealed niche and kept it for their own.`, t);
+      return { text: `{kobold} found a dwarf-made ${TOOL_LOOK[job] ?? 'tool'} in a sealed niche, still sharp, and kept it for their own.` };
+    }
     addTool(state, best);
     const rec = state.oddities['dwarf-tools'];
     if (rec) rec.count++;
@@ -147,7 +154,7 @@ export function findStep(state: GameState, dt: number, t: number, rand: () => nu
     // who found it: a named kobold on the job (with their own luck), or someone from the crew
     const named = namedIn(state, job);
     const k = named.length && rand() < named.length / n ? pick(named, rand) : null;
-    let luck = (k ? luckOf(k, job) : 1) * (researchEffect(state, 'findLuck')?.mult ?? 1);
+    let luck = (k ? luckOf(k, job) * trinketLuck(k) : 1) * (researchEffect(state, 'findLuck')?.mult ?? 1) * areaLuck(state, job);
     if (named.some((x) => x.lieutenant)) luck *= WORK_FINDS.lieutenantLuck;
     let rarity = rollRarity(state, luck, rand, job);
     // a shaman's lucky charm: the next few finds are at least uncommon
@@ -155,7 +162,7 @@ export function findStep(state: GameState, dt: number, t: number, rand: () => nu
       if (rarity === 'common') rarity = 'uncommon';
       state.magic.charms--;
     }
-    const found = findFor(state, job, rarity, rand, t);
+    const found = findFor(state, job, rarity, rand, t, k);
     if (!found || rarity === 'common') continue;
     // the crew's finds go in the story of a named kobold on the job, if there is one
     const credit = k ?? (named.length ? pick(named, rand) : null);

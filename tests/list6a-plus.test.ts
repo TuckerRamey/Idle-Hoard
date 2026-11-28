@@ -3,7 +3,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Chief } from '../src/game/chief';
 import { JOBS } from '../src/game/data';
-import { capacity, FULL_YARD_ORE, jobDef, jobHints, jobOutput, minerSplit, oreShare, production } from '../src/game/economy';
+import { capacity, jobDef, jobHints, jobOutput, production } from '../src/game/economy';
+import { addArea, areaDef, areaMix, FULL_YARD_ORE, oreBoost, yardFull } from '../src/game/areas';
 import { findStep, WORK_FINDS } from '../src/game/finds';
 import { canResearch, researchDef } from '../src/game/research';
 import { normalize } from '../src/game/save';
@@ -14,6 +15,7 @@ const chief: Chief = { name: 'Snik', cunning: 0, voice: 0, nerve: 0, quirk: 'non
 
 function game(): GameState {
   const s = newGame(T0);
+  s.explore.found.push('grove', 'rubble-cave'); // the starting woods and stone, so every gathering job is open
   s.chief = { ...chief };
   s.newcomerJob = 'idle';
   s.seed = 99;
@@ -26,29 +28,32 @@ describe('one Miner job', () => {
     expect(jobDef('miner')!.requires).toBeUndefined();
   });
 
-  it('miners cut only stone until ore sniffing, then a steady share of ore that research raises', () => {
+  it('miners take ore from iron-bearing ground once they can sniff it, and research makes the ore part bigger', () => {
     const s = game();
+    addArea(s, 'iron-seam');
     s.crews.miner = { n: 10 };
-    const out = jobOutput(s, jobDef('miner')!);
+    const out = Math.min(jobOutput(s, jobDef('miner')!), 14);
     expect(production(s).stone).toBeCloseTo(out);
     expect(production(s).ore).toBe(0);
-    for (const [id, share] of [['ore-sniffing', 0.2], ['seam-reading', 0.35], ['deep-seams', 0.5]] as const) {
-      s.research.done.push(id);
-      expect(oreShare(s)).toBe(share);
-      expect(production(s).ore).toBeCloseTo(out * share);
-      expect(production(s).stone).toBeCloseTo(out * (1 - share));
-    }
+    s.research.done.push('ore-sniffing');
+    const seam = Math.min(out, 8);
+    expect(production(s).ore).toBeCloseTo(seam * 0.5);
+    s.research.done.push('seam-reading');
+    expect(oreBoost(s)).toBe(1.5);
+    expect(production(s).ore).toBeCloseTo(seam * 0.75);
+    s.research.done.push('deep-seams');
+    expect(production(s).ore).toBeCloseTo(seam);
+    expect(production(s).stone).toBeCloseTo(out - seam);
   });
 
   it('a full stone yard sends the stone part to ore, at half pace, and says so', () => {
     const s = game();
+    addArea(s, 'iron-seam');
     s.research.done.push('ore-sniffing');
     s.crews.miner = { n: 10 };
     s.res.stone = capacity(s, 'stone');
-    const split = minerSplit(s);
-    expect(split.yardFull).toBe(true);
-    expect(split.stone).toBe(0);
-    expect(split.ore).toBeCloseTo(0.2 + 0.8 * FULL_YARD_ORE);
+    expect(yardFull(s)).toBe(true);
+    expect(areaMix(s, areaDef('iron-seam')!)).toEqual({ ore: 0.5 + 0.5 * FULL_YARD_ORE });
     expect(jobHints(s).miner).toMatch(/stone yard is full/);
   });
 

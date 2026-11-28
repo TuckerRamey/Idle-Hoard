@@ -23,6 +23,13 @@ import { rng, type GameState } from '../game/state';
 import { timeAgo } from './chronicle';
 import { $, confirmTap, setDisabled, setText } from './dom';
 import { syncOptions } from './hud';
+import { formatDuration } from './format';
+import { commission, commissionBlocked, gearLine, nextUpgrade, piece, pieceText, SLOTS } from '../game/gear';
+import { founderLine, founderPreview } from '../game/founders';
+import { forgeOpen } from '../game/forge';
+import { COLONY } from '../game/colonies';
+import type { ResourceId } from '../game/data';
+import { costText } from './hud';
 
 /** ×1.5, ×3.2, ×0.75 */
 export const timesText = (m: number) => `×${m.toFixed(2).replace(/0$/, '').replace(/\.0$/, '')}`;
@@ -46,7 +53,8 @@ export class NamedView {
     if (!s.named.length) return;
     setText(this.summary, `${s.named.length} named · ${lieutenants(s).length} of ${lieutenantSlots(s)} lieutenants`);
     const key =
-      s.named.map((k) => `${k.id}:${k.job}:${k.job === 'digger' ? namedDigRoom(s, k) : ''}:${k.lieutenant}:${k.history.length}:${k.gifts.length}:${k.traits.length}:${k.talents?.length ?? 0}:${k.epithet ?? ''}`).join('|') +
+      s.named.map((k) => `${k.id}:${k.job}:${k.job === 'digger' ? namedDigRoom(s, k) : ''}:${k.lieutenant}:${k.history.length}:${k.gifts.length}:${k.traits.length}:${k.talents?.length ?? 0}:${k.epithet ?? ''}:${Math.ceil((k.restLeft ?? 0) / 600)}:${JSON.stringify(k.gear ?? {})}`).join('|') +
+      `|${JSON.stringify(s.forge.commissions)}|${s.research.done.length}|${Math.floor(s.res.steel)}|${Math.floor(s.res.bars)}|${Math.floor(s.res.stone)}` +
       `|${lieutenantSlots(s)}|${Math.floor(now / 60000)}|${JOBS.filter((j) => jobOpen(s, j)).length}|${artOpen(s)}|${coloniesOpen(s)}|${s.named.map((k) => colonyBlocked(s, k) ?? '').join()}`;
     if (key === this.key) return;
     this.key = key;
@@ -58,13 +66,14 @@ export class NamedView {
   private card(s: GameState, k: NamedKobold, now: number, isOpen: boolean): HTMLLIElement {
     const li = document.createElement('li');
     li.className = 'named';
-    li.innerHTML = `<details><summary><b></b> <span class="desc job"></span></summary><div class="named-body"><div class="desc likes"></div><div class="desc mods"></div><div class="desc traits"></div><div class="named-controls"><label class="desc">Job <select class="job-pick"></select></label><label class="desc room-pick" hidden>Digging <select></select></label><button type="button" class="lt"></button><button type="button" class="art"></button><button type="button" class="colony-btn"></button></div><div class="desc lt-note"></div><ul class="history"></ul></div></details>`;
+    li.innerHTML = `<details><summary><b></b> <span class="desc job"></span></summary><div class="named-body"><div class="desc likes"></div><div class="desc mods"></div><div class="desc traits"></div><div class="kit"><div class="desc kit-line"></div><ul class="kit-slots"></ul></div><div class="desc founder"></div><div class="named-controls"><label class="desc">Job <select class="job-pick"></select></label><label class="desc room-pick" hidden>Digging <select></select></label><button type="button" class="lt"></button><button type="button" class="art"></button><button type="button" class="colony-btn"></button></div><div class="desc lt-note"></div><ul class="history"></ul></div></details>`;
     const det = li.querySelector('details')!;
     det.dataset.id = String(k.id);
     det.open = isOpen;
     li.querySelector('b')!.textContent = `${k.lieutenant ? '★ ' : ''}${fullName(k)}`;
     const working = k.job !== IDLE && k.job !== ARTISAN;
-    li.querySelector('.job')!.textContent = working ? `${jobName(k.job)} ${timesText(personalMult(k))}` : jobName(k.job);
+    const rest = (k.restLeft ?? 0) > 0 ? ` · hurt, resting by the hoard (${formatDuration(k.restLeft!)} left)` : '';
+    li.querySelector('.job')!.textContent = (working ? `${jobName(k.job)} ${timesText(personalMult(k))}` : jobName(k.job)) + rest;
     li.querySelector('.mods')!.textContent = working ? modsText(k) : '';
     li.querySelector('.likes')!.textContent = `Loves ${jobName(k.loves).toLowerCase()}, hates ${jobName(k.hates).toLowerCase()}.`;
     const extras = [
@@ -131,6 +140,9 @@ export class NamedView {
       const line = foundColony(st, k.id, Date.now(), rng(st));
       if (line) this.onChange(k, 'colony', line);
     });
+    this.gear(s, k, li);
+    li.querySelector('.founder')!.textContent = founderLine(k);
+    if (!why) col.title = `${founderPreview(k, COLONY.settlers)} Leave to found a colony that sends tribute to the hoard. For good.`;
     const hist = li.querySelector('.history')!;
     for (const h of [...k.history].reverse()) {
       const item = document.createElement('li');
@@ -141,6 +153,36 @@ export class NamedView {
       hist.append(item);
     }
     return li;
+  }
+
+  /** The gear line, and a row per slot with what's there and an Upgrade button. */
+  private gear(s: GameState, k: NamedKobold, li: HTMLElement) {
+    li.querySelector('.kit-line')!.textContent = `Gear: ${gearLine(k)}`;
+    const list = li.querySelector('.kit-slots')!;
+    if (!forgeOpen(s) && !k.gear) return;
+    for (const slot of SLOTS) {
+      const p = piece(k, slot);
+      const row = document.createElement('li');
+      const text = document.createElement('span');
+      text.className = 'desc';
+      const name = slot[0].toUpperCase() + slot.slice(1);
+      text.textContent = p ? `${name}: ${pieceText(k, slot, p)}${p.origin ? `, ${p.origin}` : ''}.` : `${name}: none yet. It will turn up in their story.`;
+      row.append(text);
+      if (p && forgeOpen(s)) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'small';
+        const up = nextUpgrade(s, p);
+        const why = commissionBlocked(s, k, slot);
+        btn.textContent = up && !why ? `Upgrade, ${up.label} (${costText(up.cost as Partial<Record<ResourceId, number>>)})` : (why ?? 'Upgrade');
+        setDisabled(btn, !!why);
+        btn.addEventListener('click', () => {
+          if (commission(this.getState(), k, slot)) this.onChange(k, 'job');
+        });
+        row.append(' ', btn);
+      }
+      list.append(row);
+    }
   }
 }
 

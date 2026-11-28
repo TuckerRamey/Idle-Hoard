@@ -3,6 +3,7 @@
 // using some materials; it goes on display in the hoard room and draws
 // kobolds. The hoard room's size limits how many pieces fit on show.
 
+import { hangUpGear } from './gear';
 import type { ResourceId } from './data';
 import { resourceOpen, roomVolume } from './economy';
 import { addHistory, fullName, LIEUTENANT_EXPERIENCES, type NamedKobold } from './kobolds';
@@ -71,6 +72,7 @@ export function makeArtisan(state: GameState, id: number, t: number): boolean {
   k.lieutenant = false;
   k.artWork = 0;
   addHistory(k, t, 'Put down their tools to make art for the hoard room.');
+  hangUpGear(state, k, t);
   return true;
 }
 

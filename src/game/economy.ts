@@ -3,6 +3,9 @@
 
 import { PIP_ODDITIES, quirkOf, raiseStat } from './chief';
 import { artStep } from './art';
+import { lossStep } from './losses';
+import { gearStep } from './gear';
+import { areaExtrasStep, capHint, exploreStep, gathered, kindKnown, yardFull } from './areas';
 import { findStep } from './finds';
 import { huntStep } from './hunting';
 import { MAGIC, magicStep } from './magic';
@@ -42,8 +45,9 @@ export const emptyRes = () => ({ copper: 0, silver: 0, gold: 0, wood: 0, stone: 
 
 // ---------- what's open ----------
 
+/** A job is open once its research is done and, for jobs that work areas, once the scouts have found one. */
 export function jobOpen(state: GameState, def: JobDef): boolean {
-  return opened(state, def.requires);
+  return opened(state, def.requires) && (!def.area || kindKnown(state, def.area));
 }
 
 export function resourceOpen(state: GameState, res: ResourceId): boolean {
@@ -152,7 +156,7 @@ export function globalMultiplier(state: GameState): number {
 }
 
 function baseRate(def: JobDef): number {
-  return def.produces?.rate ?? def.digs ?? def.researches ?? def.converts ?? def.smiths ?? def.hunts ?? def.channels ?? 0;
+  return def.produces?.rate ?? def.digs ?? def.researches ?? def.converts ?? def.smiths ?? def.hunts ?? def.channels ?? def.explores ?? 0;
 }
 
 /** What one crowd kobold in this job makes (or digs, researches, converts) per second. */
@@ -169,8 +173,26 @@ function herdFactor(state: GameState): number {
   return f;
 }
 
+/**
+ * During one tick step every job's output is asked for many times over
+ * (production, areas, hints, finds); it's worked out once per step and
+ * reused. Outside a tick nothing is cached.
+ */
+let outputCache: Map<string, number> | null = null;
+
 /** What everyone in a job makes (or digs, researches, converts) per second. */
 export function jobOutput(state: GameState, def: JobDef): number {
+  if (outputCache) {
+    const hit = outputCache.get(def.id);
+    if (hit !== undefined) return hit;
+    const v = workOutput(state, def);
+    outputCache.set(def.id, v);
+    return v;
+  }
+  return workOutput(state, def);
+}
+
+function workOutput(state: GameState, def: JobDef): number {
   if (!jobOpen(state, def)) return 0;
   const each = baseRate(def) * jobMultiplier(state, def.id) * globalMultiplier(state);
   const tools = toolMults(state, def.id);
@@ -185,37 +207,16 @@ export function chiefRate(state: GameState): number {
   return state.chief ? CONFIG.chiefRate * globalMultiplier(state) : 0;
 }
 
-/** Ore for each stone the miners would have cut, once the stone yard is full and they dig only for ore. */
-export const FULL_YARD_ORE = 0.5;
-
-/** The share of what miners cut that comes out as iron ore: a steady split, raised by research. */
-export function oreShare(state: GameState): number {
-  if (!resourceOpen(state, 'ore')) return 0;
-  let share = 0;
-  for (const e of researchEffects(state)) if (e.kind === 'oreShare') share = Math.max(share, e.share);
-  return share;
-}
-
-/** What miners make of each unit of work: stone and iron ore. A full stone yard sends the stone part to ore, at half pace. */
-export function minerSplit(state: GameState): { stone: number; ore: number; yardFull: boolean } {
-  const share = oreShare(state);
-  const yardFull = share > 0 && state.res.stone >= capacity(state, 'stone') - 1e-6;
-  if (yardFull) return { stone: 0, ore: share + (1 - share) * FULL_YARD_ORE, yardFull };
-  return { stone: 1 - share, ore: share, yardFull };
-}
-
 /** Everything made per second by jobs and the Chief, before storage limits. Not counting alchemy. */
 export function production(state: GameState): Record<ResourceId, number> {
   const p = emptyRes();
   p.copper = chiefRate(state);
   for (const def of JOBS) {
     if (!def.produces || !resourceOpen(state, def.produces.resource)) continue;
-    const out = jobOutput(state, def);
-    if (def.id === 'miner') {
-      const split = minerSplit(state);
-      p.stone += out * split.stone;
-      p.ore += out * split.ore;
-    } else p[def.produces.resource] += out;
+    if (def.area) {
+      // gatherers work the areas the scouts found, each up to its most
+      for (const [r, n] of Object.entries(gathered(state, def.area))) p[r as ResourceId] += n ?? 0;
+    } else p[def.produces.resource] += jobOutput(state, def);
   }
   return p;
 }
@@ -465,12 +466,22 @@ export function jobHints(state: GameState): Record<string, string> {
   const hints: Record<string, string> = {};
   const f = flows(state);
   const why = { digging: 'Digging', alchemy: 'The alchemist', forge: 'The forge', dragon: 'The dragon' } as const;
-  const split = minerSplit(state);
   for (const def of JOBS) {
     if (!def.produces || !jobOpen(state, def)) continue;
-    // miners make stone and ore: the ore note comes first, since the forge waits on it
-    const outputs: [ResourceId, number][] =
-      def.id === 'miner' ? ([['ore', split.ore], ['stone', split.stone]] as [ResourceId, number][]).filter(([, x]) => x > 0) : [[def.produces.resource, 1]];
+    // an area job with every area full: more kobolds won't help, exploring will
+    const capped = def.area ? capHint(state, def.area) : null;
+    if (capped) {
+      hints[def.id] = capped;
+      continue;
+    }
+    // gatherers can make more than one thing: the ore note comes first, since the forge waits on it
+    const made = def.area ? gathered(state, def.area) : { [def.produces.resource]: 1 };
+    const sum = Object.values(made).reduce((a, x) => a + (x ?? 0), 0) || 1;
+    const outputs = (Object.entries(made) as [ResourceId, number][])
+      .filter(([, x]) => x > 0)
+      .map(([r, x]): [ResourceId, number] => [r, x / sum])
+      .sort((a, b) => (a[0] === 'ore' ? -1 : b[0] === 'ore' ? 1 : 0));
+    if (!outputs.length) outputs.push([def.produces.resource, 1]);
     for (const [res, part] of outputs) {
       const fl = f[res];
       const name = resourceDef(res).name.toLowerCase();
@@ -488,7 +499,7 @@ export function jobHints(state: GameState): Record<string, string> {
       }
       if (hints[def.id]) break;
     }
-    if (def.id === 'miner' && split.yardFull && !hints.miner)
+    if (def.id === 'miner' && yardFull(state) && !hints.miner)
       hints.miner = 'The stone yard is full, so the miners dig for ore only, at half pace. Dig the stone yard bigger to get stone again.';
   }
   if (workers(state, 'herder') > herdersFit(state) && herdersFit(state) > 0)
@@ -563,7 +574,7 @@ export function arrive(state: GameState, seconds: number): number {
   if (n > 0) {
     state.idle += n;
     const job = jobDef(state.newcomerJob);
-    if (state.newcomerJob !== IDLE && job && jobOpen(state, job)) assign(state, state.newcomerJob, n);
+    if (state.newcomerJob !== IDLE && state.newcomerJob !== 'scout' && job && jobOpen(state, job)) assign(state, state.newcomerJob, n);
   }
   return n;
 }
@@ -611,9 +622,14 @@ export interface TickResult {
   learned: string[];
   /** Chronicle lines. {chief} is filled in by the caller. */
   events: string[];
+  /** Crowd kobolds lost on dangerous work, by job, and idle ones who wandered off. */
+  died: Record<string, number>;
+  wandered: number;
+  /** Areas the scouts found. */
+  explored: string[];
 }
 
-const emptyResult = (): TickResult => ({ gained: emptyRes(), lost: emptyRes(), newStage: null, dug: [], learned: [], events: [] });
+const emptyResult = (): TickResult => ({ gained: emptyRes(), lost: emptyRes(), newStage: null, dug: [], learned: [], events: [], died: {}, wandered: 0, explored: [] });
 
 /** Rates are worked out again at least this often (seconds). */
 const SUBSTEP = 10;
@@ -631,6 +647,19 @@ export function tick(state: GameState, seconds: number, t = state.lastTick): Tic
   for (let left = seconds; left > 1e-9; left -= SUBSTEP) {
     const dt = Math.min(SUBSTEP, left);
     at += dt * 1000;
+    outputCache = new Map();
+    try {
+      step(state, dt, at, rand, r);
+    } finally {
+      outputCache = null;
+    }
+  }
+  return r;
+}
+
+/** One step of a tick, with job outputs cached for its length. */
+function step(state: GameState, dt: number, at: number, rand: () => number, r: TickResult) {
+  {
     const p = production(state);
     for (const res of RESOURCES) {
       const made = p[res.id] * dt;
@@ -640,7 +669,7 @@ export function tick(state: GameState, seconds: number, t = state.lastTick): Tic
     }
     alchemy(state, alchemyRate(state) * dt);
     for (const [room, rate] of Object.entries(digRates(state))) dig(state, room, rate * dt, r, rand, at);
-    forgeStep(state, dt);
+    forgeStep(state, dt, r.events, at, rand);
     research(state, dt, at, rand, r);
     const before = state.stage;
     r.events.push(...dragonStep(state, dt, at, rand));
@@ -653,11 +682,19 @@ export function tick(state: GameState, seconds: number, t = state.lastTick): Tic
     r.events.push(...findStep(state, dt, at, rand));
     r.events.push(...epithetStep(state, at));
     r.events.push(...colonyStep(state, dt, at, rand));
+    const known = state.explore.found.length;
+    r.events.push(...exploreStep(state, dt, at, rand));
+    r.explored.push(...state.explore.found.slice(known));
+    const loss = lossStep(state, dt, at, rand);
+    r.events.push(...loss.lines);
+    for (const [job, n] of Object.entries(loss.died)) r.died[job] = (r.died[job] ?? 0) + n;
+    r.wandered += loss.wandered;
+    r.events.push(...areaExtrasStep(state, dt, at, rand));
+    r.events.push(...gearStep(state, dt, at, rand));
     const s = stageFor(hoardValue(state));
     if (s > state.stage) state.stage = s;
     if (state.stage > before) r.newStage = state.stage;
   }
-  return r;
 }
 
 function alchemy(state: GameState, input: number) {
@@ -783,6 +820,9 @@ export function advanceTo(state: GameState, now: number): AdvanceResult {
     out.dug.push(...r.dug);
     out.learned.push(...r.learned);
     out.events.push(...r.events);
+    for (const [job, n] of Object.entries(r.died)) out.died[job] = (out.died[job] ?? 0) + n;
+    out.wandered += r.wandered;
+    out.explored.push(...r.explored);
     out.arrived += arrive(state, step);
   }
   return out;

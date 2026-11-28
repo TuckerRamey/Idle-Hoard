@@ -1,12 +1,12 @@
-// Hunting: hunters go after monsters in the deep caves and bring back their
-// meat. The dragon eats it a bite at a time, and each kind trains one of its
+// Hunting: hunters work the hunting grounds the scouts have found (see
+// areas.ts), best first, each up to so many kills an hour, and bring back meat. The dragon eats it a bite at a time, and each kind trains one of its
 // stats. Hunt enough of one kind and the researchers work out how to keep it
 // in the pasture, where it gives a steadier, weaker meat. Pure functions over
 // GameState; they return chronicle lines.
 
 import { ANIMALS, thriving, trainCap, type StatId } from './dragon';
-import { jobDef, jobOpen, jobOutput, store, workers } from './economy';
-import { WORK_FINDS } from './finds';
+import { areaName, fills, found } from './areas';
+import { jobDef, jobOutput, store, workers } from './economy';
 import { addHistory, fullName, namedIn } from './kobolds';
 import { RESEARCH } from './research';
 import type { GameState } from './state';
@@ -16,26 +16,23 @@ export interface MonsterDef {
   name: string;
   /** Plural, lower case, for lines like "18 cave bears hunted". */
   plural: string;
-  /** The stat its meat trains. */
-  stat: StatId;
+  /** The stat its meat trains, or all three. */
+  stat: StatId | 'all';
   /** Training per bite of wild meat, times HUNT.wildGain. */
   gain: number;
   /** Hunting work to bring one down. */
   work: number;
-  /** Dragon stage before the hunters dare go after it. */
-  minStage: number;
-  /** Lives only past a deep room. */
-  deep?: boolean;
   /** The first time one is brought down. */
   firstText: string;
 }
 
 export const MONSTERS: MonsterDef[] = [
-  { id: 'cave-bear', name: 'Cave bear', plural: 'cave bears', stat: 'might', gain: 1, work: 1_800, minStage: 1, firstText: 'The hunters dragged home their first cave bear. The dragon ate it in one go and looked bigger for it.' },
-  { id: 'salamander', name: 'Salamander', plural: 'salamanders', stat: 'fire', gain: 1, work: 1_800, minStage: 1, firstText: 'The hunters brought back a salamander, still smouldering. The dragon hiccupped a little flame.' },
-  { id: 'glow-eel', name: 'Glow-eel', plural: 'glow-eels', stat: 'presence', gain: 1, work: 1_500, minStage: 1, firstText: 'The hunters netted a glow-eel. The dragon ate it and glowed faintly green for an hour.' },
-  { id: 'basilisk', name: 'Basilisk', plural: 'basilisks', stat: 'might', gain: 2, work: 6_000, minStage: 3, deep: true, firstText: 'The hunters brought down a basilisk, looking at it only in a polished shield. The dragon was very impressed.' },
-  { id: 'wyvern', name: 'Wyvern', plural: 'wyverns', stat: 'fire', gain: 2, work: 10_000, minStage: 4, firstText: 'The hunters brought down a wyvern. The dragon ate it and breathed fire for the first time in a week.' },
+  { id: 'cave-bear', name: 'Cave bear', plural: 'cave bears', stat: 'might', gain: 1, work: 1_800, firstText: 'The hunters dragged home their first cave bear. The dragon ate it in one go and looked bigger for it.' },
+  { id: 'salamander', name: 'Salamander', plural: 'salamanders', stat: 'fire', gain: 1, work: 1_800, firstText: 'The hunters brought back a salamander, still smouldering. The dragon hiccupped a little flame.' },
+  { id: 'glow-eel', name: 'Glow-eel', plural: 'glow-eels', stat: 'presence', gain: 1, work: 1_500, firstText: 'The hunters netted a glow-eel. The dragon ate it and glowed faintly green for an hour.' },
+  { id: 'basilisk', name: 'Basilisk', plural: 'basilisks', stat: 'might', gain: 2, work: 6_000, firstText: 'The hunters brought down a basilisk, looking at it only in a polished shield. The dragon was very impressed.' },
+  { id: 'wyvern', name: 'Wyvern', plural: 'wyverns', stat: 'fire', gain: 2, work: 10_000, firstText: 'The hunters brought down a wyvern. The dragon ate it and breathed fire for the first time in a week.' },
+  { id: 'elder', name: 'Elder thing', plural: 'elder things', stat: 'all', gain: 3, work: 20_000, firstText: 'The hunters brought something up out of the elder deeps. Nobody will say what it looked like. The dragon ate it and was quiet for a long time.' },
 ];
 
 export const HUNT = {
@@ -64,29 +61,15 @@ export const HUNT = {
 
 export const monsterDef = (id: string) => MONSTERS.find((m) => m.id === id);
 
-/** Can the hunters go after this monster now? */
-export function huntable(state: GameState, m: MonsterDef): boolean {
-  if (state.stage < m.minStage) return false;
-  if (m.deep && !Object.values(state.rooms).some((r) => r.volume >= WORK_FINDS.deepPaces)) return false;
-  return true;
-}
-
-export function huntableMonsters(state: GameState): MonsterDef[] {
-  return MONSTERS.filter((m) => huntable(state, m));
-}
-
-export function setQuarry(state: GameState, id: string): boolean {
-  const m = monsterDef(id);
-  if (!m || !huntable(state, m) || state.hunt.quarry === id) return false;
-  state.hunt.quarry = id;
-  state.hunt.progress = 0;
-  return true;
-}
-
-/** Hunting work per second. */
+/** Hunting work per second, before the grounds' limits. */
 export function huntRate(state: GameState): number {
-  const def = jobDef('hunter');
-  return def && jobOpen(state, def) ? jobOutput(state, def) : 0;
+  return fills(state, 'monsters').raw;
+}
+
+/** Monsters living on the grounds found so far. */
+export function huntableMonsters(state: GameState): MonsterDef[] {
+  const ids = new Set(found(state, 'monsters').flatMap((g) => g.monsters ?? []));
+  return MONSTERS.filter((m) => ids.has(m.id));
 }
 
 /** The research a monster opens once enough are hunted, if any. */
@@ -103,19 +86,18 @@ function meatOf(state: GameState, id: string) {
   return (state.hunt.meat[id] ??= { wild: 0, farmed: 0 });
 }
 
-/** A short note for the hunter row. */
+/** A short note for the hunter row: kills an hour, and how close the next monster is to being kept in the pasture. */
 export function huntHint(state: GameState): string | null {
-  const m = monsterDef(state.hunt.quarry);
-  if (!m) return null;
-  const n = state.hunt.hunted[m.id] ?? 0;
-  const farm = farmResearch(m.id);
-  if (farm && farm.hunted && n < farm.hunted.n && !state.research.done.includes(farm.id))
-    return `${m.plural[0].toUpperCase()}${m.plural.slice(1)}: ${n} of ${farm.hunted.n} hunted, then the researchers can work out how to keep them.`;
-  const rate = huntRate(state);
-  if (rate <= 0) return null;
-  const every = m.work / rate;
-  const when = every < 3600 ? `${Math.max(1, Math.round(every / 60))} minutes` : `${Math.round((every / 3600) * 10) / 10} hours`;
-  return `${m.plural[0].toUpperCase()}${m.plural.slice(1)}: ${n} hunted so far, about one every ${when}.`;
+  const f = fills(state, 'monsters');
+  let kills = 0;
+  for (const x of f.fills) if (x.area) kills += (x.used * 3600) / (x.area.killWork ?? 1);
+  for (const m of huntableMonsters(state)) {
+    const n = state.hunt.hunted[m.id] ?? 0;
+    const farm = farmResearch(m.id);
+    if (farm?.hunted && n < farm.hunted.n && !state.research.done.includes(farm.id))
+      return `About ${kills < 10 ? Math.round(kills * 10) / 10 : Math.round(kills)} kills an hour. ${m.plural[0].toUpperCase()}${m.plural.slice(1)}: ${n} of ${farm.hunted.n} hunted, then the researchers can work out how to keep them.`;
+  }
+  return f.raw > 0 ? `About ${kills < 10 ? Math.round(kills * 10) / 10 : Math.round(kills)} kills an hour across ${f.fills.filter((x) => x.used > 0).length} hunting grounds.` : null;
 }
 
 /** Let `dt` seconds pass: hunters hunt, pastured monsters breed, and the dragon eats. Returns chronicle lines. */
@@ -123,30 +105,28 @@ export function huntStep(state: GameState, dt: number, t: number, rand: () => nu
   const lines: string[] = [];
   const h = state.hunt;
 
-  // the hunt
-  let m = monsterDef(h.quarry);
-  if (m && !huntable(state, m)) {
-    // the quarry went out of reach (an old save); go back to the first one
-    h.quarry = MONSTERS[0].id;
-    h.progress = 0;
-    m = MONSTERS[0];
-  }
-  const rate = huntRate(state);
-  if (m && rate > 0 && huntable(state, m)) {
-    h.progress += rate * dt;
-    for (let guard = 0; guard < 20 && h.progress >= m.work; guard++) {
-      h.progress -= m.work;
+  // the hunt: each ground worked toward its next kill
+  for (const fl of fills(state, 'monsters').fills) {
+    const g = fl.area;
+    if (!g?.monsters?.length || fl.used <= 0) continue;
+    const work = g.killWork ?? 1;
+    const prog = (state.explore.progress[g.id] ?? 0) + fl.used * dt;
+    state.explore.progress[g.id] = prog;
+    for (let guard = 0; guard < 20 && state.explore.progress[g.id] >= work; guard++) {
+      state.explore.progress[g.id] -= work;
       if (rand() >= HUNT.success) continue; // it got away
+      const m = monsterDef(g.monsters[Math.floor(rand() * g.monsters.length) % g.monsters.length]);
+      if (!m) continue;
       const before = h.hunted[m.id] ?? 0;
       h.hunted[m.id] = before + 1;
       const meat = meatOf(state, m.id);
-      meat.wild = Math.min(HUNT.maxMeat, meat.wild + HUNT.meatPerKill);
+      meat.wild = Math.min(HUNT.maxMeat, meat.wild + HUNT.meatPerKill * (g.meatMult ?? 1));
       store(state, 'meat', HUNT.larderPerKill);
       state.magic.bones = Math.min(HUNT.maxBones, state.magic.bones + HUNT.bonesPerKill * m.gain);
       if (before === 0) {
         const named = namedIn(state, 'hunter');
         const k = named.length ? named[Math.floor(rand() * named.length) % named.length] : null;
-        if (k) addHistory(k, t, `Was on the hunt that brought down the first ${m.name.toLowerCase()}.`);
+        if (k) addHistory(k, t, `Was on the hunt that brought down the first ${m.name.toLowerCase()}, in ${areaName(state, g).replace(/^The /, 'the ')}.`);
         lines.push(k ? `${m.firstText} ${fullName(k)} led the hunt.` : m.firstText);
       }
       const farm = farmResearch(m.id);
@@ -192,7 +172,7 @@ function bite(state: GameState): string | null {
   for (const [id, meat] of Object.entries(state.hunt.meat)) {
     const mon = monsterDef(id);
     if (!mon) continue;
-    const room = cap - d.trained[mon.stat];
+    const room = mon.stat === 'all' ? Math.max(...(['might', 'fire', 'presence'] as StatId[]).map((x) => cap - d.trained[x])) : cap - d.trained[mon.stat];
     if (room <= 1e-9) continue;
     const wild = meat.wild >= 1;
     if (!wild && meat.farmed < 1) continue;
@@ -204,11 +184,15 @@ function bite(state: GameState): string | null {
   if (best.wild) meat.wild -= 1;
   else meat.farmed -= 1;
   const gain = (best.wild ? HUNT.wildGain * mon.gain : HUNT.farmedGain * mon.gain);
-  const was = d.trained[mon.stat];
-  d.trained[mon.stat] = Math.min(cap, was + gain);
-  if (was < cap && d.trained[mon.stat] >= cap - 1e-9) {
-    const name = mon.stat === 'might' ? 'Might' : mon.stat === 'fire' ? 'Fire' : 'Presence';
-    return `The dragon's ${name} is as high as it can go at this size. It will need to molt to grow stronger.`;
+  const stats: StatId[] = mon.stat === 'all' ? ['might', 'fire', 'presence'] : [mon.stat];
+  const lines: string[] = [];
+  for (const st of stats) {
+    const was = d.trained[st];
+    d.trained[st] = Math.min(cap, was + gain);
+    if (was < cap && d.trained[st] >= cap - 1e-9) {
+      const name = st === 'might' ? 'Might' : st === 'fire' ? 'Fire' : 'Presence';
+      lines.push(`The dragon's ${name} is as high as it can go at this size. It will need to molt to grow stronger.`);
+    }
   }
-  return null;
+  return lines.length ? lines.join(' ') : null;
 }

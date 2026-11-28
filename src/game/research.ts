@@ -37,12 +37,14 @@ export type ResearchEffect =
   | { kind: 'deepDigging' }
   /** How much a named (non-lieutenant) kobold lifts their crew. */
   | { kind: 'namedLift'; bonus: number }
-  /** This share of what miners cut comes out as iron ore. */
-  | { kind: 'oreShare'; share: number }
+  /** Every area's ore part is this much bigger. */
+  | { kind: 'oreBoost'; mult: number }
   /** Rare finds (uncommon and better) are this much likelier. */
   | { kind: 'findLuck'; mult: number }
   /** Mithril turns up among the miners' rare finds. */
-  | { kind: 'mithrilFinds' };
+  | { kind: 'mithrilFinds' }
+  /** Dangerous work (scouting, hunting, the deep workings) loses this much as many kobolds; for one job, or all. */
+  | { kind: 'dangerMult'; mult: number; job?: string };
 
 export interface ResearchDef {
   id: string;
@@ -68,11 +70,10 @@ export const RESEARCH: ResearchDef[] = [
   {
     id: 'ore-sniffing',
     name: 'Ore sniffing',
-    description: 'Opens iron ore and the metal store: a fifth of what the miners cut comes out as ore.',
+    description: 'Opens iron ore and the metal store. Miners take ore from iron-bearing ground, and the next stone the scouts find will have iron in it.',
     cost: 600,
     resources: { stone: 200 },
     requires: [],
-    effects: [{ kind: 'oreShare', share: 0.2 }],
     doneText: 'The researchers learned to sniff out iron. The lab smells of rust now.',
   },
   {
@@ -326,12 +327,35 @@ export const RESEARCH: ResearchDef[] = [
   {
     id: 'monster-tracking',
     name: 'Monster tracking',
-    description: 'Opens the hunter job: kobolds go after monsters in the deep caves. Their meat makes the dragon stronger.',
+    description: 'Scouts can look for monsters, and hunters can work the hunting grounds they find. Monster meat makes the dragon stronger.',
     cost: 5_000,
     resources: { meat: 100, wood: 200 },
     requires: ['crab-wrangling'],
     minStage: 1,
     doneText: 'The researchers drew a map of where the monsters live. Then they drew a second map of where they are going to stay well away from.',
+  },
+  {
+    id: 'ropes-and-lanterns',
+    name: 'Ropes and lanterns',
+    description: 'Scouts and deep miners go roped together, with a light each. Half as many are lost.',
+    cost: 4_000,
+    resources: { wood: 300 },
+    requires: [],
+    effects: [
+      { kind: 'dangerMult', job: 'scout', mult: 0.5 },
+      { kind: 'dangerMult', job: 'miner', mult: 0.5 },
+    ],
+    doneText: 'Ropes and lanterns for the scouts. They look like a very slow, very bright caterpillar going down the tunnel.',
+  },
+  {
+    id: 'hide-armor',
+    name: 'Hide armor',
+    description: 'Hunters wear the hides of what they hunted. Half as many are lost.',
+    cost: 8_000,
+    resources: { meat: 150, wood: 200 },
+    requires: ['monster-tracking'],
+    effects: [{ kind: 'dangerMult', job: 'hunter', mult: 0.5 }],
+    doneText: 'The hunters wear bear hide now. The bears in the caves seem offended.',
   },
   {
     id: 'bone-reading',
@@ -376,21 +400,21 @@ export const RESEARCH: ResearchDef[] = [
   {
     id: 'seam-reading',
     name: 'Seam reading',
-    description: 'Miners learn to follow the iron seams: 35% of what they cut comes out as ore.',
+    description: 'Miners learn to follow the iron seams: every area gives half as much ore again.',
     cost: 6_000,
     resources: { stone: 400, ore: 100 },
     requires: ['ore-sniffing', 'smithing'],
-    effects: [{ kind: 'oreShare', share: 0.35 }],
+    effects: [{ kind: 'oreBoost', mult: 1.5 }],
     doneText: 'The researchers drew the iron seams on the wall in charcoal. The miners follow the lines with their tongues out.',
   },
   {
     id: 'deep-seams',
     name: 'Deep seams',
-    description: 'Half of what the miners cut comes out as ore, and mithril starts turning up among their rare finds.',
+    description: 'Every area gives twice as much ore, and mithril starts turning up among the miners\' rare finds.',
     cost: 30_000,
     resources: { ore: 600, bars: 100 },
     requires: ['seam-reading', 'deep-delving'],
-    effects: [{ kind: 'oreShare', share: 0.5 }, { kind: 'mithrilFinds' }],
+    effects: [{ kind: 'oreBoost', mult: 2 }, { kind: 'mithrilFinds' }],
     doneText: 'The miners have found the deep seams. Something down there rings like a bell when you hit it.',
   },
   {

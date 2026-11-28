@@ -30,6 +30,7 @@ const chief: Chief = { name: 'Snik', cunning: 0, voice: 0, nerve: 0, quirk: 'non
 
 function game(...learned: string[]): GameState {
   const s = newGame(T0);
+  s.explore.found.push('grove', 'rubble-cave'); // the starting woods and stone, so every gathering job is open
   s.chief = { ...chief };
   s.newcomerJob = 'idle';
   s.seed = 12345;
@@ -50,7 +51,7 @@ describe('the forge', () => {
 
   it('has a short anvil list: tools, bars and steel', () => {
     const s = game('ironworking', 'steelmaking');
-    expect(orderOptions(s).map((o) => o.name)).toEqual(['Tools', 'Smelt iron bars', 'Make steel']);
+    expect(orderOptions(s).map((o) => o.name)).toEqual(['Tools', 'Commissions', 'Smelt iron bars', 'Make steel']);
   });
 
   it('smelts ore and wood into bars', () => {
