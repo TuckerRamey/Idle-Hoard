@@ -33,6 +33,7 @@ import {
   setRecipe,
   storeGoods,
   supportsFor,
+  digYields,
   recipeRatio,
   workPerPace,
   workers,
@@ -418,6 +419,8 @@ export class Hud {
       const blocked = digging ? digBlocked(s, def.id) : null;
       const supports = supportsFor(vol, s);
       const uses = supports.length ? ` Uses ${supports.map((x) => `${formatNumber(x.perPace)} ${resName(x.resource)}`).join(' and ')} per cubic pace to hold the ceiling up.` : '';
+      const yields = Object.keys(digYields(vol, s)).map((r) => resName(r as ResourceId));
+      const turnsUp = yields.length ? ` Turning up ${yields.join(' and ')} as it goes.` : '';
       const nextTier = DIG.supports.find((x) => x.fromPaces > vol);
       const later = nextTier ? ` From ${formatNumber(nextTier.fromPaces)} paces it also needs ${resName(nextTier.resource)}.` : '';
       let dig = '';
@@ -425,7 +428,7 @@ export class Hud {
         if (blocked === 'full') dig = `As big as it can be dug for now.`;
         else if (blocked) dig = `Stalled: out of ${resName(blocked)}.${resourceOpen(s, blocked) ? '' : ' It has to be researched first.'}${uses}`;
         else if (paces <= 0) dig = `Waiting for diggers.${uses}${later}`;
-        else dig = `Growing by about ${formatNumber(paces * 3600)} cubic paces an hour${def.id === 'hoard' && scav > 0 ? ', with the scavengers helping while it is full' : ''}.${uses}${later}`;
+        else dig = `Growing by about ${formatNumber(paces * 3600)} cubic paces an hour${def.id === 'hoard' && scav > 0 ? ', with the scavengers helping while it is full' : ''}.${turnsUp}${uses}${later}`;
       }
       setText(row.dig, dig);
       row.dig.classList.toggle('warn', digging && !!blocked);

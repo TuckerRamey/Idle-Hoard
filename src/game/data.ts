@@ -268,6 +268,16 @@ export const DIG = {
     { fromPaces: 500, resource: 'stone' as ResourceId, perPace: 1 },
     { fromPaces: 1_500, resource: 'bars' as ResourceId, perPace: 0.4 },
   ],
+  /**
+   * What digging turns up once a room is past each size: about half of what
+   * that depth's supports cost, so a deep dig is cheaper but never free.
+   * Each step replaces the one before.
+   */
+  yields: [
+    { fromPaces: 150, give: { stone: 0.5 } },
+    { fromPaces: 500, give: { stone: 0.5, ore: 0.5 } },
+    { fromPaces: 1_500, give: { stone: 0.6, ore: 0.8 } },
+  ] as { fromPaces: number; give: Partial<Record<ResourceId, number>> }[],
   /** Without deep delving, no room can be dug past this. */
   maxPaces: 4_000,
 };

@@ -301,6 +301,16 @@ export function supportsFor(volume: number, state?: GameState) {
   return DIG.supports.filter((s) => volume >= s.fromPaces).map((s) => ({ ...s, perPace: s.perPace * m }));
 }
 
+/** What each cubic pace dug turns up in a room this big (only goods the warren knows). */
+export function digYields(volume: number, state: GameState): Partial<Record<ResourceId, number>> {
+  let step: (typeof DIG.yields)[number] | undefined;
+  for (const y of DIG.yields) if (volume >= y.fromPaces) step = y;
+  const out: Partial<Record<ResourceId, number>> = {};
+  if (!step) return out;
+  for (const [res, n] of Object.entries(step.give)) if (resourceOpen(state, res as ResourceId)) out[res as ResourceId] = n;
+  return out;
+}
+
 /** The biggest a room can be dug. */
 export function maxVolume(state: GameState): number {
   return researchEffects(state).some((e) => e.kind === 'deepDigging') ? Infinity : DIG.maxPaces;
@@ -369,6 +379,7 @@ export function flows(state: GameState): Record<ResourceId, Flow> {
     const blocked = digBlocked(state, room);
     if (paces > 0 && blocked !== 'full')
       for (const s of supportsFor(roomVolume(state, room), state)) if (!blocked || blocked === s.resource) use(s.resource, paces * s.perPace, 'digging');
+    if (paces > 0 && !blocked) for (const [res, n] of Object.entries(digYields(roomVolume(state, room), state))) inn[res as ResourceId] += paces * (n ?? 0);
   }
   for (const [res, n] of Object.entries(forgeUse(state))) use(res as ResourceId, n ?? 0, 'forge');
   for (const [res, n] of Object.entries(forgeMakes(state))) inn[res as ResourceId] += n ?? 0;
@@ -603,6 +614,8 @@ function dig(state: GameState, roomId: string, work: number, r: TickResult, rand
     if (paces <= 1e-9) return; // stalled for supports, or full
     for (const x of sup) state.res[x.resource] = Math.max(0, state.res[x.resource] - paces * x.perPace);
     const before = room.volume;
+    // deeper rooms turn up stone, then ore too
+    for (const [res, n] of Object.entries(digYields(room.volume, state))) store(state, res as ResourceId, paces * (n ?? 0));
     room.volume += paces;
     work -= paces * wpp;
     const mark = volumeMilestone(before);
