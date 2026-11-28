@@ -1,8 +1,7 @@
-// Kobolds eat: farmers grow food in the farming caverns. A warren that can't
+// Kobolds eat: farmers grow food in the farm caverns. A warren that can't
 // feed itself takes in nobody new, and if it lasts, hungry kobolds leave.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { addArea, searchers } from '../src/game/areas';
-import { arrive, flows, production, tick } from '../src/game/economy';
+import { arrive, flows, production, roomDef, roomOpen, tick } from '../src/game/economy';
 import { eatStep, FOOD, foodNeed, hungry } from '../src/game/losses';
 import { newGame, type GameState } from '../src/game/state';
 
@@ -26,21 +25,18 @@ function game(): GameState {
 describe('food', () => {
   it('a new warren has the mushroom beds and a little food put by', () => {
     const s = game();
-    expect(s.explore.found).toContain('mushroom-beds');
+    expect(roomOpen(s, roomDef('farm-1')!)).toBe(true);
     expect(s.res.food).toBeGreaterThan(0);
   });
 
-  it('every kobold eats, and farmers grow it, up to what the caverns give', () => {
+  it('every kobold eats, and farmers grow it, as many as the caverns fit', () => {
     const s = game();
     s.idle = 20;
     expect(foodNeed(s)).toBeCloseTo(20 * 0.05);
     s.crews.farmer = { n: 2 };
     expect(production(s).food).toBeCloseTo(1);
     s.crews.farmer = { n: 100 };
-    expect(production(s).food).toBeCloseTo(4); // the mushroom beds give at most 4 a second
-    expect(searchers(s, 'farm')).toBeGreaterThan(80); // the rest look for more caverns
-    addArea(s, 'damp-hollow');
-    expect(production(s).food).toBeCloseTo(4 + 12); // the second cavern is twice its size
+    expect(production(s).food).toBeCloseTo(2); // the mushroom beds fit 4 farmers to start
     expect(flows(s).food.out).toBeCloseTo(foodNeed(s));
   });
 

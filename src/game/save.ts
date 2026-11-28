@@ -15,6 +15,7 @@ import type { ToolStock } from './forge';
 import type { NamedKobold } from './kobolds';
 import type { Colony } from './colonies';
 import { areaDef, legacyAreas } from './areas';
+import { cropDef, FARM_ROOMS, spareFarmers } from './farms';
 import { CHRONICLE_MAX, newDragon, newExplore, newGame, newHunt, newMagic, type ExploreState, type ChronicleEntry, type Crew, type DragonState, type GameState, type HuntState, type MagicState, type RoomState } from './state';
 
 export const SAVE_VERSION = 3;
@@ -431,6 +432,7 @@ export function normalize(raw: unknown, now: number): GameState {
     crews,
     newcomerJob: typeof r.newcomerJob === 'string' ? r.newcomerJob : base.newcomerJob,
     rooms,
+    farms: normalizeFarms(r.farms),
     dig: normalizeDig(r, crews, rooms),
     stage: Math.floor(num(r.stage, 0)),
     lastTick: num(r.lastTick, now),
@@ -499,10 +501,23 @@ export function normalize(raw: unknown, now: number): GameState {
   };
   // saves from before areas: find enough for them that nothing they made drops
   if (!r.explore || typeof r.explore !== 'object') legacyAreas(state);
+  // saves from before farm caverns were dug: the mushroom beds fit every farmer they had
+  if (!r.farms || typeof r.farms !== 'object') {
+    const spare = spareFarmers(state);
+    if (spare > 0) state.rooms['farm-1'].volume += spare * 10;
+  }
   return state;
 }
 
-const KIND_IDS = ['wood', 'stone', 'copper', 'farm', 'monsters'] as const;
+const KIND_IDS = ['wood', 'stone', 'copper', 'monsters'] as const;
+
+function normalizeFarms(v: any): GameState['farms'] {
+  const crops: Record<string, string> = {};
+  const known = strList(v?.known).filter((id, i, a) => cropDef(id) && a.indexOf(id) === i);
+  if (v?.crops && typeof v.crops === 'object')
+    for (const [room, c] of Object.entries(v.crops)) if (FARM_ROOMS.some((f) => f.id === room) && typeof c === 'string' && cropDef(c)) crops[room] = c;
+  return { crops, known };
+}
 
 function normalizeExplore(v: any): ExploreState {
   const base = newExplore();
@@ -510,8 +525,6 @@ function normalizeExplore(v: any): ExploreState {
   const nums = (o: any) => Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).filter(([, n]) => typeof n === 'number' && Number.isFinite(n) && n >= 0)) as Record<string, number>;
   const found = strList(v.found).filter((id, i, a) => areaDef(id) && a.indexOf(id) === i);
   if (!found.includes('near-tunnels')) found.unshift('near-tunnels');
-  // every warren has somewhere to grow food
-  if (!found.includes('mushroom-beds')) found.push('mushroom-beds');
   const pick = (o: Record<string, number>) => Object.fromEntries(Object.entries(o).filter(([k]) => (KIND_IDS as readonly string[]).includes(k)));
   return {
     target: (KIND_IDS as readonly string[]).includes(v.target) ? v.target : v.target === null ? null : base.target,

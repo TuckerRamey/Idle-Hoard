@@ -5,6 +5,7 @@ import { PIP_ODDITIES, quirkOf, raiseStat } from './chief';
 import { artStep } from './art';
 import { lossStep, eatStep, foodNeed } from './losses';
 import { gearStep } from './gear';
+import { CROP_FINDS, cropPerk, discoverCrop, farmDigRoom, farmerDig, farmFactor, spareFarmers } from './farms';
 import { areaExtrasStep, capHint, exploreStep, gathered, yardFull } from './areas';
 import { findStep } from './finds';
 import { huntStep } from './hunting';
@@ -57,6 +58,7 @@ export function resourceOpen(state: GameState, res: ResourceId): boolean {
 }
 
 export function roomOpen(state: GameState, def: RoomDef): boolean {
+  if (def.after && roomVolume(state, def.after.room) < def.after.volume - 1e-9) return false;
   return opened(state, def.requires) && state.stage >= (def.minStage ?? 0);
 }
 
@@ -144,6 +146,7 @@ export function jobMultiplier(state: GameState, jobId: string): number {
   const q = quirkOf(state.chief);
   if (q?.effect.kind === 'jobMult' && q.effect.job === jobId) m *= q.effect.mult;
   if (jobId === 'digger' && state.magic.stoneSong > 0) m *= MAGIC.stoneSongMult;
+  if (jobId === 'researcher') m *= cropPerk(state, 'research');
   return m * dragonJobMult(state, jobId);
 }
 
@@ -199,6 +202,7 @@ function workOutput(state: GameState, def: JobDef): number {
   let total = crew(state, def.id).n * each * crewLift(state, def.id) * tools.crew;
   namedIn(state, def.id).forEach((k, i) => (total += each * personalMult(k) * (tools.named[i] ?? 1)));
   if (def.id === 'herder') total *= herdFactor(state);
+  if (def.id === 'farmer') total *= farmFactor(state);
   return total;
 }
 
@@ -268,20 +272,47 @@ export function scavengerDig(state: GameState): number {
 }
 
 /** Dig work per second going into each room: its diggers' share of the crew, plus scavengers in a full hoard. */
-/** The room a named digger digs: the one picked on their card, or else the one with the most diggers, or the den. */
-export function namedDigRoom(state: GameState, k: NamedKobold): string {
-  if (k.room) {
-    const def = roomDef(k.room);
-    if (def && roomOpen(state, def)) return def.id;
+/**
+ * Which room each named digger digs: the one picked on their card, or else
+ * one of the rooms being dug, spread over them in step with the crowd on
+ * each. With nobody else digging, the den.
+ */
+export function namedDigPlan(state: GameState): Map<number, string> {
+  const plan = new Map<number, string>();
+  const free: NamedKobold[] = [];
+  for (const k of namedIn(state, 'digger')) {
+    const def = k.room ? roomDef(k.room) : undefined;
+    if (def && roomOpen(state, def)) plan.set(k.id, def.id);
+    else free.push(k);
   }
-  let best = 'den';
-  for (const [room, n] of Object.entries(state.dig)) if (n > (state.dig[best] ?? 0) && roomDef(room)) best = room;
-  return best;
+  if (!free.length) return plan;
+  const rooms = ROOMS.filter((r) => (state.dig[r.id] ?? 0) > 0 && roomOpen(state, r)).map((r) => [r.id, state.dig[r.id]] as const);
+  const total = rooms.reduce((a, [, n]) => a + n, 0);
+  free.forEach((k, i) => {
+    if (!total) return plan.set(k.id, 'den');
+    // the i-th free digger goes where the middle of their share of the crowd falls
+    let at = ((i + 0.5) / free.length) * total;
+    let room = rooms[rooms.length - 1][0];
+    for (const [id, n] of rooms) {
+      if (at < n) {
+        room = id;
+        break;
+      }
+      at -= n;
+    }
+    plan.set(k.id, room);
+  });
+  return plan;
+}
+
+/** The room a named digger digs. */
+export function namedDigRoom(state: GameState, k: NamedKobold): string {
+  return namedDigPlan(state).get(k.id) ?? 'den';
 }
 
 /** Named diggers on a room. */
-export function namedDiggersIn(state: GameState, roomId: string): NamedKobold[] {
-  return namedIn(state, 'digger').filter((k) => namedDigRoom(state, k) === roomId);
+export function namedDiggersIn(state: GameState, roomId: string, plan = namedDigPlan(state)): NamedKobold[] {
+  return namedIn(state, 'digger').filter((k) => plan.get(k.id) === roomId);
 }
 
 export function digRates(state: GameState): Record<string, number> {
@@ -295,13 +326,18 @@ export function digRates(state: GameState): Record<string, number> {
     for (const [room, n] of Object.entries(state.dig)) if (n > 0 && roomDef(room)) crowd += n;
     const total = crowd * each * crewLift(state, def.id) * tools.crew;
     if (total > 0) for (const [room, n] of Object.entries(state.dig)) if (n > 0 && roomDef(room)) out[room] = (total * n) / crowd;
+    const plan = namedDigPlan(state);
     namedIn(state, def.id).forEach((k, i) => {
-      const room = namedDigRoom(state, k);
+      const room = plan.get(k.id) ?? 'den';
       out[room] = (out[room] ?? 0) + each * personalMult(k) * (tools.named[i] ?? 1);
     });
   }
   const sc = scavengerDig(state);
   if (sc > 0) out.hoard = (out.hoard ?? 0) + sc;
+  // farmers with no room to farm dig the newest cavern bigger
+  const fd = farmerDig(state);
+  const farm = farmDigRoom(state);
+  if (fd > 0 && farm && digBlocked(state, farm) !== 'full') out[farm] = (out[farm] ?? 0) + fd;
   return out;
 }
 
@@ -344,7 +380,7 @@ export function capacity(state: GameState, res: ResourceId): number {
   const def = resourceDef(res);
   const room = roomDef(def.store);
   if (!room) return 0;
-  const mult = storageMult(state) * researchMult(state, 'storeMult', (e) => e.resource === res);
+  const mult = storageMult(state) * researchMult(state, 'storeMult', (e) => e.resource === res) * (res === 'food' ? cropPerk(state, 'granary') : 1);
   if (room.id === 'hoard') {
     // one shared pile: what's held, plus however much more fits in the space left
     let used = 0;
@@ -519,6 +555,18 @@ export function jobHints(state: GameState): Record<string, string> {
   }
   if (workers(state, 'herder') > herdersFit(state) && herdersFit(state) > 0)
     hints.herder = `The pasture only fits ${herdersFit(state)} herders. Dig it bigger, or the rest just stand about.`;
+  const spareF = spareFarmers(state);
+  const farmRoom = farmDigRoom(state);
+  if (spareF > 0 && farmRoom) {
+    const name = roomDef(farmRoom)!.name.toLowerCase();
+    const blocked = digBlocked(state, farmRoom);
+    const who = `${spareF.toLocaleString('en-US')} farmer${spareF === 1 ? ' has' : 's have'} no room in the farm caverns`;
+    hints.farmer = blocked === 'full'
+      ? `${who}, and the ${name} is as big as it can be dug for now.`
+      : blocked
+        ? `${who}. They would dig the ${name} bigger, but there's no ${resourceDef(blocked).name.toLowerCase()} to hold the ceiling up.`
+        : `${who}, so they're digging the ${name} bigger.`;
+  }
   if (hoardFull(state) && workers(state, 'scavenger') > 0) {
     const b = digBlocked(state, 'hoard');
     hints.scavenger =
@@ -562,6 +610,7 @@ export function appeal(state: GameState): number {
   if (state.chief) m *= 1 + 0.1 * state.chief.voice;
   const q = quirkOf(state.chief);
   if (q?.effect.kind === 'appealMult') m *= q.effect.mult;
+  m *= cropPerk(state, 'appeal');
   return a * m;
 }
 
@@ -769,6 +818,11 @@ function dig(state: GameState, roomId: string, work: number, r: TickResult, rand
     if (room.volume >= mark - 1e-6) r.dug.push({ room: def.id, volume: mark });
     const found = digFinds(state, def, paces, rand, t);
     if (found) r.events.push(found);
+    // big enough rooms sometimes break into a pocket of glowcap spores
+    if (room.volume >= CROP_FINDS.glowcapPaces && rand() < paces * CROP_FINDS.glowcapsPerPace) {
+      const seed = discoverCrop(state, 'glowcaps');
+      if (seed) r.events.push(`Digging out the ${def.name.toLowerCase()}, the diggers broke into a pocket of glowing spores. ${seed}`);
+    }
     if (paces < want - 1e-9) return; // ran out of supports part way
   }
 }

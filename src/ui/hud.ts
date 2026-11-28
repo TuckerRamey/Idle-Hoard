@@ -19,6 +19,7 @@ import {
   digRate,
   diggersIn,
   namedDiggersIn,
+  namedDigPlan,
   flows,
   herdersFit,
   hoardValue,
@@ -43,6 +44,7 @@ import {
   workPerPace,
   workers,
 } from '../game/economy';
+import { CROPS, farmDigRoom, farmerDig, fields, knownCrops, plant } from '../game/farms';
 import type { GameState } from '../game/state';
 import { $, setDisabled, setText, setBar } from './dom';
 import { formatDuration, formatNumber } from './format';
@@ -52,7 +54,8 @@ export type HudEvent =
   | { kind: 'newcomers'; job: string }
   | { kind: 'dig'; room: string; moved: number }
   | { kind: 'herd'; animal: string }
-  | { kind: 'recipe'; id: string };
+  | { kind: 'recipe'; id: string }
+  | { kind: 'plant'; room: string; crop: string };
 
 const STEPS = [1, 5, 20, Infinity];
 const resName = (id: ResourceId) => resourceDef(id).name.toLowerCase();
@@ -130,7 +133,7 @@ export class Hud {
   private newcomerSelect!: HTMLSelectElement;
   private roomRows = new Map<
     string,
-    { li: HTMLLIElement; size: HTMLElement; count: HTMLElement; holds: HTMLElement; dig: HTMLElement; down: HTMLButtonElement; up: HTMLButtonElement }
+    { li: HTMLLIElement; size: HTMLElement; count: HTMLElement; holds: HTMLElement; dig: HTMLElement; down: HTMLButtonElement; up: HTMLButtonElement; crop?: HTMLSelectElement; cropNote?: HTMLElement }
   >();
   private digStatus = $('#dig-status');
 
@@ -253,7 +256,7 @@ export class Hud {
 
   private buildRooms() {
     const list = $('#rooms');
-    const groups = { living: 'Living', work: 'Work', stores: 'Stores' } as const;
+    const groups = { living: 'Living', farms: 'Farms', work: 'Work', stores: 'Stores' } as const;
     for (const [g, title] of Object.entries(groups)) {
       const head = document.createElement('li');
       head.className = 'room-group';
@@ -270,8 +273,29 @@ export class Hud {
         const up = li.querySelector<HTMLButtonElement>('.up')!;
         down.addEventListener('click', () => this.moveDig(def.id, -1));
         up.addEventListener('click', () => this.moveDig(def.id, 1));
+        let crop: HTMLSelectElement | undefined;
+        let cropNote: HTMLElement | undefined;
+        if (def.holds === 'farmers') {
+          const wrap = document.createElement('div');
+          wrap.className = 'desc newcomers';
+          const label = document.createElement('label');
+          label.textContent = 'Planted with ';
+          crop = document.createElement('select');
+          crop.id = `${def.id}-crop`;
+          label.htmlFor = crop.id;
+          wrap.append(label, crop);
+          cropNote = document.createElement('div');
+          cropNote.className = 'desc crop-note';
+          li.querySelector('.holds')!.after(wrap, cropNote);
+          const sel = crop;
+          sel.addEventListener('change', () => {
+            if (plant(this.getState(), def.id, sel.value)) this.onChange({ kind: 'plant', room: def.id, crop: sel.value });
+          });
+        }
         this.roomRows.set(def.id, {
           li,
+          crop,
+          cropNote,
           size: li.querySelector('.size')!,
           count: li.querySelector('.diggers')!,
           holds: li.querySelector('.holds')!,
@@ -433,11 +457,12 @@ export class Hud {
     let status = `Put diggers on any rooms with − and +; each room grows with its own diggers. ${formatNumber(perKobold(s, digger))} digging / s each.`;
     if (dc.n + dn > 0)
       status = `${dc.n} digger${dc.n === 1 ? '' : 's'}${dn ? ` + ${dn} named` : ''}. ${formatNumber(perKobold(s, digger))} digging / s each.`;
-    if (dn > 0) status += ' Named diggers each dig a room of their own: pick it on their card in the Leadership tab.';
+    if (dn > 0) status += ' Named diggers spread over the rooms being dug, or dig the one picked on their card in the Leadership tab.';
+    const plan = namedDigPlan(s);
     // one shortage stalling several rooms is said once up here, not in every room
     const stalls = new Map<string, number>();
     for (const def of ROOMS) {
-      if (!roomOpen(s, def) || !(diggersIn(s, def.id) > 0 || namedDiggersIn(s, def.id).length > 0)) continue;
+      if (!roomOpen(s, def) || !(diggersIn(s, def.id) > 0 || namedDiggersIn(s, def.id, plan).length > 0)) continue;
       const b = digBlocked(s, def.id);
       if (b && b !== 'full') stalls.set(b, (stalls.get(b) ?? 0) + 1);
     }
@@ -445,6 +470,8 @@ export class Hud {
     setText(this.digStatus, status);
     setText(this.digStall, [...shared].map((r) => `Digging is stalled in ${stalls.get(r)} rooms: out of ${resName(r as ResourceId)}.`).join(' '));
     const scav = scavengerDig(s);
+    const farmFields = fields(s);
+    const farmDig = farmerDig(s) > 0 ? farmDigRoom(s) : null;
     const shown = new Set<string>();
     for (const def of ROOMS) {
       const row = this.roomRows.get(def.id)!;
@@ -458,6 +485,16 @@ export class Hud {
       if (def.holds === 'beds') holds = `${cap} beds, ${population(s)} taken`;
       else if (def.holds === 'herders') holds = `Fits ${cap} herders, ${workers(s, 'herder')} working`;
       else if (def.holds === 'smiths') holds = `Fits ${cap} blacksmiths, ${workers(s, 'blacksmith')} working`;
+      else if (def.holds === 'farmers') {
+        const field = farmFields.find((x) => x.room.id === def.id);
+        holds = `Fits ${cap} farmer${cap === 1 ? "" : "s"}, ${field?.working ?? 0} working`;
+        if (row.crop && row.cropNote && field) {
+          syncOptions(row.crop, knownCrops(s).map((c) => [c.id, `${c.name}, ×${formatNumber(c.yield)} food`]), field.crop.id);
+          const unknown = CROPS.filter((c) => !knownCrops(s).includes(c));
+          const more = def.id === 'farm-1' && unknown.length ? ` Still to find: ${unknown.map((c) => `${c.name.toLowerCase()} (${c.how})`).join(', ')}.` : '';
+          setText(row.cropNote, field.crop.description + more);
+        }
+      }
       else {
         const goods = storeGoods(s, def.id);
         holds = goods.length ? `Holds ${goods.map((g) => `${formatNumber(f[g.id].cap)} ${resName(g.id)}`).join(', ')}` : '';
@@ -465,7 +502,7 @@ export class Hud {
       setText(row.holds, holds);
 
       const n = diggersIn(s, def.id);
-      const stars = namedDiggersIn(s, def.id).map((k) => k.name);
+      const stars = namedDiggersIn(s, def.id, plan).map((k) => k.name);
       // a count, not every name: a busy room can have most of the named diggers on it
       const named = stars.length ? `${stars.length} named` : '';
       setText(row.count, n > 0 || stars.length ? n > 0 ? `×${n} digging${named ? ` + ${named}` : ''}` : `${named} digging` : '');
@@ -493,7 +530,7 @@ export class Hud {
         else if (blocked && shared.has(blocked)) dig = `Stalled: out of ${resName(blocked)}.`;
         else if (blocked) dig = `Stalled: out of ${resName(blocked)}.${resourceOpen(s, blocked) ? '' : ' It has to be researched first.'}${uses}`;
         else if (paces <= 0) dig = `Waiting for diggers.${uses}${later}`;
-        else dig = `Growing by about ${formatNumber(paces * 3600)} cubic paces an hour${def.id === 'hoard' && scav > 0 ? ', with the scavengers helping while it is full' : ''}.${turnsUp}${uses}${later}`;
+        else dig = `Growing by about ${formatNumber(paces * 3600)} cubic paces an hour${def.id === 'hoard' && scav > 0 ? ', with the scavengers helping while it is full' : def.id === farmDig ? ', with the spare farmers helping' : ''}.${turnsUp}${uses}${later}`;
       }
       setText(row.dig, dig);
       row.dig.classList.toggle('warn', digging && !!blocked);
