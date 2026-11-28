@@ -15,6 +15,7 @@ import {
   digBlocked,
   digRate,
   diggersIn,
+  namedDiggersIn,
   flows,
   herdersFit,
   hoardValue,
@@ -410,7 +411,7 @@ export class Hud {
     let status = `Put diggers on any rooms with − and +; each room grows with its own diggers. ${formatNumber(perKobold(s, digger))} digging / s each.`;
     if (dc.n + dn > 0)
       status = `${dc.n} digger${dc.n === 1 ? '' : 's'}${dn ? ` + ${dn} named` : ''}. ${formatNumber(perKobold(s, digger))} digging / s each.`;
-    if (dn > 0 && dc.n === 0) status += ' Named diggers help whichever rooms have diggers, so put some on a room.';
+    if (dn > 0) status += ' Named diggers each dig a room of their own: pick it on their card in the Leadership tab.';
     setText(this.digStatus, status);
     const scav = scavengerDig(s);
     const shown = new Set<string>();
@@ -433,7 +434,8 @@ export class Hud {
       setText(row.holds, holds);
 
       const n = diggersIn(s, def.id);
-      setText(row.count, n > 0 ? `×${n} digging` : '');
+      const stars = namedDiggersIn(s, def.id).map((k) => k.name);
+      setText(row.count, n > 0 || stars.length ? n > 0 ? `×${n} digging${stars.length ? ` + ${stars.join(', ')}` : ''}` : `${stars.join(', ')} digging` : '');
       setDisabled(row.down, n < 1);
       setDisabled(row.up, s.idle < 1);
       const label = this.step === Infinity ? 'all' : String(this.step);
@@ -442,7 +444,7 @@ export class Hud {
       row.down.setAttribute('aria-label', `${def.name}: ${row.down.title}`);
       row.up.setAttribute('aria-label', `${def.name}: ${row.up.title}`);
       const paces = digRate(s, def.id) / workPerPace(vol);
-      const digging = n > 0 || paces > 0;
+      const digging = n > 0 || stars.length > 0 || paces > 0;
       const blocked = digging ? digBlocked(s, def.id) : null;
       const supports = supportsFor(vol, s);
       const uses = supports.length ? ` Uses ${supports.map((x) => `${formatNumber(x.perPace)} ${resName(x.resource)}`).join(' and ')} per cubic pace to hold the ceiling up.` : '';

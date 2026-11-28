@@ -41,7 +41,7 @@ export class ColoniesView {
         li.querySelector('b')!.textContent = c.name;
         const r = tributeRate(s, c);
         const perHour = (r.copper + r.silver * 10) * 3600;
-        li.querySelector('summary .desc')!.textContent = `${Math.floor(c.pop)} kobolds, about ${formatNumber(perHour)} copper's worth an hour`;
+        li.querySelector('summary .desc')!.textContent = `${Math.floor(c.pop)} kobolds · tribute ${formatNumber(perHour)} copper per hour, ${formatNumber(Math.floor(c.sent))} sent so far`;
         li.querySelector('.lead')!.textContent = `Led by ${fullName(c.leader)}. Founded ${timeAgo(now - c.founded)}; ${formatNumber(c.sent)} copper's worth sent so far.`;
         const hist = li.querySelector('.history')!;
         for (const h of [...c.history].reverse()) {
