@@ -19,17 +19,22 @@ export interface AnimalDef {
   requires: string;
   /** Said a day before the dragon starts craving it. */
   hint: string;
+  /** A monster raised in the pasture: herders also put by some of its meat, which trains the dragon. */
+  monster?: string;
 }
 
 export const ANIMALS: AnimalDef[] = [
   { id: 'crab', name: 'Crabs', requires: 'crab-wrangling', hint: 'The dragon keeps sniffing toward the crab pools.' },
   { id: 'goat', name: 'Goats', requires: 'goat-herding', hint: 'The dragon keeps staring at the goats. The Kogoat has gone into hiding.' },
   { id: 'beetle', name: 'Giant beetles', requires: 'beetle-ranching', hint: 'The dragon keeps licking its lips at the beetle pens.' },
+  { id: 'cave-bear', name: 'Cave bears', requires: 'bear-taming', hint: 'The dragon keeps growling back at the bears.', monster: 'cave-bear' },
+  { id: 'salamander', name: 'Salamanders', requires: 'salamander-pits', hint: 'The dragon keeps warming its nose over the salamander pits.', monster: 'salamander' },
+  { id: 'glow-eel', name: 'Glow-eels', requires: 'eel-ponds', hint: 'The dragon keeps staring into the eel ponds, lit up green.', monster: 'glow-eel' },
 ];
 
 export const DIET = {
-  /** Meat eaten per second, by stage (egg, wyrmling, young, adult). */
-  eatsByStage: [0, 0.05, 0.15, 0.4],
+  /** Meat eaten per second, by stage (egg, wyrmling, young, adult, elder, ancient). */
+  eatsByStage: [0, 0.05, 0.15, 0.4, 0.8, 1.5],
   /** Everything made, while fed / while fed what it craves. */
   fedMult: 1.1,
   delightedMult: 1.25,
@@ -272,11 +277,22 @@ export interface MoltDef {
   granted: number;
   contentHours: number;
   lieutenants: number;
+  /** Its tastes grow with it: silver, then gold, then gems on the hoard. */
+  silver?: number;
+  gold?: number;
+  /** Kinds of gem on the hoard. */
+  gemKinds?: number;
+  /** A ruby or a star diamond on the hoard. */
+  rareGem?: boolean;
+  /** A raid on this kind of place, ever. */
+  raided?: string;
 }
 
 export const MOLTS: MoltDef[] = [
   { from: 1, hoard: 1_500, value: 10_000, pieces: 0, granted: 2, contentHours: 12, lieutenants: 0 },
-  { from: 2, hoard: 4_000, value: 200_000, pieces: 3, granted: 4, contentHours: 24, lieutenants: 1 },
+  { from: 2, hoard: 4_000, value: 200_000, pieces: 3, granted: 4, contentHours: 24, lieutenants: 1, silver: 2_000 },
+  { from: 3, hoard: 6_000, value: 5_000_000, pieces: 5, granted: 6, contentHours: 36, lieutenants: 2, gold: 500, gemKinds: 5 },
+  { from: 4, hoard: 10_000, value: 50_000_000, pieces: 8, granted: 8, contentHours: 48, lieutenants: 3, gold: 5_000, rareGem: true, raided: 'city' },
 ];
 
 /** A trait the dragon gets at a molt, from what it ate most. */
@@ -285,7 +301,42 @@ export const DRAGON_TRAITS: Record<string, { name: string; text: string; appeal?
   goat: { name: 'Goat-stubborn', text: 'Goat-fed: stubborn and strong, and it helps with the digging. Diggers +20%.', job: 'digger', mult: 1.2 },
   beetle: { name: 'Beetle-bright', text: 'Beetle-fed: glossy and clever. Researchers +20%.', job: 'researcher', mult: 1.2 },
   jerky: { name: 'Jerky-chewer', text: 'Raised on alchemist jerky: patient and chewy. Appeal +5.', appeal: 5 },
+  'cave-bear': { name: 'Bear-shouldered', text: 'Bear-fed: broad and shaggy round the neck. Hunters +20%.', job: 'hunter', mult: 1.2 },
+  salamander: { name: 'Ember-bellied', text: 'Salamander-fed: its belly glows when it breathes. Blacksmiths +20%.', job: 'blacksmith', mult: 1.2 },
+  'glow-eel': { name: 'Glow-finned', text: 'Eel-fed: faint green light runs down its spines. Appeal +15.', appeal: 15 },
 };
+
+// ---------- stats ----------
+
+export type StatId = 'might' | 'fire' | 'presence';
+
+export const STATS: { id: StatId; name: string; text: string }[] = [
+  { id: 'might', name: 'Might', text: 'How strong a place it dares to raid.' },
+  { id: 'fire', name: 'Fire', text: 'More loot from every raid, and hotter forges.' },
+  { id: 'presence', name: 'Presence', text: 'Draws kobolds to the hoard, and more of them home from raids.' },
+];
+
+export const STAT = {
+  /** Each stat at each stage before training (egg, wyrmling, young, adult, elder, ancient). */
+  baseByStage: [0, 10, 25, 50, 90, 140],
+  /** How much training each stage can hold on top of its base. */
+  capByStage: [0, 20, 50, 100, 180, 300],
+  /** Appeal per point of Presence. */
+  presenceAppeal: 0.2,
+  /** Blacksmiths work this much faster per point of Fire (1/400: +25% at 100). */
+  fireForge: 1 / 400,
+};
+
+export function trainCap(state: GameState): number {
+  return STAT.capByStage[Math.min(state.stage, STAT.capByStage.length - 1)] ?? 0;
+}
+
+/** A stat right now: its stage's base plus whatever training this stage can hold. */
+export function dragonStat(state: GameState, id: StatId): number {
+  if (state.stage === 0) return 0;
+  const base = STAT.baseByStage[Math.min(state.stage, STAT.baseByStage.length - 1)] ?? 0;
+  return Math.floor(base + Math.min(state.dragon.trained[id], trainCap(state)));
+}
 
 // ---------- size and refining ----------
 
@@ -296,8 +347,8 @@ export const SIZE = {
   growPerHour: 20,
   /** It can fill this much of the hoard room... */
   hoardShare: 0.5,
-  /** ...up to this many paces at each stage (egg, wyrmling, young, adult). */
-  capByStage: [0, 600, 2_000, 8_000],
+  /** ...up to this many paces at each stage (egg, wyrmling, young, adult, elder, ancient). */
+  capByStage: [0, 600, 2_000, 8_000, 12_000, 20_000],
 };
 
 export const REFINE = {
@@ -375,7 +426,22 @@ export function moltNeeds(state: GameState): MoltNeed[] | null {
   if (m.pieces)
     needs.push({ label: `${m.pieces} pieces of art on display`, have: state.art.pieces.length, need: m.pieces, met: state.art.pieces.length >= m.pieces });
   if (m.lieutenants)
-    needs.push({ label: `${m.lieutenants} lieutenant to keep it company`, have: lieutenants(state).length, need: m.lieutenants, met: lieutenants(state).length >= m.lieutenants });
+    needs.push({ label: `${m.lieutenants} lieutenant${m.lieutenants === 1 ? '' : 's'} to keep it company`, have: lieutenants(state).length, need: m.lieutenants, met: lieutenants(state).length >= m.lieutenants });
+  // its tastes grow with it
+  if (m.silver) needs.push({ label: `${m.silver.toLocaleString('en-US')} silver on the hoard (copper bores it now)`, have: Math.floor(state.res.silver), need: m.silver, met: state.res.silver >= m.silver });
+  if (m.gold) needs.push({ label: `${m.gold.toLocaleString('en-US')} gold on the hoard`, have: Math.floor(state.res.gold), need: m.gold, met: state.res.gold >= m.gold });
+  if (m.gemKinds) {
+    const kinds = Object.values(state.gems).filter((n) => n > 0).length;
+    needs.push({ label: `${m.gemKinds} kinds of gem on the hoard`, have: kinds, need: m.gemKinds, met: kinds >= m.gemKinds });
+  }
+  if (m.rareGem) {
+    const has = (state.gems.ruby ?? 0) + (state.gems['star-diamond'] ?? 0);
+    needs.push({ label: 'A ruby or a star diamond on the hoard', have: has, need: 1, met: has >= 1 });
+  }
+  if (m.raided) {
+    const n = state.dragon.raided[m.raided] ?? 0;
+    needs.push({ label: `A raid on a ${m.raided}`, have: n, need: 1, met: n >= 1 });
+  }
   return needs;
 }
 
@@ -426,6 +492,14 @@ export function dragonStep(state: GameState, dt: number, t: number, rand: () => 
   if (state.stage === 0) return lines;
   d.clock += dt;
   if (d.size < SIZE.hatch) d.size = SIZE.hatch;
+
+  // away raiding: content and fed, but it eats nothing, grows nothing and asks for nothing here
+  if (d.raid) {
+    d.content += dt;
+    if (d.request) d.request.until += dt; // it'll remember when it's back
+    if (d.boosts.length) d.boosts = d.boosts.filter((b) => d.clock < b.until);
+    return lines;
+  }
 
   // eating
   const want = eatRate(state) * dt;
@@ -495,7 +569,7 @@ export function dragonStep(state: GameState, dt: number, t: number, rand: () => 
 
 /** Extra appeal from the dragon's favor, traits and the art in its hoard room. */
 export function dragonAppeal(state: GameState): number {
-  let a = state.dragon.favor * REQUEST.favorAppeal + artAppeal(state);
+  let a = state.dragon.favor * REQUEST.favorAppeal + artAppeal(state) + dragonStat(state, 'presence') * STAT.presenceAppeal;
   for (const tr of state.dragon.traits) a += DRAGON_TRAITS[tr]?.appeal ?? 0;
   return a;
 }
@@ -503,6 +577,7 @@ export function dragonAppeal(state: GameState): number {
 export function dragonJobMult(state: GameState, job: string): number {
   let m = boostLeft(state, job) > 0 ? FAVOR.mult : 1;
   for (const tr of state.dragon.traits) if (DRAGON_TRAITS[tr]?.job === job) m *= DRAGON_TRAITS[tr].mult ?? 1;
+  if (job === 'blacksmith') m *= 1 + dragonStat(state, 'fire') * STAT.fireForge;
   return m;
 }
 

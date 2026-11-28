@@ -13,7 +13,7 @@ import { OLD_QUIRKS, QUIRKS, type Chief } from './chief';
 import { RESOURCES } from './data';
 import type { NamedKobold } from './kobolds';
 import type { Colony } from './colonies';
-import { CHRONICLE_MAX, newDragon, newGame, type ChronicleEntry, type Crew, type DragonState, type GameState, type RoomState } from './state';
+import { CHRONICLE_MAX, newDragon, newGame, newHunt, type ChronicleEntry, type Crew, type DragonState, type GameState, type HuntState, type RoomState } from './state';
 
 export const SAVE_VERSION = 3;
 export const SAVE_KEY = 'idle-hoard.save';
@@ -268,6 +268,13 @@ function normalizeDragon(v: any): DragonState {
     fed,
     traits: strList(v.traits),
     size: num(v.size, 0),
+    trained: { might: num(v.trained?.might, 0), fire: num(v.trained?.fire, 0), presence: num(v.trained?.presence, 0) },
+    raid:
+      v.raid && typeof v.raid.target === 'string' && typeof v.raid.until === 'number'
+        ? { target: v.raid.target, until: v.raid.until, rider: typeof v.raid.rider === 'number' ? v.raid.rider : null }
+        : null,
+    nextRaidAt: num(v.nextRaidAt, 0),
+    raided: Object.fromEntries(Object.entries(v.raided && typeof v.raided === 'object' ? v.raided : {}).map(([k, n]) => [k, Math.floor(num(n, 0))])),
   };
 }
 
@@ -346,7 +353,24 @@ export function normalize(raw: unknown, now: number): GameState {
     tools: normalizeTools(r.tools),
     gems: Object.fromEntries(Object.entries(r.gems && typeof r.gems === 'object' ? r.gems : {}).filter(([, v]) => typeof v === 'number' && Number.isFinite(v) && v > 0)) as Record<string, number>,
     discovered: strList(r.discovered),
+    hunt: normalizeHunt(r.hunt),
     seed: Number.isInteger(r.seed) ? r.seed : base.seed,
+  };
+}
+
+function normalizeHunt(v: any): HuntState {
+  const base = newHunt();
+  if (!v || typeof v !== 'object') return base;
+  const counts = (o: any) => Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).filter(([, n]) => typeof n === 'number' && Number.isFinite(n) && n > 0)) as Record<string, number>;
+  const meat: HuntState['meat'] = {};
+  for (const [k, m] of Object.entries(v.meat && typeof v.meat === 'object' ? v.meat : {}))
+    if (m && typeof m === 'object') meat[k] = { wild: num((m as any).wild, 0), farmed: num((m as any).farmed, 0) };
+  return {
+    quarry: typeof v.quarry === 'string' ? v.quarry : base.quarry,
+    progress: num(v.progress, 0),
+    hunted: counts(v.hunted),
+    meat,
+    eatClock: num(v.eatClock, 0),
   };
 }
 

@@ -105,6 +105,7 @@ button.small { min-width: 36px; justify-content: center; }
 .res-rate { min-width: 72px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
 .warn, .hint { color: var(--danger); }
 .hint { font-size: 12px; }
+.hint.info { color: var(--muted); }
 .hint:empty, .note:empty, .dig:empty, .sub:empty { display: none; }
 .step-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
 .job-block { margin-bottom: 10px; }

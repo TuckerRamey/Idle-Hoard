@@ -26,6 +26,10 @@ export const ODDITIES: OddityDef[] = [
   { id: 'fossil', name: 'Fossils', description: '{n} stone shells and bones, from things that lived down here before anyone. One of them looks a bit like the Chief.', stacks: true },
   { id: 'first-gems', name: 'First gems', description: 'The first of each kind of gem found, kept apart from the hoard: {n} so far. The dragon checks on them.', stacks: true },
   { id: 'dwarf-tools', name: 'Dwarf-made tools', description: '{n} found in the walls, still sharp. Too good to wear out, so they hang on the wall.', stacks: true },
+  { id: 'hunting-trophies', name: 'Hunting trophies', description: '{n} skulls, horns and teeth over the den door, one for every ten monsters hunted.', stacks: true },
+  { id: 'raid-banners', name: 'Raid banners', description: '{n} banners torn down by the dragon and carried home. The kobolds sleep under them.', stacks: true },
+  { id: 'town-bell', name: 'A town bell', description: 'The dragon carried it home from a raid. Somebody rings it whenever it wakes up.', stacks: false, incomeMult: 1.01 },
+  { id: 'wizard-hat', name: "A wizard's hat", description: 'Still a little bit magic. It changes colour when the Chief lies.', stacks: false, incomeMult: 1.02 },
   { id: 'shed-skins', name: 'Shed dragon skins', description: '{n} of them, each bigger than the last. Kept rolled up beside the hoard like rugs.', stacks: true },
 ];
 

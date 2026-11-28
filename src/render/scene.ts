@@ -89,7 +89,8 @@ export function buildScene(state: GameState, nowMs: number): DrawOp[] {
   // Egg or dragon on top of the hoard
   const stage = DRAGON_STAGES[state.stage] ?? DRAGON_STAGES[0];
   const sp = SPRITES[stage.sprite];
-  if (sp) {
+  // away raiding: the pile sits unguarded
+  if (sp && !(state.stage > 0 && state.dragon.raid)) {
     let anim: string;
     let frame: number;
     if (state.stage === 0) {

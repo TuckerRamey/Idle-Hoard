@@ -1,7 +1,9 @@
 // The dragon's part of the panel once it hatches: how it feels, what it
 // craves, what it wants right now, and what its next molt needs.
 
-import { animalName, boostLeft, dismissRequest, FAVOR, favorJobs, favorName, grantRequest, mood, moltNeeds, DIET, refineRates, sizeCap, SIZE, useFavor } from '../game/dragon';
+import { meatOnHand } from '../game/hunting';
+import { nextRaid, RAID, raidDef, raidTarget } from '../game/raids';
+import { animalName, boostLeft, dragonStat, STATS, trainCap, dismissRequest, FAVOR, favorJobs, favorName, grantRequest, mood, moltNeeds, DIET, refineRates, sizeCap, SIZE, useFavor } from '../game/dragon';
 import { hoardValue, resourceDef, resourceOpen } from '../game/economy';
 import { rng, type GameState } from '../game/state';
 import { $, setDisabled, setText } from './dom';
@@ -12,6 +14,8 @@ export class DragonView {
   private box = $('#dragon');
   private moodEl = $('#dragon-mood');
   private sizeEl = $('#dragon-size');
+  private statsEl = $('#dragon-stats');
+  private raidEl = $('#dragon-raid');
   private crave = $('#dragon-craving');
   private req = $('#dragon-request');
   private reqText = $('#request-text');
@@ -67,12 +71,34 @@ export class DragonView {
     }
     setText(this.crave, crave);
 
-    const cap = sizeCap(s);
+    const room = sizeCap(s);
     const rates = refineRates(s);
-    let size = `${formatNumber(d.size)} cubic paces, room to grow to ${formatNumber(cap)}${d.size >= cap - 0.5 ? (cap >= (SIZE.capByStage[s.stage] ?? 0) ? ' (as big as it gets until it evolves)' : ' (dig the hoard room bigger)') : ''}.`;
+    let size = `${formatNumber(d.size)} cubic paces, room to grow to ${formatNumber(room)}${d.size >= room - 0.5 ? (room >= (SIZE.capByStage[s.stage] ?? 0) ? ' (as big as it gets until it evolves)' : ' (dig the hoard room bigger)') : ''}.`;
     if (rates.copper > 0) size += ` It eats ${formatNumber(rates.copper * 3600)} copper an hour and sheds silver${rates.silver > 0 ? `, and ${formatNumber(rates.silver * 3600)} silver an hour into gold` : ''}. Hoard worth ${formatNumber(hoardValue(s))} copper.`;
     else if (s.stage > 0) size += ` Once it's fed and content, it grows and turns copper into silver.`;
     setText(this.sizeEl, size);
+
+    // stats, and what they're good for
+    const cap = trainCap(s);
+    setText(
+      this.statsEl,
+      STATS.map((x) => `${x.name} ${dragonStat(s, x.id)}`).join(' · ') +
+        `. Monster meat trains each by up to ${formatNumber(cap)} at this size (${STATS.map((x) => `${formatNumber(Math.min(d.trained[x.id], cap))}`).join(' / ')} so far)` +
+        (meatOnHand(s) >= 1 ? `; ${formatNumber(meatOnHand(s))} bites of monster meat waiting.` : '.'),
+    );
+    this.statsEl.title = STATS.map((x) => `${x.name}: ${x.text}`).join('\n');
+    let raid = '';
+    if (d.raid) {
+      const def = raidDef(d.raid.target);
+      raid = `Away raiding a ${def?.name ?? 'somewhere'}, back in about ${formatDuration(Math.max(0, d.raid.until - d.clock))}.`;
+    } else if (s.stage >= RAID.fromStage) {
+      const target = raidTarget(s);
+      const next = nextRaid(s);
+      const when = d.nextRaidAt > d.clock ? ` in about ${formatDuration(d.nextRaidAt - d.clock)}` : ' once it’s fed and content';
+      raid = target ? `Next raid: a ${target.name}${when}.` : '';
+      if (next) raid += ` A ${next.def.name} needs ${next.needs.join(' and ')}.`;
+    } else raid = 'Once it’s a young dragon, it will go raiding on its own.';
+    setText(this.raidEl, raid.trim());
 
     this.favor.hidden = d.boons < 1;
     if (d.boons > 0) {
@@ -89,7 +115,7 @@ export class DragonView {
         .join(' '),
     );
 
-    const r = d.request;
+    const r = d.raid ? null : d.request;
     this.req.hidden = !r;
     if (r) {
       const left = `Fades in ${formatDuration(Math.max(0, r.until - d.clock))}.`;

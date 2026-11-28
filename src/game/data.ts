@@ -81,6 +81,8 @@ export interface JobDef {
   converts?: number;
   /** Forge work each kobold does per second. */
   smiths?: number;
+  /** Hunting work each kobold does per second, toward bringing down the chosen monster. */
+  hunts?: number;
   /** Research that opens this job. */
   requires?: string;
   sprite: SpriteId;
@@ -154,6 +156,16 @@ export const JOBS: JobDef[] = [
     sprite: 'kobold-herder',
     motion: { kind: 'station', x: 104, y: 96, spacing: 7 },
     firstText: 'The first herder has named every animal. This will make dinner awkward.',
+  },
+  {
+    id: 'hunter',
+    name: 'Hunter',
+    description: 'Goes out into the deep caves after monsters. Their meat makes the dragon stronger.',
+    hunts: 0.1,
+    requires: 'monster-tracking',
+    sprite: 'kobold-hunter',
+    motion: { kind: 'haul', lane: 1, speed: 15 },
+    firstText: 'The first hunter went off into the deep caves with a spear and a very serious face.',
   },
   {
     id: 'alchemist',
@@ -373,6 +385,22 @@ export const DRAGON_STAGES: DragonStageDef[] = [
     flavor: 'A true dragon now. The whole underdark has heard of it.',
     incomeMult: 1.5,
     appeal: 60,
+  },
+  {
+    id: 'elder',
+    name: 'Elder dragon',
+    sprite: 'elder-dragon',
+    flavor: 'An elder dragon. Its scales have gone dark as old wine, and kings in the surface world have started to have bad dreams.',
+    incomeMult: 2,
+    appeal: 100,
+  },
+  {
+    id: 'ancient',
+    name: 'Ancient dragon',
+    sprite: 'ancient-dragon',
+    flavor: 'An ancient dragon, bronze with age. The mountains above have a name for it now, and they say it quietly.',
+    incomeMult: 3,
+    appeal: 160,
   },
 ];
 

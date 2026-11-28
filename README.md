@@ -99,7 +99,15 @@ The egg hatches once the hoard is worth enough, which copper alone can reach. Af
 
 It evolves by molting: each stage needs a bigger hoard room, a hoard worth so much, some granted requests, time spent fed and, for the second molt, art in the hoard room. The shed skin goes on the oddities shelf and the dragon gets a trait from what it ate most. The alchemist turns plentiful things into scarce ones at a steep loss, for patching a shortfall.
 
-The coin pile in the cave shows the copper you hold right now, so it shrinks as the dragon refines it.
+It has three **stats** (`dragonStat` in `dragon.ts`). Each stage gives a base, and monster meat trains each one on top, up to a cap that grows with every molt. **Might** decides how strong a place it dares to raid, **Fire** brings back more loot and heats the forge, and **Presence** draws kobolds to the hoard and more of them home from raids.
+
+**Hunters** (`src/game/hunting.ts`, opened by monster tracking) go after one monster at a time: cave bears train Might, salamanders Fire and glow-eels Presence, with basilisks (an adult dragon and a deep room) and wyverns (an elder dragon) later. Each kill brings back a few bites of monster meat and some ordinary meat for the larder. The dragon takes a bite about every ten minutes while it's home and content, wild meat first. After 25 of a kind, the researchers can work out how to keep it in the pasture: herders raising it put by farmed meat, which trains less but never runs out.
+
+From the young dragon on, it goes **raiding** by itself about twice a day (`src/game/raids.ts`), to the richest place its Might allows: a farmstead, a village, a town, a dwarf hold, a city, or a wizard's tower (which needs Fire too). It's gone a few hours, eats and asks for nothing meanwhile, and comes back with copper, silver, gold, gems, sometimes mithril or adamant, kobolds who followed it home (if there are beds), and now and then a lieutenant who rode along and is a Dragon-rider from then on.
+
+There are five stages after the egg: wyrmling, young, adult, elder and ancient. Its tastes grow with it: later molts want silver, then gold, then several kinds of gem, and the last wants a ruby or a star diamond and a raid on a city.
+
+The coin pile in the cave shows the copper you hold right now, so it shrinks as the dragon refines it. While the dragon is away raiding, the pile sits unguarded.
 
 ## Oddities
 
@@ -155,7 +163,7 @@ Not built yet, but the code is set up so neither needs a rewrite:
 ```
 src/
   game/       data.ts (content), chief.ts (stats, quirks), research.ts, kobolds.ts (named kobolds), forge.ts, art.ts, events.ts (digging finds, talents, epithets), colonies.ts, goals.ts,
-              dragon.ts (diet, requests, size, refining, molting), happenings.ts, oddities.ts,
+              dragon.ts (diet, requests, stats, size, refining, molting), hunting.ts, raids.ts, finds.ts, happenings.ts, oddities.ts,
               state.ts, economy.ts (production, rooms, digging, crews, arrivals), save.ts (versioned saves)
   render/     manifest.ts (sprite sheets), scene.ts (what to draw), renderer.ts (canvas + scheduling)
   ui/         tabs.ts, hud.ts (stores, kobolds, rooms), art-view.ts, colonies-view.ts, dragon-view.ts, research-view.ts, forge-view.ts, named-view.ts, chief-panel.ts, chronicle.ts, oddities-view.ts, format.ts

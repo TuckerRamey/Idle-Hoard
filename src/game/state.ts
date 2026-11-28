@@ -89,8 +89,24 @@ export interface GameState {
   gems: Record<string, number>;
   /** Things only ever found, never made (mithril, adamant), once the first turns up. */
   discovered: string[];
+  /** Hunting: the monster the hunters are after, work toward the next kill, kills ever, and meat waiting for the dragon. */
+  hunt: HuntState;
   /** For the game's own dice (mishaps, requests), so runs replay the same in tests. */
   seed: number;
+}
+
+export interface HuntState {
+  quarry: string;
+  progress: number;
+  hunted: Record<string, number>;
+  /** Monster meat in the larder, by monster: wild (hunted) and farmed (raised in the pasture). */
+  meat: Record<string, { wild: number; farmed: number }>;
+  /** Seconds toward the dragon's next bite of monster meat. */
+  eatClock: number;
+}
+
+export function newHunt(): HuntState {
+  return { quarry: 'cave-bear', progress: 0, hunted: {}, meat: {}, eatClock: 0 };
 }
 
 export interface DragonState {
@@ -119,6 +135,14 @@ export interface DragonState {
   traits: string[];
   /** Cubic paces. It grows into the hoard room while content, taking up space there. */
   size: number;
+  /** Stats trained by eating monster meat, on top of each stage's base. */
+  trained: { might: number; fire: number; presence: number };
+  /** A raid it's on: where, when it's back (dragon clock seconds), and who rode along. */
+  raid: { target: string; until: number; rider: number | null } | null;
+  /** Dragon clock seconds when it next goes raiding. */
+  nextRaidAt: number;
+  /** Raids on each kind of place, ever. */
+  raided: Record<string, number>;
 }
 
 export function newDragon(): DragonState {
@@ -139,6 +163,10 @@ export function newDragon(): DragonState {
     fed: {},
     traits: [],
     size: 0,
+    trained: { might: 0, fire: 0, presence: 0 },
+    raid: null,
+    nextRaidAt: 0,
+    raided: {},
   };
 }
 
@@ -182,6 +210,7 @@ export function newGame(now: number): GameState {
     tools: {},
     gems: {},
     discovered: [],
+    hunt: newHunt(),
     seed: (now % 2_147_483_647) || 1,
   };
 }
