@@ -34,7 +34,7 @@ export interface MaterialDef {
 
 export const ART_MATERIALS: MaterialDef[] = [
   { id: 'statue', noun: 'an iron statue', cost: { bars: 50 }, appeal: 10, job: 'blacksmith' },
-  { id: 'carving', noun: 'a stone carving', cost: { stone: 200 }, appeal: 6, job: 'quarrier' },
+  { id: 'carving', noun: 'a stone carving', cost: { stone: 200 }, appeal: 6, job: 'miner' },
   { id: 'totem', noun: 'a mushroom-wood totem', cost: { wood: 300 }, appeal: 5, job: 'woodcutter' },
 ];
 

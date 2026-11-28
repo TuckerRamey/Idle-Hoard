@@ -1,4 +1,4 @@
-// Rare finds while working: diggers, quarriers and miners (and now and then a
+// Rare finds while working: diggers and miners (and now and then a
 // scavenger) turn up something extra. Most finds are small; a few are gems,
 // rare metals or things for the shelf. Luck (talents, the Lucky trait, a
 // lieutenant on the crew) makes the better ones likelier. Pure functions over
@@ -8,6 +8,7 @@ import { GEMS, type GemDef, type ResourceId } from './data';
 import { jobOpen, jobDef, resourceOpen, store, workers } from './economy';
 import { addTool, bestTier, TIERS, TOOL_NAMES } from './forge';
 import { addHistory, fullName, namedIn, type NamedKobold } from './kobolds';
+import { researchEffect } from './research';
 import type { GameState } from './state';
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'very rare';
@@ -28,12 +29,11 @@ export const WORK_FINDS = {
 };
 
 /** The jobs that turn things up. */
-export const FINDING_JOBS = ['digger', 'quarrier', 'miner', 'scavenger'];
+export const FINDING_JOBS = ['digger', 'miner', 'scavenger'];
 
 /** Talents that make a kobold luckier at their job's finds. */
 export const LUCKY_TALENTS: Record<string, string[]> = {
-  miner: ['Seam-finder', 'Dark-eyed', 'Dark-sighted'],
-  quarrier: ['Stone-reader'],
+  miner: ['Seam-finder', 'Dark-eyed', 'Dark-sighted', 'Stone-reader'],
   digger: ['Tunnel-sense'],
   scavenger: ['Magpie eyes', 'Coin-sniffer'],
 };
@@ -101,7 +101,7 @@ function findFor(state: GameState, job: string, rarity: Rarity, rand: () => numb
   if (rarity === 'common') {
     if (rand() < 0.35) return gem(state, 'common', rand, t);
     if (job === 'scavenger') return metal(state, 'copper', Math.round(50 + rand() * 150) * Math.max(1, state.stage), '{kobold} found a handful of copper in the rubble.');
-    if (job === 'miner' || (job === 'digger' && rand() < 0.5)) return metal(state, 'ore', Math.round(20 + rand() * 40), '{kobold} pried out a fat lump of iron ore.');
+    if (rand() < 0.5 && resourceOpen(state, 'ore')) return metal(state, 'ore', Math.round(20 + rand() * 40), '{kobold} pried out a fat lump of iron ore.');
     return metal(state, 'stone', Math.round(30 + rand() * 50), '{kobold} split off a perfect block of stone.');
   }
   if (rarity === 'uncommon') {
@@ -116,7 +116,7 @@ function findFor(state: GameState, job: string, rarity: Rarity, rand: () => numb
   if (rarity === 'rare') {
     const x = rand();
     if (x < 0.35) return gem(state, 'rare', rand, t);
-    if (x < 0.6 && job !== 'scavenger') return metal(state, 'mithril', 1 + Math.floor(rand() * 3), '{kobold} found a vein of something pale that rings like a bell: mithril.');
+    if (x < 0.6 && job !== 'scavenger' && researchEffect(state, 'mithrilFinds')) return metal(state, 'mithril', 1 + Math.floor(rand() * 3), '{kobold} found a vein of something pale that rings like a bell: mithril.');
     if (x < 0.8 && state.stage >= 2) return metal(state, 'gold', Math.round(2 + rand() * 6), '{kobold} found a gold nugget. The whole crew went to look.');
     // a dwarf-made tool, the best kind the forge knows, or steel
     if (!TOOL_NAMES[job]) return null;
@@ -147,7 +147,7 @@ export function findStep(state: GameState, dt: number, t: number, rand: () => nu
     // who found it: a named kobold on the job (with their own luck), or someone from the crew
     const named = namedIn(state, job);
     const k = named.length && rand() < named.length / n ? pick(named, rand) : null;
-    let luck = k ? luckOf(k, job) : 1;
+    let luck = (k ? luckOf(k, job) : 1) * (researchEffect(state, 'findLuck')?.mult ?? 1);
     if (named.some((x) => x.lieutenant)) luck *= WORK_FINDS.lieutenantLuck;
     const rarity = rollRarity(state, luck, rand, job);
     const found = findFor(state, job, rarity, rand, t);

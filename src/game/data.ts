@@ -111,15 +111,6 @@ export const JOBS: JobDef[] = [
     firstText: 'The first woodcutter came back with a mushroom twice their size and a very proud face.',
   },
   {
-    id: 'quarrier',
-    name: 'Quarrier',
-    description: 'Cuts stone blocks out of the cave walls.',
-    produces: { resource: 'stone', rate: 0.5 },
-    sprite: 'kobold-quarrier',
-    motion: { kind: 'station', x: 40, y: 98, spacing: 9 },
-    firstText: 'The first quarrier gets a pick nearly bigger than they are. They love it.',
-  },
-  {
     id: 'digger',
     name: 'Digger',
     description: 'Digs rooms out bigger. Big rooms need wood and stone to hold the ceiling up.',
@@ -140,12 +131,11 @@ export const JOBS: JobDef[] = [
   {
     id: 'miner',
     name: 'Miner',
-    description: 'Digs iron ore out of the deep seams. The forge turns it into bars.',
-    produces: { resource: 'ore', rate: 0.1 },
-    requires: 'ore-sniffing',
+    description: 'Cuts stone out of the cave walls. Once the researchers can sniff out iron, part of it comes out as iron ore for the forge.',
+    produces: { resource: 'stone', rate: 0.5 },
     sprite: 'kobold-miner',
     motion: { kind: 'haul', lane: 2, speed: 11 },
-    firstText: 'The first miner came back from the deep seams black with soot and grinning.',
+    firstText: 'The first miner gets a pick nearly bigger than they are. They love it.',
   },
   {
     id: 'herder',

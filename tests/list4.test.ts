@@ -152,25 +152,25 @@ describe("the dragon's favor", () => {
 
   it('a favor makes one job twice as fast for an hour, then wears off', () => {
     const s = fed();
-    s.crews.quarrier = { n: 4 };
-    const q = jobDef('quarrier')!;
+    s.crews.miner = { n: 4 };
+    const q = jobDef('miner')!;
     const before = jobOutput(s, q);
-    expect(useFavor(s, 'quarrier')).toBeNull(); // nothing owed yet
+    expect(useFavor(s, 'miner')).toBeNull(); // nothing owed yet
     s.dragon.boons = 1;
-    expect(useFavor(s, 'quarrier')).toMatch(/helping/);
+    expect(useFavor(s, 'miner')).toMatch(/helping/);
     expect(s.dragon.boons).toBe(0);
     expect(jobOutput(s, q)).toBeCloseTo(before * FAVOR.mult);
-    expect(boostLeft(s, 'quarrier')).toBe(FAVOR.seconds);
+    expect(boostLeft(s, 'miner')).toBe(FAVOR.seconds);
     const r = tick(s, FAVOR.seconds + 20);
-    expect(boostLeft(s, 'quarrier')).toBe(0);
+    expect(boostLeft(s, 'miner')).toBe(0);
     expect(jobOutput(s, q)).toBeLessThan(before * 1.5); // back to normal, give or take crew experience
     expect(r.events.some((e) => e.includes('stopped helping'))).toBe(true);
   });
 
   it('a kobold summoned from the crowd starts with one experience, not two', () => {
     const s = fed();
-    s.crews.quarrier = { n: 4 };
-    s.dragon.request = { kind: 'audience', namedId: null, job: 'quarrier', name: 'one of the quarriers', until: 1e12 };
+    s.crews.miner = { n: 4 };
+    s.dragon.request = { kind: 'audience', namedId: null, job: 'miner', name: 'one of the miners', until: 1e12 };
     grantRequest(s, T0, rng(s));
     expect(s.named).toHaveLength(1);
     expect(s.named[0].history).toHaveLength(1);
@@ -181,9 +181,9 @@ describe("the dragon's favor", () => {
 describe('the dragon', () => {
   it('tells named kobolds stories while content', () => {
     const s = fed();
-    s.crews.quarrier = { n: 4 };
+    s.crews.miner = { n: 4 };
     s.chief = null; // keep the test about stories
-    const k = nameKobold(s, 'quarrier', 'the Test', 'Was tested.', T0, rng(s))!;
+    const k = nameKobold(s, 'miner', 'the Test', 'Was tested.', T0, rng(s))!;
     tick(s, 48 * 3600);
     expect(k.history.some((h) => h.text.startsWith('The dragon told them a story'))).toBe(true);
   });
@@ -240,14 +240,16 @@ describe('more happens as the warren grows', () => {
 describe('talents and epithets', () => {
   it('a talent makes a kobold better at that job only', () => {
     const s = game();
-    s.crews.miner = { n: 1 };
-    const k = nameKobold(s, 'miner', 't', 'x', T0, rng(s))!;
+    s.crews.woodcutter = { n: 1 };
+    const k = nameKobold(s, 'woodcutter', 't', 'x', T0, rng(s))!;
     k.loves = 'herder';
     k.hates = 'scavenger';
     const before = personalMult(k);
     addTalent(k, { job: 'miner', mult: 1.5, name: 'Dark-sighted' });
-    expect(personalMult(k)).toBeCloseTo(before * 1.5);
-    k.job = 'quarrier';
+    expect(personalMult(k)).toBeCloseTo(before);
+    k.job = 'miner';
+    expect(personalMult(k)).toBeCloseTo(1.5);
+    k.job = 'woodcutter';
     expect(personalMult(k)).toBeCloseTo(1);
     expect(addTalent(k, { job: 'miner', mult: 1.5, name: 'Dark-sighted' })).toBe(false);
   });
@@ -280,8 +282,8 @@ describe('talents and epithets', () => {
 describe('colonies', () => {
   function ready(): { s: GameState; id: number } {
     const s = fed();
-    s.crews.quarrier = { n: 10 };
-    const k = nameKobold(s, 'quarrier', 'the Bold', 'Was bold.', T0, rng(s))!;
+    s.crews.miner = { n: 10 };
+    const k = nameKobold(s, 'miner', 'the Bold', 'Was bold.', T0, rng(s))!;
     for (let i = 0; i < COLONY.experiences; i++) addHistory(k, T0, 'Did a thing.');
     return { s, id: k.id };
   }
@@ -299,11 +301,11 @@ describe('colonies', () => {
 
   it('a founder leaves with a few kobolds, and the colony sends tribute and writes its history', () => {
     const { s, id } = ready();
-    const pop = s.crews.quarrier.n + s.idle;
+    const pop = s.crews.miner.n + s.idle;
     const line = foundColony(s, id, T0, rng(s))!;
     expect(line).toMatch(/to found/);
     expect(s.named).toHaveLength(0);
-    expect(s.crews.quarrier.n + s.idle).toBe(pop - COLONY.settlers);
+    expect(s.crews.miner.n + s.idle).toBe(pop - COLONY.settlers);
     const c = s.colonies[0];
     expect(c.leader.name).toBeTruthy();
     expect(c.pop).toBe(COLONY.settlers + 1);

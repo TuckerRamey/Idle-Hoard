@@ -183,11 +183,38 @@ export function chiefRate(state: GameState): number {
   return state.chief ? CONFIG.chiefRate * globalMultiplier(state) : 0;
 }
 
+/** Ore for each stone the miners would have cut, once the stone yard is full and they dig only for ore. */
+export const FULL_YARD_ORE = 0.5;
+
+/** The share of what miners cut that comes out as iron ore: a steady split, raised by research. */
+export function oreShare(state: GameState): number {
+  if (!resourceOpen(state, 'ore')) return 0;
+  let share = 0;
+  for (const e of researchEffects(state)) if (e.kind === 'oreShare') share = Math.max(share, e.share);
+  return share;
+}
+
+/** What miners make of each unit of work: stone and iron ore. A full stone yard sends the stone part to ore, at half pace. */
+export function minerSplit(state: GameState): { stone: number; ore: number; yardFull: boolean } {
+  const share = oreShare(state);
+  const yardFull = share > 0 && state.res.stone >= capacity(state, 'stone') - 1e-6;
+  if (yardFull) return { stone: 0, ore: share + (1 - share) * FULL_YARD_ORE, yardFull };
+  return { stone: 1 - share, ore: share, yardFull };
+}
+
 /** Everything made per second by jobs and the Chief, before storage limits. Not counting alchemy. */
 export function production(state: GameState): Record<ResourceId, number> {
   const p = emptyRes();
   p.copper = chiefRate(state);
-  for (const def of JOBS) if (def.produces && resourceOpen(state, def.produces.resource)) p[def.produces.resource] += jobOutput(state, def);
+  for (const def of JOBS) {
+    if (!def.produces || !resourceOpen(state, def.produces.resource)) continue;
+    const out = jobOutput(state, def);
+    if (def.id === 'miner') {
+      const split = minerSplit(state);
+      p.stone += out * split.stone;
+      p.ore += out * split.ore;
+    } else p[def.produces.resource] += out;
+  }
   return p;
 }
 
@@ -411,23 +438,31 @@ export function jobHints(state: GameState): Record<string, string> {
   const hints: Record<string, string> = {};
   const f = flows(state);
   const why = { digging: 'Digging', alchemy: 'The alchemist', forge: 'The forge', dragon: 'The dragon' } as const;
+  const split = minerSplit(state);
   for (const def of JOBS) {
-    const res = def.produces?.resource;
-    if (!res || !jobOpen(state, def)) continue;
-    const fl = f[res];
-    const name = resourceDef(res).name.toLowerCase();
-    const plural = (n: number) => `${def.name.toLowerCase()}${n === 1 ? '' : 's'}`;
-    if (fl.out > fl.in && fl.usedBy) {
-      const each = Math.max(1e-9, perKobold(state, def) * (def.id === 'herder' && state.herdSettle > 0 ? 0.5 : 1));
-      const more = Math.max(1, Math.ceil((fl.out - fl.in) / each - 1e-9));
-      const who = why[fl.usedBy];
-      hints[def.id] = fl.held < 1
-        ? `${who} has run out of ${name}. About ${more} more ${plural(more)} would keep up.`
-        : `${who} uses ${name} faster than it comes in. About ${more} more ${plural(more)} would keep up.`;
-    } else if (fl.in > 0 && fl.held >= fl.cap) {
-      const room = roomDef(resourceDef(res).store)?.name.toLowerCase() ?? 'store';
-      hints[def.id] = `${resourceDef(res).name} is full, so the extra is lost. Dig the ${room} bigger, spend some, or move kobolds.`;
+    if (!def.produces || !jobOpen(state, def)) continue;
+    // miners make stone and ore: the ore note comes first, since the forge waits on it
+    const outputs: [ResourceId, number][] =
+      def.id === 'miner' ? ([['ore', split.ore], ['stone', split.stone]] as [ResourceId, number][]).filter(([, x]) => x > 0) : [[def.produces.resource, 1]];
+    for (const [res, part] of outputs) {
+      const fl = f[res];
+      const name = resourceDef(res).name.toLowerCase();
+      const plural = (n: number) => `${def.name.toLowerCase()}${n === 1 ? '' : 's'}`;
+      if (fl.out > fl.in && fl.usedBy) {
+        const each = Math.max(1e-9, perKobold(state, def) * part * (def.id === 'herder' && state.herdSettle > 0 ? 0.5 : 1));
+        const more = Math.max(1, Math.ceil((fl.out - fl.in) / each - 1e-9));
+        const who = why[fl.usedBy];
+        hints[def.id] = fl.held < 1
+          ? `${who} has run out of ${name}. About ${more} more ${plural(more)} would keep up.`
+          : `${who} uses ${name} faster than it comes in. About ${more} more ${plural(more)} would keep up.`;
+      } else if (fl.in > 0 && fl.held >= fl.cap) {
+        const room = roomDef(resourceDef(res).store)?.name.toLowerCase() ?? 'store';
+        hints[def.id] = `${resourceDef(res).name} is full, so the extra is lost. Dig the ${room} bigger, spend some, or move kobolds.`;
+      }
+      if (hints[def.id]) break;
     }
+    if (def.id === 'miner' && split.yardFull && !hints.miner)
+      hints.miner = 'The stone yard is full, so the miners dig for ore only, at half pace. Dig the stone yard bigger to get stone again.';
   }
   if (workers(state, 'herder') > herdersFit(state) && herdersFit(state) > 0)
     hints.herder = `The pasture only fits ${herdersFit(state)} herders. Dig it bigger, or the rest just stand about.`;

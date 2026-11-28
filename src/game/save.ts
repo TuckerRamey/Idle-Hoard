@@ -291,10 +291,51 @@ function normalizeProgress(raw: any, current: any): Record<string, number> {
   return out;
 }
 
+/**
+ * Quarriers and miners became one Miner job. Old saves move quarriers (crews,
+ * named kobolds, talents, tools, orders) over to miners. Works on a copy.
+ */
+function mergeQuarriers(raw: Record<string, any>): Record<string, any> {
+  if (!JSON.stringify(raw).includes('"quarrier"') && !JSON.stringify(raw).includes('tool:quarrier')) return raw;
+  const r = JSON.parse(JSON.stringify(raw));
+  const job = (j: unknown) => (j === 'quarrier' ? 'miner' : j);
+  if (r.crews?.quarrier) {
+    const n = (r.crews.quarrier?.n ?? 0) + (r.crews.miner?.n ?? 0);
+    r.crews.miner = { ...(r.crews.miner ?? {}), n };
+    delete r.crews.quarrier;
+  }
+  r.newcomerJob = job(r.newcomerJob);
+  const kobold = (k: any) => {
+    if (!k || typeof k !== 'object') return;
+    k.job = job(k.job);
+    k.loves = job(k.loves);
+    k.hates = job(k.hates);
+    if (k.hates === k.loves) k.hates = 'digger';
+    if (Array.isArray(k.talents)) for (const t of k.talents) if (t) t.job = job(t.job);
+  };
+  if (Array.isArray(r.named)) r.named.forEach(kobold);
+  if (Array.isArray(r.colonies)) for (const c of r.colonies) kobold(c?.leader);
+  if (r.tools?.quarrier && typeof r.tools.quarrier === 'object') {
+    const into = (r.tools.miner ??= {});
+    for (const [tier, t] of Object.entries<any>(r.tools.quarrier)) {
+      const a = into[tier];
+      const n = (a?.n ?? 0) + (t?.n ?? 0);
+      into[tier] = { n, wear: n > 0 ? ((a?.wear ?? 0) * (a?.n ?? 0) + (t?.wear ?? 0) * (t?.n ?? 0)) / n : 0 };
+    }
+    delete r.tools.quarrier;
+  }
+  if (Array.isArray(r.forge?.slots)) for (const sl of r.forge.slots) if (sl?.order === 'tool:quarrier') sl.order = 'tool:miner';
+  if (r.dragon) {
+    if (r.dragon.request) r.dragon.request.job = job(r.dragon.request.job);
+    if (Array.isArray(r.dragon.boosts)) for (const b of r.dragon.boosts) if (b) b.job = job(b.job);
+  }
+  return r;
+}
+
 export function normalize(raw: unknown, now: number): GameState {
   const base = newGame(now);
   if (!raw || typeof raw !== 'object') throw new SaveError('Save has no game state');
-  const r = raw as Record<string, any>;
+  const r = mergeQuarriers(raw as Record<string, any>);
   const res = { ...base.res };
   for (const d of RESOURCES) res[d.id] = num(r.res?.[d.id], 0);
   const crews = normalizeCrews(r.crews);

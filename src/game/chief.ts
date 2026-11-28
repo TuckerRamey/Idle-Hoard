@@ -36,7 +36,7 @@ export interface QuirkDef {
 /** One quirk per Chief. They are meant to be worth about the same. */
 export const QUIRKS: QuirkDef[] = [
   { id: 'copper-nosed', name: 'Copper-nosed', description: 'Can smell copper through rock. Scavengers +25%.', effect: { kind: 'jobMult', job: 'scavenger', mult: 1.25 } },
-  { id: 'stonecutter', name: 'Stonecutter', description: 'Grew up in the deep quarries. Quarriers +25%.', effect: { kind: 'jobMult', job: 'quarrier', mult: 1.25 } },
+  { id: 'stonecutter', name: 'Stonecutter', description: 'Grew up in the deep mines. Miners +25%.', effect: { kind: 'jobMult', job: 'miner', mult: 1.25 } },
   { id: 'mushroom-sniffer', name: 'Mushroom-sniffer', description: 'Knows every mushroom by smell. Woodcutters +25%.', effect: { kind: 'jobMult', job: 'woodcutter', mult: 1.25 } },
   { id: 'tunnel-rat', name: 'Tunnel-rat', description: 'Happiest with dirt on their snout. Diggers +25%.', effect: { kind: 'jobMult', job: 'digger', mult: 1.25 } },
   { id: 'silver-tongued', name: 'Silver-tongued', description: 'Talks kobolds into anything. Kobolds arrive 25% faster.', effect: { kind: 'appealMult', mult: 1.25 } },

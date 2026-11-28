@@ -57,7 +57,7 @@ describe('crews', () => {
     expect(assign(s, 'scavenger', 4)).toBe(4);
     expect(assign(s, 'woodcutter', 20)).toBe(6);
     expect(s.idle).toBe(0);
-    expect(assign(s, 'quarrier', 1)).toBe(0);
+    expect(assign(s, 'miner', 1)).toBe(0);
     expect(assign(s, 'scavenger', -100)).toBe(-4);
     expect(s.idle).toBe(4);
     expect(population(s)).toBe(10);
@@ -92,7 +92,7 @@ describe('crews', () => {
 describe('tick', () => {
   it('makes each resource from its job, and the Chief hauls copper', () => {
     const s = game();
-    s.crews = { scavenger: { n: 3 }, woodcutter: { n: 2 }, quarrier: { n: 4 } };
+    s.crews = { scavenger: { n: 3 }, woodcutter: { n: 2 }, miner: { n: 4 } };
     tick(s, 10);
     // experience grows a hair over 10 seconds, so allow a little
     expect(s.res.copper).toBeCloseTo((3 * 0.5 + CONFIG.chiefRate) * 10, 0);
@@ -128,7 +128,7 @@ describe('tick', () => {
 
   it('keeps each good in its own store, so stone can never crowd out wood', () => {
     const s = game();
-    s.crews.quarrier = { n: 50 };
+    s.crews.miner = { n: 50 };
     tick(s, 86_400);
     expect(s.res.stone).toBe(capacity(s, 'stone'));
     s.crews = { woodcutter: { n: 1 } };
@@ -195,7 +195,7 @@ describe('digging rooms', () => {
     const s = game();
     s.crews.digger = { n: 5 };
     s.crews.woodcutter = { n: 10 };
-    s.crews.quarrier = { n: 10 };
+    s.crews.miner = { n: 10 };
     s.dig = { hoard: s.crews.digger?.n ?? 0 };
     const r = advanceTo(s, T0 + 3 * 3600 * 1000);
     expect(r.dug.length).toBeGreaterThan(1);

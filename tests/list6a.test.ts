@@ -127,11 +127,11 @@ describe('rare finds while working', () => {
     expect(lucky.common).toBeLessThan(plain.common);
   });
 
-  it('a busy crew turns up gems and metals over time, and mithril opens its research', () => {
+  it('a busy crew turns up gems and metals over time, and once deep seams are found, mithril opens its research', () => {
     const s = game();
-    s.research.done.push('ore-sniffing', 'smithing', 'ironworking', 'steelmaking');
+    s.research.done.push('ore-sniffing', 'smithing', 'ironworking', 'steelmaking', 'deep-seams');
     s.crews.miner = { n: 40 };
-    s.crews.quarrier = { n: 40 };
+    s.crews.digger = { n: 40 };
     s.rooms.den.volume = WORK_FINDS.deepPaces;
     s.stage = 2;
     const rand = rng(s);

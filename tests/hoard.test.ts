@@ -117,9 +117,9 @@ describe('art', () => {
   function withArtist(): { s: GameState; id: number } {
     const s = game();
     s.research.done.push('artistry');
-    s.crews.quarrier = { n: 2 };
-    const k = nameKobold(s, 'quarrier', 'the Test', 'Was tested.', T0, rng(s))!;
-    k.loves = 'quarrier';
+    s.crews.miner = { n: 2 };
+    const k = nameKobold(s, 'miner', 'the Test', 'Was tested.', T0, rng(s))!;
+    k.loves = 'miner';
     return { s, id: k.id };
   }
 
@@ -139,7 +139,7 @@ describe('art', () => {
     for (let i = 0; i < ART.experiences; i++) addHistory(k, T0, 'Did a thing.');
     expect(makeArtisan(s, id, T0)).toBe(true);
     expect(artisans(s)).toHaveLength(1);
-    s.crews.quarrier = { n: 0 }; // no new stone while they work
+    s.crews.miner = { n: 0 }; // no new stone while they work
     s.chief = null;
     s.res.stone = 1_000;
     s.res.wood = 1_000;

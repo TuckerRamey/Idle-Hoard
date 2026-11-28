@@ -69,15 +69,15 @@ describe('fewer, richer named kobolds', () => {
 
   it('past the cap, an event credits a named kobold on the job instead of naming someone new', () => {
     const s = game();
-    s.crews.quarrier = { n: 20 };
+    s.crews.miner = { n: 20 };
     s.crews.scavenger = { n: 9 };
     const rand = rng(s);
-    const q = nameKobold(s, 'quarrier', 'the First', 'Was first.', T0, rand)!;
+    const q = nameKobold(s, 'miner', 'the First', 'Was first.', T0, rand)!;
     nameKobold(s, 'scavenger', 'the Second', 'Was second.', T0, rand);
     expect(canName(s)).toBe(true);
     nameKobold(s, 'scavenger', 'the Third', 'Was third.', T0, rand);
     expect(canName(s)).toBe(false);
-    const got = nameOrCredit(s, 'quarrier', 'the Fourth', T0, rand)!;
+    const got = nameOrCredit(s, 'miner', 'the Fourth', T0, rand)!;
     expect(got.fresh).toBe(false);
     expect(got.k).toBe(q);
     expect(s.named.length).toBe(3);

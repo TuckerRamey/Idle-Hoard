@@ -36,7 +36,13 @@ export type ResearchEffect =
   /** Rooms can be dug past DIG.maxPaces. */
   | { kind: 'deepDigging' }
   /** How much a named (non-lieutenant) kobold lifts their crew. */
-  | { kind: 'namedLift'; bonus: number };
+  | { kind: 'namedLift'; bonus: number }
+  /** This share of what miners cut comes out as iron ore. */
+  | { kind: 'oreShare'; share: number }
+  /** Rare finds (uncommon and better) are this much likelier. */
+  | { kind: 'findLuck'; mult: number }
+  /** Mithril turns up among the miners' rare finds. */
+  | { kind: 'mithrilFinds' };
 
 export interface ResearchDef {
   id: string;
@@ -62,10 +68,11 @@ export const RESEARCH: ResearchDef[] = [
   {
     id: 'ore-sniffing',
     name: 'Ore sniffing',
-    description: 'Opens iron ore, the miner job and the metal store.',
+    description: 'Opens iron ore and the metal store: a fifth of what the miners cut comes out as ore.',
     cost: 600,
     resources: { stone: 200 },
     requires: [],
+    effects: [{ kind: 'oreShare', share: 0.2 }],
     doneText: 'The researchers learned to sniff out iron. The lab smells of rust now.',
   },
   {
@@ -355,6 +362,37 @@ export const RESEARCH: ResearchDef[] = [
     requires: ['monster-tracking'],
     hunted: { monster: 'glow-eel', n: 25 },
     doneText: 'The eel ponds are full. Nobody needs a lantern in the pasture any more.',
+  },
+  {
+    id: 'seam-reading',
+    name: 'Seam reading',
+    description: 'Miners learn to follow the iron seams: 35% of what they cut comes out as ore.',
+    cost: 6_000,
+    resources: { stone: 400, ore: 100 },
+    requires: ['ore-sniffing', 'smithing'],
+    effects: [{ kind: 'oreShare', share: 0.35 }],
+    doneText: 'The researchers drew the iron seams on the wall in charcoal. The miners follow the lines with their tongues out.',
+  },
+  {
+    id: 'deep-seams',
+    name: 'Deep seams',
+    description: 'Half of what the miners cut comes out as ore, and mithril starts turning up among their rare finds.',
+    cost: 30_000,
+    resources: { ore: 600, bars: 100 },
+    requires: ['seam-reading', 'deep-delving'],
+    effects: [{ kind: 'oreShare', share: 0.5 }, { kind: 'mithrilFinds' }],
+    doneText: 'The miners have found the deep seams. Something down there rings like a bell when you hit it.',
+  },
+  {
+    id: 'gem-lore',
+    name: 'Gem lore',
+    description: 'The miners can tell a garnet from a pebble. Rare finds are 50% likelier.',
+    cost: 12_000,
+    resources: { stone: 600 },
+    requires: ['ore-sniffing'],
+    minStage: 1,
+    effects: [{ kind: 'findLuck', mult: 1.5 }],
+    doneText: 'The researchers wrote a book about gems. It is mostly drawings of the dragon looking at gems.',
   },
   {
     id: 'mithril-working',

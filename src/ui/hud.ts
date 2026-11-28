@@ -19,6 +19,8 @@ import {
   herdersFit,
   hoardValue,
   jobHints,
+  minerSplit,
+  oreShare,
   jobOpen,
   jobOutput,
   namedInJob,
@@ -62,7 +64,7 @@ export function costText(cost: Partial<Record<ResourceId, number>>): string {
 
 /** The job list, under headings. Digging is done from the Rooms tab. */
 export const JOB_GROUPS: { name: string; jobs: string[] }[] = [
-  { name: 'Gathering', jobs: ['scavenger', 'woodcutter', 'quarrier', 'miner'] },
+  { name: 'Gathering', jobs: ['scavenger', 'woodcutter', 'miner'] },
   { name: 'Animals', jobs: ['herder', 'hunter'] },
 ];
 /** Jobs assigned from their own tab: researchers on Research, blacksmiths and the alchemist on Forge. */
@@ -368,7 +370,12 @@ export class Hud {
       const what = def.produces ? resName(def.produces.resource) : def.digs ? 'digging' : def.researches ? 'research' : def.smiths ? 'forge work' : def.hunts ? 'hunting' : 'turned over';
       setText(row.tools, toolSummary(s, def.id));
       const total = jobOutput(s, def);
-      setText(row.rate, workers(s, def.id) > 0 ? `${formatNumber(total)} ${what} / s (${formatNumber(each)} each)` : `${formatNumber(each)} ${what} / s each`);
+      if (def.id === 'miner' && oreShare(s) > 0) {
+        // stone and ore, in a steady split
+        const sp = minerSplit(s);
+        const parts = (x: number) => [sp.stone > 0 ? `${formatNumber(x * sp.stone)} stone` : '', `${formatNumber(x * sp.ore)} iron ore`].filter(Boolean).join(' and ');
+        setText(row.rate, workers(s, def.id) > 0 ? `${parts(total)} / s (${sp.yardFull ? 'ore only while the stone yard is full' : `${Math.round(oreShare(s) * 100)}% comes out as ore`})` : `${parts(each)} / s each`);
+      } else setText(row.rate, workers(s, def.id) > 0 ? `${formatNumber(total)} ${what} / s (${formatNumber(each)} each)` : `${formatNumber(each)} ${what} / s each`);
       setText(row.hint, hints[def.id] ?? (def.id === 'hunter' ? (huntHint(s) ?? '') : ''));
       row.hint.classList.toggle('info', !hints[def.id] && def.id === 'hunter');
       setDisabled(row.down, c.n < 1);
