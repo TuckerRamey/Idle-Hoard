@@ -22,7 +22,7 @@
         </section>
         <header class="totals">
           <div><span id="copper" class="big">0</span> <span id="worth-unit" class="unit">copper</span><div id="metals" class="desc metals"></div></div>
-          <div class="totals-right"><span id="rate" class="rate">0 / s</span> <button type="button" id="settings-open" class="small gear" aria-label="Settings and save" title="Settings and save">⚙</button></div>
+          <div class="totals-right"><span id="rate" class="rate" title="Hoard worth gained per second">+0 / s</span> <button type="button" id="settings-open" class="small gear" aria-label="Settings and save" title="Settings and save">⚙</button></div>
         </header>
 
         <div class="growth">
@@ -31,22 +31,27 @@
           <div id="stage-text" class="desc"></div>
           <div id="goal" class="goal" hidden></div>
           <div id="dragon" class="dragon" hidden>
-            <div id="dragon-mood" class="desc"></div>
-            <div id="dragon-craving" class="desc"></div>
-            <div id="dragon-size" class="desc"></div>
-            <div id="dragon-stats" class="desc stats-line"></div>
-            <div id="dragon-raid" class="desc"></div>
+            <div id="dragon-request" class="request" hidden>
+              <p id="request-text"></p>
+              <div class="buttons"><button type="button" id="request-grant" class="primary">Give it</button><button type="button" id="request-dismiss">Not now</button></div>
+            </div>
             <div id="dragon-favor" class="favor" hidden>
               <span id="favor-text" class="desc"></span>
               <div class="favor-row"><select id="favor-job" aria-label="What the dragon should help with"></select><button type="button" id="favor-use" class="small">Ask for help</button></div>
             </div>
             <div id="dragon-boosts" class="desc"></div>
-            <div id="dragon-request" class="request" hidden>
-              <p id="request-text"></p>
-              <div class="buttons"><button type="button" id="request-grant" class="primary">Give it</button><button type="button" id="request-dismiss">Not now</button></div>
-            </div>
-            <div class="desc molt-head">Next molt needs:</div>
-            <ul id="molt-needs" class="molt"></ul>
+            <details id="dragon-more" class="dragon-more">
+              <summary id="dragon-summary" class="desc"></summary>
+              <div class="dragon-body">
+                <div id="dragon-mood" class="desc"></div>
+                <div id="dragon-craving" class="desc"></div>
+                <div id="dragon-size" class="desc"></div>
+                <div id="dragon-stats" class="desc stats-line"></div>
+                <div id="dragon-raid" class="desc"></div>
+                <div class="desc molt-head">Next molt needs:</div>
+                <ul id="molt-needs" class="molt"></ul>
+              </div>
+            </details>
           </div>
         </div>
 
@@ -86,6 +91,7 @@
         </div>
         <div class="tab-panel" data-tab="rooms">
         <p id="dig-status" class="desc"></p>
+        <p id="dig-stall" class="hint"></p>
         <div class="step-row"><span class="desc">Move</span> <div id="dig-step" class="step" role="group" aria-label="How many diggers to move at once"></div> <span class="desc idle-note"></span></div>
         <ul id="rooms" class="list"></ul>
         </div>

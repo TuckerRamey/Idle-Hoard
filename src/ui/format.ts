@@ -4,7 +4,12 @@ const SUFFIXES = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'D
 export function formatNumber(n: number): string {
   if (!Number.isFinite(n)) return '∞';
   if (n < 0) return '-' + formatNumber(-n);
-  if (n < 1000) return n < 10 && n % 1 !== 0 ? n.toFixed(1) : Math.floor(n).toString();
+  if (n < 1000) {
+    if (n >= 10 || n % 1 === 0) return Math.floor(n).toString();
+    // a sliver of something reads as 0, not "0.0"
+    const t = n.toFixed(1);
+    return t === '0.0' ? '0' : t;
+  }
   const tier = Math.floor(Math.log10(n) / 3);
   if (tier >= SUFFIXES.length) return n.toExponential(2);
   const scaled = n / Math.pow(1000, tier);

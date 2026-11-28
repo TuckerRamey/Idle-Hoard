@@ -501,9 +501,12 @@ export function jobHints(state: GameState): Record<string, string> {
         const each = Math.max(1e-9, perKobold(state, def) * part * (def.id === 'herder' && state.herdSettle > 0 ? 0.5 : 1));
         const more = Math.max(1, Math.ceil((fl.out - fl.in) / each - 1e-9));
         const who = why[fl.usedBy];
-        hints[def.id] = fl.held < 1
-          ? `${who} has run out of ${name}. About ${more} more ${plural(more)} would keep up.`
-          : `${who} uses ${name} faster than it comes in. About ${more} more ${plural(more)} would keep up.`;
+        const short = fl.held < 1 ? `${who} has run out of ${name}.` : `${who} uses ${name} faster than it comes in.`;
+        // a job that only turns up a little of it on the side would need an absurd crew: say so instead of a silly number
+        const crewNow = Math.max(1, workers(state, def.id));
+        hints[def.id] = more > Math.max(50, crewNow * 5)
+          ? `${short} ${def.name}s only turn up a little ${name} on the side; it needs another source.`
+          : `${short} About ${more.toLocaleString('en-US')} more ${plural(more)} would keep up.`;
       } else if (fl.in > 0 && fl.held >= fl.cap) {
         const room = roomDef(resourceDef(res).store)?.name.toLowerCase() ?? 'store';
         hints[def.id] = `${resourceDef(res).name} is full, so the extra is lost. Dig the ${room} bigger, spend some, or move kobolds.`;

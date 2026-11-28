@@ -10,6 +10,9 @@ import { $, setDisabled, setText } from './dom';
 import { formatDuration, formatNumber } from './format';
 import { syncOptions } from './hud';
 
+const MORE_KEY = 'idle-hoard-dragon-open';
+const MOOD_SHORT = { egg: '', hungry: 'Hungry', fed: 'Fed and content', delighted: 'Delighted' } as const;
+
 export class DragonView {
   private box = $('#dragon');
   private moodEl = $('#dragon-mood');
@@ -27,12 +30,27 @@ export class DragonView {
   private favorJob = $<HTMLSelectElement>('#favor-job');
   private favorUse = $<HTMLButtonElement>('#favor-use');
   private boosts = $('#dragon-boosts');
+  private more = $<HTMLDetailsElement>('#dragon-more');
+  private summary = $('#dragon-summary');
   private moltKey = '';
 
   constructor(
     private getState: () => GameState,
     private onLine: (text: string) => void,
   ) {
+    // the long read-out folds away behind a one-line summary; open or shut is remembered in this browser
+    try {
+      this.more.open = localStorage.getItem(MORE_KEY) === '1';
+    } catch {
+      /* no storage: start folded */
+    }
+    this.more.addEventListener('toggle', () => {
+      try {
+        localStorage.setItem(MORE_KEY, this.more.open ? '1' : '0');
+      } catch {
+        /* fine */
+      }
+    });
     this.grant.addEventListener('click', () => {
       const s = this.getState();
       const line = grantRequest(s, Date.now(), rng(s));
@@ -104,7 +122,7 @@ export class DragonView {
     this.favor.hidden = d.boons < 1;
     if (d.boons > 0) {
       const jobs = favorJobs(s);
-      setText(this.favorText, `It owes you ${d.boons === 1 ? 'a favor' : `${d.boons} favors`} (it remembers up to ${FAVOR.max}). Ask, and it helps one job work twice as fast for an hour.`);
+      setText(this.favorText, `It owes you ${d.boons === 1 ? 'a favor' : `${d.boons} favors`} (up to ${FAVOR.max}): one job works twice as fast for an hour.`);
       syncOptions(this.favorJob, jobs.map((j) => [j, favorName(j)]), jobs.includes(this.favorJob.value) ? this.favorJob.value : (jobs[0] ?? ''));
       setDisabled(this.favorUse, jobs.length === 0);
     }
@@ -132,6 +150,16 @@ export class DragonView {
     }
 
     const needs = moltNeeds(s);
+
+    // the folded line: mood, craving, raid and molt at a glance
+    const bits: string[] = [MOOD_SHORT[m]];
+    if (meatOpen) bits.push(`craves ${animalName(d.craving)}`);
+    if (d.raid) bits.push(`raiding, back in ${formatDuration(Math.max(0, d.raid.until - d.clock))}`);
+    else if (s.stage >= RAID.fromStage && raidTarget(s) && d.nextRaidAt > d.clock) bits.push(`raids in ${formatDuration(d.nextRaidAt - d.clock)}`);
+    bits.push(needs ? `molt ${needs.filter((n) => n.met).length} of ${needs.length}` : 'fully grown');
+    setText(this.summary, bits.filter(Boolean).join(' · '));
+    this.summary.classList.toggle('warn', m === 'hungry');
+
     const key = needs ? needs.map((n) => `${n.label}:${n.have}:${n.met}`).join('|') : 'none';
     if (key !== this.moltKey) {
       this.moltKey = key;
