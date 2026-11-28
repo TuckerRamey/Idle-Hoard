@@ -1,8 +1,8 @@
 // The dragon's part of the panel once it hatches: how it feels, what it
 // craves, what it wants right now, and what its next molt needs.
 
-import { animalName, dismissRequest, grantRequest, mood, moltNeeds, DIET } from '../game/dragon';
-import { resourceDef, resourceOpen } from '../game/economy';
+import { animalName, dismissRequest, grantRequest, mood, moltNeeds, DIET, refineRates, sizeCap, SIZE } from '../game/dragon';
+import { hoardValue, resourceDef, resourceOpen } from '../game/economy';
 import { rng, type GameState } from '../game/state';
 import { $, setDisabled, setText } from './dom';
 import { formatDuration, formatNumber } from './format';
@@ -10,6 +10,7 @@ import { formatDuration, formatNumber } from './format';
 export class DragonView {
   private box = $('#dragon');
   private moodEl = $('#dragon-mood');
+  private sizeEl = $('#dragon-size');
   private crave = $('#dragon-craving');
   private req = $('#dragon-request');
   private reqText = $('#request-text');
@@ -55,6 +56,13 @@ export class DragonView {
       if (d.warned && d.next !== d.craving) crave += ` In about ${formatDuration(Math.max(0, d.changeAt - d.clock))} it will crave ${animalName(d.next)}.`;
     }
     setText(this.crave, crave);
+
+    const cap = sizeCap(s);
+    const rates = refineRates(s);
+    let size = `${formatNumber(d.size)} cubic paces, room to grow to ${formatNumber(cap)}${d.size >= cap - 0.5 ? (cap >= (SIZE.capByStage[s.stage] ?? 0) ? ' (as big as it gets until it evolves)' : ' (dig the lair bigger)') : ''}.`;
+    if (rates.copper > 0) size += ` It eats ${formatNumber(rates.copper * 3600)} copper an hour and sheds silver${rates.silver > 0 ? `, and ${formatNumber(rates.silver * 3600)} silver an hour into gold` : ''}. Hoard worth ${formatNumber(hoardValue(s))} copper.`;
+    else if (s.stage > 0) size += ` Once it's fed and content, it grows and turns copper into silver.`;
+    setText(this.sizeEl, size);
 
     const r = d.request;
     this.req.hidden = !r;

@@ -3,21 +3,27 @@
 // src/render/manifest.ts if it needs a new sprite).
 
 export type SpriteId = string;
-export type ResourceId = 'copper' | 'wood' | 'stone' | 'ore' | 'bars' | 'steel' | 'meat';
+export type ResourceId = 'copper' | 'silver' | 'gold' | 'wood' | 'stone' | 'ore' | 'bars' | 'steel' | 'meat';
 
 export interface ResourceDef {
   id: ResourceId;
   name: string;
-  /** The room that holds it. Goods sharing a room split its space evenly. */
+  /** The room that holds it. Goods sharing a store split its space evenly; the hoard room is one shared pile. */
   store: string;
   /** How many fit in one cubic pace. */
   perPace: number;
+  /** Worth in copper, for precious metals. They're never spent, only hoarded. */
+  value?: number;
   /** Research that uncovers it. A new game knows only copper, wood and stone. */
   requires?: string;
+  /** Dragon stage that uncovers it (the dragon makes silver, then gold). */
+  minStage?: number;
 }
 
 export const RESOURCES: ResourceDef[] = [
-  { id: 'copper', name: 'Copper', store: 'hoard', perPace: 200 },
+  { id: 'copper', name: 'Copper', store: 'hoard', perPace: 200, value: 1 },
+  { id: 'silver', name: 'Silver', store: 'hoard', perPace: 400, value: 10, minStage: 1 },
+  { id: 'gold', name: 'Gold', store: 'hoard', perPace: 800, value: 100, minStage: 2 },
   { id: 'wood', name: 'Mushroom wood', store: 'woodpile', perPace: 40 },
   { id: 'stone', name: 'Stone', store: 'stoneyard', perPace: 50 },
   { id: 'ore', name: 'Iron ore', store: 'metals', perPace: 40, requires: 'ore-sniffing' },
@@ -64,7 +70,7 @@ export const JOBS: JobDef[] = [
     id: 'scavenger',
     name: 'Scavenger',
     description: 'Picks copper out of the tunnels.',
-    produces: { resource: 'copper', rate: 1 },
+    produces: { resource: 'copper', rate: 0.5 },
     sprite: 'kobold-scavenger',
     motion: { kind: 'haul', lane: 0, speed: 18 },
     firstText: 'A kobold wandered in, drawn by the glitter. {chief} handed them a sack before they could leave.',
@@ -287,76 +293,16 @@ export interface RecipeDef {
 
 export const RECIPES: RecipeDef[] = [
   { id: 'stone-to-ore', name: 'Stone into iron ore', from: 'stone', ratio: 8, to: 'ore' },
-  { id: 'copper-to-ore', name: 'Copper into iron ore', from: 'copper', ratio: 40, to: 'ore' },
   { id: 'wood-to-meat', name: 'Mushroom jerky (the dragon eats it, grudgingly)', from: 'wood', ratio: 6, to: 'meat' },
-  { id: 'copper-to-stone', name: 'Copper into stone', from: 'copper', ratio: 5, to: 'stone' },
   { id: 'wood-to-stone', name: 'Petrified mushroom', from: 'wood', ratio: 3, to: 'stone' },
-];
-
-export type UpgradeEffect =
-  /** A display in the hoard room: adds appeal, which draws kobolds. */
-  | { kind: 'appeal'; points: number };
-
-export interface UpgradeDef {
-  id: string;
-  name: string;
-  description: string;
-  cost: Partial<Record<ResourceId, number>>;
-  /** Shown only after these are met. */
-  requires: { job?: string; count?: number; stage?: number };
-  effect: UpgradeEffect;
-}
-
-export const UPGRADES: UpgradeDef[] = [
-  // hoard room displays: they draw kobolds
-  {
-    id: 'mural',
-    name: 'A mural of the Chief',
-    description: 'Mostly flattering. Appeal +5.',
-    cost: { copper: 300 },
-    requires: {},
-    effect: { kind: 'appeal', points: 5 },
-  },
-  {
-    id: 'mushroom-garden',
-    name: 'Glowing mushroom garden',
-    description: 'Soft light for the hoard to sparkle in. Appeal +8.',
-    cost: { copper: 600, wood: 150 },
-    requires: { job: 'woodcutter', count: 1 },
-    effect: { kind: 'appeal', points: 8 },
-  },
-  {
-    id: 'egg-statue',
-    name: 'Copper statue of the egg',
-    description: 'Life size. The real one is unimpressed. Appeal +12.',
-    cost: { copper: 3_000, stone: 200 },
-    requires: { stage: 1 },
-    effect: { kind: 'appeal', points: 12 },
-  },
-  {
-    id: 'trophy-wall',
-    name: 'Wall of trophies',
-    description: 'Mostly lanterns. Appeal +20.',
-    cost: { copper: 25_000, wood: 600, stone: 600 },
-    requires: { stage: 1 },
-    effect: { kind: 'appeal', points: 20 },
-  },
-  {
-    id: 'mosaic',
-    name: 'Grand coin mosaic',
-    description: 'A picture of the dragon, made of the dragon’s own coins. Appeal +40.',
-    cost: { copper: 400_000, stone: 3_000 },
-    requires: { stage: 2 },
-    effect: { kind: 'appeal', points: 40 },
-  },
 ];
 
 export interface DragonStageDef {
   id: string;
   name: string;
   /**
-   * Lifetime copper buried needed to reach this stage. Only hatching works
-   * this way; later stages come from molting (see MOLTS in dragon.ts).
+   * Hoard value needed to reach this stage. Only hatching works this way;
+   * later stages come from evolving (see MOLTS in dragon.ts).
    */
   threshold?: number;
   sprite: SpriteId;
@@ -381,7 +327,7 @@ export const DRAGON_STAGES: DragonStageDef[] = [
   {
     id: 'wyrmling',
     name: 'Wyrmling',
-    threshold: 1_000,
+    threshold: 1_500,
     sprite: 'wyrmling',
     flavor: 'The egg cracks! A wyrmling curls up on the copper. Word gets around the tunnels.',
     incomeMult: 1,
@@ -410,14 +356,16 @@ export const HOARD_SIZE_THRESHOLDS = [0, 50, 1_000, 20_000, 500_000, 10_000_000]
 
 /**
  * Kobolds come to the hoard on their own, drawn by its appeal: the dragon,
- * the hoard room's size, its displays and the oddities on show. Copper held
- * doesn't count. The den's beds set how many can stay.
+ * the hoard's worth, art on display and the oddities on show. The den's beds
+ * set how many can stay.
  */
 export const ATTRACTION = {
-  /** Appeal per 50 cubic paces of hoard room. */
-  perHoardPaces: 1,
+  /** Appeal per tenfold of hoard value (1,000 copper is 3 × this). */
+  perValueDecade: 4,
   /** Appeal per kind of oddity found. */
   perOddity: 2,
+  /** Appeal per 50 cubic paces of dragon. */
+  perDragonPaces: 1 / 50,
   /** Seconds between arrivals = this / appeal. */
   secondsPerAppeal: 300,
   minSeconds: 3,

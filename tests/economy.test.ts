@@ -7,7 +7,6 @@ import {
   arrive,
   assign,
   beds,
-  buyUpgrade,
   capacity,
   digBlocked,
   flows,
@@ -102,7 +101,7 @@ describe('tick', () => {
     s.crews = { scavenger: { n: 3, exp: 0 }, woodcutter: { n: 2, exp: 0 }, quarrier: { n: 4, exp: 0 } };
     tick(s, 10);
     // experience grows a hair over 10 seconds, so allow a little
-    expect(s.res.copper).toBeCloseTo((3 + CONFIG.chiefRate) * 10, 0);
+    expect(s.res.copper).toBeCloseTo((3 * 0.5 + CONFIG.chiefRate) * 10, 0);
     expect(s.res.wood).toBeCloseTo(2 * 0.5 * 10, 0);
     expect(s.res.stone).toBeCloseTo(4 * 0.5 * 10, 0);
     expect(s.totalEarned).toBe(s.res.copper);
@@ -286,21 +285,21 @@ describe('kobolds coming to the hoard', () => {
     expect(t.idle).toBe(beds(t));
   });
 
-  it('copper held does not draw kobolds, but the dragon, the hoard room and displays do', () => {
+  it('the dragon, the hoard worth (each tenfold the same), oddities and art draw kobolds', () => {
     const s = game();
     const base = appeal(s);
-    s.res.copper = 1e9;
-    expect(appeal(s)).toBe(base);
-    s.stage = 2;
-    expect(appeal(s)).toBe(base - DRAGON_STAGES[0].appeal + DRAGON_STAGES[2].appeal);
-    s.rooms.hoard.volume += 100;
-    expect(appeal(s)).toBeCloseTo(base - DRAGON_STAGES[0].appeal + DRAGON_STAGES[2].appeal + 2 * ATTRACTION.perHoardPaces);
+    s.res.copper = 999;
+    expect(appeal(s)).toBeCloseTo(base + 3 * ATTRACTION.perValueDecade);
+    s.res.copper = 9_999;
+    expect(appeal(s)).toBeCloseTo(base + 4 * ATTRACTION.perValueDecade);
     const before = appeal(s);
-    s.res.copper = 1e9;
-    expect(buyUpgrade(s, 'mural')).toBe(true);
-    expect(appeal(s)).toBeCloseTo(before + 5);
+    s.stage = 2;
+    expect(appeal(s)).toBeCloseTo(before - DRAGON_STAGES[0].appeal + DRAGON_STAGES[2].appeal);
+    const staged = appeal(s);
     s.oddities.kogoat = { count: 1, firstAt: T0 };
-    expect(appeal(s)).toBeCloseTo(before + 5 + ATTRACTION.perOddity);
+    expect(appeal(s)).toBeCloseTo(staged + ATTRACTION.perOddity);
+    s.art.pieces.push({ id: 1, title: 'a test', by: '', material: 'carving', appeal: 6, t: T0 });
+    expect(appeal(s)).toBeCloseTo(staged + ATTRACTION.perOddity + 6);
   });
 
   it('Voice draws kobolds faster', () => {
@@ -308,18 +307,6 @@ describe('kobolds coming to the hoard', () => {
     const slow = arrivalSeconds(s);
     s.chief!.voice = 3;
     expect(arrivalSeconds(s)).toBeCloseTo(slow / 1.3);
-  });
-});
-
-describe('upgrades', () => {
-  it('are hoard room displays only: tools come from the forge now', () => {
-    const s = game();
-    s.res.copper = 299;
-    expect(buyUpgrade(s, 'mural')).toBe(false);
-    s.res.copper = 300;
-    expect(buyUpgrade(s, 'mural')).toBe(true);
-    expect(s.res.copper).toBe(0);
-    expect(buyUpgrade(s, 'mural')).toBe(false);
   });
 });
 

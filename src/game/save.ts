@@ -203,6 +203,7 @@ function normalizeDragon(v: any): DragonState {
     nextRequestAt: num(v.nextRequestAt, d.nextRequestAt),
     fed,
     traits: strList(v.traits),
+    size: num(v.size, 0),
   };
 }
 
@@ -233,7 +234,6 @@ export function normalize(raw: unknown, now: number): GameState {
     newcomerJob: typeof r.newcomerJob === 'string' ? r.newcomerJob : base.newcomerJob,
     rooms: normalizeRooms(r.rooms, base.rooms),
     digging: r.digging === null ? null : typeof r.digging === 'string' ? r.digging : base.digging,
-    upgrades: strList(r.upgrades),
     stage: Math.floor(num(r.stage, 0)),
     lastTick: num(r.lastTick, now),
     createdAt: num(r.createdAt, now),
@@ -255,6 +255,20 @@ export function normalize(raw: unknown, now: number): GameState {
     herdSettle: num(r.herdSettle, 0),
     recipe: typeof r.recipe === 'string' ? r.recipe : base.recipe,
     dragon: normalizeDragon(r.dragon),
+    art: {
+      pieces: Array.isArray(r.art?.pieces)
+        ? r.art.pieces
+            .filter((p: any) => p && typeof p.title === 'string')
+            .map((p: any) => ({ id: Math.floor(num(p.id, 0)), title: p.title, by: typeof p.by === 'string' ? p.by : '', material: String(p.material ?? ''), appeal: num(p.appeal, 0), t: num(p.t, now) }))
+        : [],
+      nextId: Math.max(1, Math.floor(num(r.art?.nextId, 1))),
+    },
+    chiefMarks: {
+      favor: Math.floor(num(r.chiefMarks?.favor, 0)),
+      oddities: Math.floor(num(r.chiefMarks?.oddities, 0)),
+      events: strList(r.chiefMarks?.events),
+      pending: Math.floor(num(r.chiefMarks?.pending, 0)),
+    },
     forge: { slots: normalizeSlots(r.forge?.slots) },
     tools: normalizeTools(r.tools),
     seed: Number.isInteger(r.seed) ? r.seed : base.seed,

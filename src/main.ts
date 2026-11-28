@@ -1,6 +1,6 @@
 import './style.css';
 import type { Chief } from './game/chief';
-import { CONFIG, DRAGON_STAGES, JOBS, RESOURCES, ROOMS, UPGRADES } from './game/data';
+import { CONFIG, DRAGON_STAGES, JOBS, RESOURCES, ROOMS } from './game/data';
 import { advanceTo, beds, offlineCap, population, roomCapacity, stageFor, workers } from './game/economy';
 import { happen, happeningChance } from './game/happenings';
 import { browserStore, exportSave, importSave, load, write } from './game/save';
@@ -15,6 +15,7 @@ import { OdditiesView } from './ui/oddities-view';
 import { DragonView } from './ui/dragon-view';
 import { ResearchView } from './ui/research-view';
 import { ForgeView } from './ui/forge-view';
+import { ArtView } from './ui/art-view';
 import { NamedView } from './ui/named-view';
 import { animalName } from './game/dragon';
 import { fullName } from './game/kobolds';
@@ -49,9 +50,6 @@ const hud = new Hud(getState, (e) => {
   else if (e.kind === 'dig' && e.room) {
     const room = ROOMS.find((r) => r.id === e.room);
     if (room) tell(`{chief} set the diggers to work on the ${room.name.toLowerCase()}.`);
-  } else if (e.kind === 'upgrade') {
-    const u = UPGRADES.find((x) => x.id === e.id);
-    if (u) tell(u.effect.kind === 'appeal' ? `${u.name} now stands in the hoard room.` : `{chief} ordered ${u.name.toLowerCase()} for the warren.`);
   } else if (e.kind === 'herd') tell(`{chief} had the pasture switched over to ${animalName(e.animal)}. The new herd will take half an hour to settle.`);
   refresh();
 });
@@ -72,10 +70,20 @@ const forgeView = new ForgeView(getState, () => {
 const namedView = new NamedView(getState, (k, what) => {
   if (what === 'lieutenant') tell(`{chief} made ${fullName(k)} a lieutenant.`);
   else if (what === 'stand-down') tell(`${fullName(k)} stepped down as lieutenant.`);
+  else if (what === 'artisan') tell(`${fullName(k)} put down their tools to make art for the hoard room.`);
   refresh();
   save();
 });
-const chiefPanel = new ChiefPanel(getState, (chief) => foundChief(chief));
+const chiefPanel = new ChiefPanel(
+  getState,
+  (chief) => foundChief(chief),
+  (stat) => {
+    tell(`{chief} grew in ${stat}.`);
+    refresh();
+    save();
+  },
+);
+const artView = new ArtView(getState);
 const chronicle = new ChronicleView(getState);
 const oddities = new OdditiesView(getState);
 const renderer = new Renderer(document.querySelector('#scene') as HTMLCanvasElement, getState);
@@ -85,6 +93,7 @@ function updatePanels() {
   dragonView.update();
   researchView.update();
   forgeView.update();
+  artView.update(Date.now());
   namedView.update(Date.now());
 }
 

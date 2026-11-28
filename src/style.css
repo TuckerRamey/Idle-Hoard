@@ -130,3 +130,6 @@ select { max-width: 100%; font: inherit; color: var(--text); background: var(--b
 .bar[hidden] { display: none; }
 .room-group { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 8px 0 2px; border: 0; }
 .tools:empty { display: none; }
+.chief-grow { margin-top: 8px; }
+.grow-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+.named-controls .art[hidden] { display: none; }

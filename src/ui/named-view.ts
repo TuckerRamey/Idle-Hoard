@@ -1,5 +1,6 @@
 // Named kobolds: each one's card, with their job, likes, traits, gifts and story.
 
+import { ART, ARTISAN, artOpen, canBecomeArtisan, makeArtisan } from '../game/art';
 import { IDLE, JOBS } from '../game/data';
 import { jobOpen } from '../game/economy';
 import {
@@ -19,7 +20,7 @@ import { timeAgo } from './chronicle';
 import { $, setDisabled, setText } from './dom';
 import { syncOptions } from './hud';
 
-const jobName = (id: string) => (id === IDLE ? 'Idle' : (JOBS.find((j) => j.id === id)?.name ?? id));
+const jobName = (id: string) => (id === IDLE ? 'Idle' : id === ARTISAN ? 'Artisan' : (JOBS.find((j) => j.id === id)?.name ?? id));
 
 export class NamedView {
   private section = $('#named-section');
@@ -29,7 +30,7 @@ export class NamedView {
 
   constructor(
     private getState: () => GameState,
-    private onChange: (k: NamedKobold, what: 'job' | 'lieutenant' | 'stand-down') => void,
+    private onChange: (k: NamedKobold, what: 'job' | 'lieutenant' | 'stand-down' | 'artisan') => void,
   ) {}
 
   update(now: number) {
@@ -39,7 +40,7 @@ export class NamedView {
     setText(this.summary, `${s.named.length} named · ${lieutenants(s).length} of ${lieutenantSlots(s)} lieutenants`);
     const key =
       s.named.map((k) => `${k.id}:${k.job}:${k.lieutenant}:${k.history.length}:${k.gifts.length}:${k.traits.length}`).join('|') +
-      `|${lieutenantSlots(s)}|${Math.floor(now / 60000)}|${JOBS.filter((j) => jobOpen(s, j)).length}`;
+      `|${lieutenantSlots(s)}|${Math.floor(now / 60000)}|${JOBS.filter((j) => jobOpen(s, j)).length}|${artOpen(s)}`;
     if (key === this.key) return;
     this.key = key;
     const open = this.list.querySelectorAll('details[open]');
@@ -50,7 +51,7 @@ export class NamedView {
   private card(s: GameState, k: NamedKobold, now: number, isOpen: boolean): HTMLLIElement {
     const li = document.createElement('li');
     li.className = 'named';
-    li.innerHTML = `<details><summary><b></b> <span class="desc job"></span></summary><div class="named-body"><div class="desc likes"></div><div class="desc traits"></div><div class="named-controls"><label class="desc">Job <select></select></label><button type="button" class="lt"></button></div><div class="desc lt-note"></div><ul class="history"></ul></div></details>`;
+    li.innerHTML = `<details><summary><b></b> <span class="desc job"></span></summary><div class="named-body"><div class="desc likes"></div><div class="desc traits"></div><div class="named-controls"><label class="desc">Job <select></select></label><button type="button" class="lt"></button><button type="button" class="art"></button></div><div class="desc lt-note"></div><ul class="history"></ul></div></details>`;
     const det = li.querySelector('details')!;
     det.dataset.id = String(k.id);
     det.open = isOpen;
@@ -60,7 +61,7 @@ export class NamedView {
     const extras = [...k.traits, ...k.gifts.map((g) => `Gift: ${giftDef(g)?.name ?? g}`)];
     li.querySelector('.traits')!.textContent = extras.join(' · ');
     const sel = li.querySelector('select')!;
-    syncOptions(sel, [[IDLE, 'Idle'], ...JOBS.filter((j) => jobOpen(s, j)).map((j) => [j.id, j.name] as [string, string])], k.job);
+    syncOptions(sel, [[IDLE, 'Idle'], ...JOBS.filter((j) => jobOpen(s, j)).map((j) => [j.id, j.name] as [string, string]), ...(k.job === ARTISAN ? [[ARTISAN, 'Artisan'] as [string, string]] : [])], k.job);
     sel.addEventListener('change', () => {
       if (moveNamed(this.getState(), k.id, sel.value)) this.onChange(k, 'job');
     });
@@ -85,6 +86,15 @@ export class NamedView {
             ? 'No lieutenant slots free. A bigger dragon brings more.'
             : 'Ready to be a lieutenant.';
     }
+    const art = li.querySelector<HTMLButtonElement>('.art')!;
+    art.hidden = !artOpen(s) || k.job === ARTISAN;
+    art.textContent = 'Make artisan';
+    setDisabled(art, !canBecomeArtisan(s, k));
+    art.title = canBecomeArtisan(s, k) ? 'Leave their job to make art for the hoard room' : `Needs ${ART.experiences} experiences`;
+    art.addEventListener('click', () => {
+      if (makeArtisan(this.getState(), k.id, Date.now())) this.onChange(k, 'artisan');
+    });
+    if (k.job === ARTISAN) btn.hidden = true;
     const hist = li.querySelector('.history')!;
     for (const h of [...k.history].reverse()) {
       const item = document.createElement('li');

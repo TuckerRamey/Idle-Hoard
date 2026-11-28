@@ -32,7 +32,6 @@ describe('save round trip', () => {
     s.idle = 2;
     s.rooms.den = { volume: 123.5 };
     s.digging = null;
-    s.upgrades.push('mural');
     s.settings.motion = 'low';
     expect(deserialize(serialize(s, T0), T0)).toEqual(s);
   });
@@ -52,7 +51,7 @@ describe('save round trip', () => {
   it('fills in defaults for missing fields (no migration needed for additions)', () => {
     const text = JSON.stringify({ version: SAVE_VERSION, savedAt: T0, state: { res: { copper: 5 } } });
     const s = deserialize(text, T0);
-    expect(s.res).toEqual({ copper: 5, wood: 0, stone: 0, ore: 0, bars: 0, steel: 0, meat: 0 });
+    expect(s.res).toEqual({ copper: 5, silver: 0, gold: 0, wood: 0, stone: 0, ore: 0, bars: 0, steel: 0, meat: 0 });
     expect(s.named).toEqual([]);
     expect(s.research.done).toEqual([]);
     expect(s.dragon.request).toBeNull();
@@ -65,7 +64,6 @@ describe('save round trip', () => {
     expect(s.chief).toBeNull();
     expect(s.chronicle).toEqual([]);
     expect(s.settings.motion).toBe('normal');
-    expect(s.upgrades).toEqual([]);
   });
 
   it('keeps unknown job and room ids instead of dropping them', () => {
@@ -121,7 +119,7 @@ describe('saves from version 1 (the job ladder)', () => {
     expect(s.totalEarned).toBe(0);
     expect(s.stage).toBe(0);
     expect(s.crews).toEqual({});
-    expect(s.upgrades).toEqual([]);
+    expect((s as any).upgrades).toBeUndefined();
     expect((s as any).workers).toBeUndefined();
     expect((s as any).skills).toBeUndefined();
   });

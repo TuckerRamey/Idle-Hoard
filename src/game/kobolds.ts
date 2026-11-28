@@ -25,6 +25,8 @@ export interface NamedKobold {
   /** Their story, oldest first. Each entry is one experience. */
   history: { t: number; text: string }[];
   lieutenant: boolean;
+  /** Seconds of work on their current piece, while an artisan. */
+  artWork?: number;
 }
 
 /** Experiences a named kobold needs before they can be made a lieutenant. */

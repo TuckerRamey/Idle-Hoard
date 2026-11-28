@@ -294,6 +294,15 @@ export const RESEARCH: ResearchDef[] = [
     doneText: 'A third anvil. Nobody in the warren can hear anything now.',
   },
   {
+    id: 'artistry',
+    name: 'Artistry',
+    description: 'Experienced named kobolds can become artisans and make art for the hoard room.',
+    cost: 8_000,
+    resources: { stone: 300 },
+    requires: ['bunk-beds'],
+    doneText: 'The researchers declared one of the mishap craters "art". It caught on.',
+  },
+  {
     id: 'deep-delving',
     name: 'Deep delving',
     description: 'Iron-braced galleries. Rooms can be dug past 4,000 cubic paces.',
