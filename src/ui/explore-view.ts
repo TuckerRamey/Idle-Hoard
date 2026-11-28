@@ -3,7 +3,10 @@
 // it is being worked.
 
 import {
+  areaCap,
   areaMix,
+  depth,
+  nothingNew,
   areaName,
   exploreBlocked,
   exploreKinds,
@@ -63,15 +66,19 @@ export class ExploreView {
       pct = Math.min(100, (have / cost) * 100);
       if (workers(s, 'scout') === 0) status = 'Put some kobolds on scouting to start.';
       else {
-        status = `${formatNumber(rate)} exploring / s. The next find is about ${formatDuration(Math.max(1, (cost - have) / Math.max(rate, 1e-9)))} away.`;
+        const eta = formatDuration(Math.max(1, (cost - have) / Math.max(rate, 1e-9)));
+        const none = nothingNew(s, kind);
+        status = none
+          ? `${formatNumber(rate)} exploring / s. ${none.replace(/\.$/, '')}, so the scouts push deeper into what they know: in about ${eta}, every one gives twice as much.`
+          : `${formatNumber(rate)} exploring / s. The next find is about ${eta} away.`;
         if (resourceOpen(s, 'meat')) status += s.res.meat < 1 ? ' Out of meat for provisions, so the scouts go at half pace.' : ` Provisions: about ${formatNumber(rate * EXPLORE.meatPerPoint * 3600)} meat an hour.`;
       }
     }
     setText(this.status, status);
     setBar(this.bar, pct / 100);
 
-    // found areas, by kind; rebuilt only when what's found or worked changes
-    const sections: { head: string; lines: { name: string; text: string }[] }[] = [];
+    // found areas, one folded line per kind with its total; rebuilt only when what's found or worked changes
+    const sections: { kind: AreaKind; head: string; total: string; lines: { name: string; text: string }[] }[] = [];
     for (const k of KINDS) {
       const f = fills(s, k.id);
       if (!f.fills.length) continue;
@@ -82,30 +89,47 @@ export class ExploreView {
         if (k.id === 'monsters') {
           const kills = (x.used * 3600) / (a.killWork ?? 1);
           const who = (a.monsters ?? []).map((m) => monsterDef(m)?.plural ?? m).join(', ');
-          return { name, text: `${formatNumber(kills)} of ${a.cap} kills an hour. ${who[0].toUpperCase()}${who.slice(1)}${a.meatMult ? ', bigger than usual' : ''}.` };
+          return { name, text: `${formatNumber(kills)} of ${formatNumber(areaCap(s, a))} kills an hour. ${who[0].toUpperCase()}${who.slice(1)}${a.meatMult ? ', bigger than usual' : ''}.` };
         }
         const mix = Object.entries(areaMix(s, a)) as [ResourceId, number][];
         const gives = mix.length > 1 ? ` Gives ${mix.map(([r, n]) => `${Math.round(n * 100)}% ${resourceDef(r).name.toLowerCase()}`).join(', ')}.` : '';
         const extra = a.extras?.amber ? ' Amber now and then.' : a.extras?.mana ? ' A little mana for the shamans.' : a.extras?.mithril ? ' Mithril now and then.' : a.extras?.adamant ? ' Adamant, very rarely.' : a.extras?.weapon ? ' Old weapons now and then.' : a.luck ? ' Rare finds three times as likely.' : '';
-        return { name, text: `${formatNumber(x.used)} of ${a.cap} ${unit(k.id)} / s.${gives}${extra}` };
+        return { name, text: `${formatNumber(x.used)} of ${formatNumber(areaCap(s, a))} ${unit(k.id)} / s.${gives}${extra}` };
       });
-      sections.push({ head: `${kindDef(k.id).name} · ${f.fills.filter((x) => x.area).length} found`, lines });
+      let total: string;
+      if (k.id === 'monsters') {
+        const kills = f.fills.reduce((t, x) => t + (x.area ? (x.used * 3600) / (x.area.killWork ?? 1) : 0), 0);
+        const cap = f.fills.reduce((t, x) => t + (x.area ? areaCap(s, x.area) : 0), 0);
+        total = `${formatNumber(kills)} of ${formatNumber(cap)} kills an hour`;
+      } else {
+        const used = f.fills.reduce((t, x) => t + x.used, 0);
+        const cap = f.fills.reduce((t, x) => t + x.cap, 0);
+        total = `${formatNumber(used)} of ${formatNumber(cap)} ${unit(k.id)} / s`;
+      }
+      sections.push({ kind: k.id, head: `${kindDef(k.id).name} · ${f.fills.filter((x) => x.area).length} found${depth(s, k.id) ? `, ${depth(s, k.id)} deeper` : ''}`, total, lines });
     }
     const key = JSON.stringify(sections);
     if (key === this.key) return;
     this.key = key;
+    // keep whichever kinds were opened
+    const open = new Set([...this.list.querySelectorAll<HTMLDetailsElement>('details[open]')].map((d) => d.dataset.kind));
     const items: HTMLElement[] = [];
     for (const sec of sections) {
-      const head = document.createElement('li');
-      head.className = 'room-group';
-      head.textContent = sec.head;
-      items.push(head);
+      const li = row(`<details class="area-kind"><summary><b></b> <span class="sub"></span></summary><ul class="list area-list"></ul></details>`);
+      li.classList.add('named');
+      const det = li.querySelector('details')!;
+      det.dataset.kind = sec.kind;
+      det.open = open.has(sec.kind);
+      li.querySelector('summary b')!.textContent = sec.head;
+      li.querySelector('summary .sub')!.textContent = sec.total;
+      const inner = li.querySelector('ul')!;
       for (const l of sec.lines) {
-        const li = row(`<div class="row-main"><b></b><div class="sub"></div></div>`);
-        li.querySelector('b')!.textContent = l.name;
-        li.querySelector('.sub')!.textContent = l.text;
-        items.push(li);
+        const a = row(`<div class="row-main"><b></b><div class="sub"></div></div>`);
+        a.querySelector('b')!.textContent = l.name;
+        a.querySelector('.sub')!.textContent = l.text;
+        inner.append(a);
       }
+      items.push(li);
     }
     this.list.replaceChildren(...items);
   }

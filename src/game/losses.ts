@@ -18,7 +18,7 @@ export const LOSSES = {
   /** ...and then each one leaves after about this long, on average. */
   wanderSeconds: 2 * 86_400,
   /** Working hours for each crowd loss, on average, on each dangerous job. */
-  hoursPerLoss: { scout: 10, hunter: 100, miner: 400 } as Record<string, number>,
+  hoursPerLoss: { scout: 4, hunter: 40, miner: 150 } as Record<string, number>,
   /** A named kobold who'd have been lost is hurt instead, and rests this long. */
   restSeconds: 4 * 3600,
 };

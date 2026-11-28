@@ -117,6 +117,7 @@ export class Hud {
   private stageName = $('#stage-name');
   private stageBar = $<HTMLDivElement>('#stage-bar > div');
   private stageText = $('#stage-text');
+  private digStall = $('#dig-stall');
   private popCount = $('#pop-count');
   private popText = $('#pop-text');
   private step = 1;
@@ -294,7 +295,7 @@ export class Hud {
     if (gemCount > 0) metals.push(`${formatNumber(gemCount)} gem${gemCount === 1 ? '' : 's'}`);
     setText(this.worthUnit, metals.length > 1 ? 'worth' : 'copper');
     setText(this.metals, metals.length > 1 ? metals.join(' · ') : '');
-    setText(this.rate, `${formatNumber(worthRate(s))} / s`);
+    setText(this.rate, `+${formatNumber(worthRate(s))} / s`);
 
     setText(this.stageName, DRAGON_STAGES[s.stage].name);
     const hatchAt = DRAGON_STAGES[1].threshold ?? 0;
@@ -422,7 +423,16 @@ export class Hud {
     if (dc.n + dn > 0)
       status = `${dc.n} digger${dc.n === 1 ? '' : 's'}${dn ? ` + ${dn} named` : ''}. ${formatNumber(perKobold(s, digger))} digging / s each.`;
     if (dn > 0) status += ' Named diggers each dig a room of their own: pick it on their card in the Leadership tab.';
+    // one shortage stalling several rooms is said once up here, not in every room
+    const stalls = new Map<string, number>();
+    for (const def of ROOMS) {
+      if (!roomOpen(s, def) || !(diggersIn(s, def.id) > 0 || namedDiggersIn(s, def.id).length > 0)) continue;
+      const b = digBlocked(s, def.id);
+      if (b && b !== 'full') stalls.set(b, (stalls.get(b) ?? 0) + 1);
+    }
+    const shared = new Set([...stalls].filter(([, n]) => n > 1).map(([r]) => r));
     setText(this.digStatus, status);
+    setText(this.digStall, [...shared].map((r) => `Digging is stalled in ${stalls.get(r)} rooms: out of ${resName(r as ResourceId)}.`).join(' '));
     const scav = scavengerDig(s);
     const shown = new Set<string>();
     for (const def of ROOMS) {
@@ -445,7 +455,11 @@ export class Hud {
 
       const n = diggersIn(s, def.id);
       const stars = namedDiggersIn(s, def.id).map((k) => k.name);
-      setText(row.count, n > 0 || stars.length ? n > 0 ? `×${n} digging${stars.length ? ` + ${stars.join(', ')}` : ''}` : `${stars.join(', ')} digging` : '');
+      // a count, not every name: a busy room can have most of the named diggers on it
+      const named = stars.length ? `${stars.length} named` : '';
+      setText(row.count, n > 0 || stars.length ? n > 0 ? `×${n} digging${named ? ` + ${named}` : ''}` : `${named} digging` : '');
+      const who = stars.length ? `Named diggers here: ${stars.join(', ')}` : '';
+      if (row.count.title !== who) row.count.title = who;
       setDisabled(row.down, n < 1);
       setDisabled(row.up, s.idle < 1);
       const label = this.step === Infinity ? 'all' : String(this.step);
@@ -465,6 +479,7 @@ export class Hud {
       let dig = '';
       if (digging) {
         if (blocked === 'full') dig = `As big as it can be dug for now.`;
+        else if (blocked && shared.has(blocked)) dig = `Stalled: out of ${resName(blocked)}.`;
         else if (blocked) dig = `Stalled: out of ${resName(blocked)}.${resourceOpen(s, blocked) ? '' : ' It has to be researched first.'}${uses}`;
         else if (paces <= 0) dig = `Waiting for diggers.${uses}${later}`;
         else dig = `Growing by about ${formatNumber(paces * 3600)} cubic paces an hour${def.id === 'hoard' && scav > 0 ? ', with the scavengers helping while it is full' : ''}.${turnsUp}${uses}${later}`;

@@ -441,6 +441,8 @@ export const ATTRACTION = {
   /** Seconds between arrivals = this / appeal. */
   secondsPerAppeal: 300,
   minSeconds: 3,
+  /** The more kobolds already live here, the slower more come: at this many, half as fast; at twice it, a fifth. */
+  crowdScale: 50,
 };
 
 export const CONFIG = {

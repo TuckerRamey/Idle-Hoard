@@ -171,3 +171,15 @@ button.star[aria-pressed='true'], button.star[aria-pressed='true']:hover:not(:di
 .kit-slots { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 4px; }
 .kit-slots li { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .kit-slots button { font-size: 12px; }
+
+/* the dragon's long read-out folds behind one line */
+.dragon-more > summary { cursor: pointer; padding: 4px 0; }
+.dragon-more > summary.warn { color: var(--danger); }
+.dragon-more[open] > summary { margin-bottom: 2px; }
+.dragon-body { display: grid; gap: 2px; }
+.totals { flex-wrap: nowrap; align-items: flex-start; }
+.totals > div:first-child { flex: 1; min-width: 0; }
+.totals-right { flex: none; }
+.area-kind > summary { cursor: pointer; }
+.area-list { margin: 4px 0 0 14px; }
+.area-list li { padding: 6px 0; }
